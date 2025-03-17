@@ -19,6 +19,10 @@ I am not a UI designer, so the user experience and usability may not be optimal,
 My primary goal was to ensure the program runs as fast as possible and maintains high performance even when handling large datasets.
 Therefore, the program has been optimized to efficiently process and manage large amount of triples and records.
 
+![screenshot](documentation/screeshots/main.png)
+
+[Manual](documentation/manual.md)
+
 ## Features
 
 RDFGlance offers the following visualization capabilities for RDF data:
