@@ -1,0 +1,133 @@
+# Open Points
+
+* Show referenced object in place (ui collapsing area)
+* Load object from sparql endpoint
+    * load models from named graph
+    * show and select named graph
+* Load labels from types and props (show iris as tool tip)
+* Copy iri to clip board
+* Show property arrays
+* Show formated boolean, number and language string
+
+# Open Points Visual Graph
+
+* show nodes
+   * V frame
+   * rect at position
+   * V click event
+   * V marked (outline)
+   * V drag
+   * V double click
+   * pop down menu
+      * dismiss
+      * show relations
+   * V show relations
+   * set up layout factors
+* V open nodes (per context)
+* V close nodes
+* V expand all visible nodes
+* show detail side bar with functionality
+  * hide node
+  * close all nodes of this type
+  * close all other
+  * expand
+  * expand relation
+  * show that hidden
+  * select label attribute 
+* relation
+  * hide relation
+  * hide all relations of this type
+* highlight all edges from and to selected
+* safe visible and cache state
+* show cache statistics
+* purge cache
+* show all in cache
+* load all into cache
+* load all avaiable data
+* sparql construct
+
+# Model Support
+
+* Load all found ontologies
+* Load models with classes, properties
+
+
+#######################
+ToDo
+- zoom
+- V choose properties for instance display
+- V select references to expand in detail property view
+- V filter out unwanted languages during loading (optional, configuration)
+- V sortierung für typen
+- label für typen
+- V sortierung für instanzen
+- V filter für instanzen
+- schnelles laden merke letzte iri
+- auswahl der properties für instanz table
+- V sortierung der properties für table
+- abschneiden der properties wenn mehrere zeilen
+- label management (lade labels aus iri, lade ontology)
+- V show iri short
+- handle many types (performance see yago)
+- handle instances without type (special empty type?)
+- graph actions
+    - hide disconnected
+    - hide not direct connected
+- V relations - hide/show relations
+- expand (partial layout)
+- layout (animated layout)
+- V change layout parmeters (relation force, node force)
+- V expand all references of type
+- search connection between nodes (open and search)
+- visual graph 
+   - V hide labels
+   - show label/iri on hoover
+
+# Own Grid
+- V own scroolbar
+- resesible columns
+- V columns with action
+- V cells with overflow
+- move with mouse
+- move columns
+- V cell with more info button
+- V clip text (constant hight)
+- V show cliped text [...]
+- show index of cell
+(DB Browser) 
+- V show preview for cell
+- search for row (search row)
+- paging/navigaition
+- V zeige wie viewl wurde ausgefilter
+- V filter verwerfen
+- V zeige inhalt (on click)
+- zeige referenzen (on click - mit navigation)
+- sortiere nach referenzen
+- vertical scroll
+- V scroll with mouse wheel
+- unhide columns
+
+
+# Functionality
+
+Table
+- export, import (csv, json, rdf)
+
+# First Release
+- (disabled) loading per sparql endpoint (connect to known databases)
+- V layout animation (check box)
+- prefix manager
+   - automatically create prefixes
+- show prefixes list (easy to open)
+- graph view (show colors for references)
+- visual-graph show references with labels
+  - node:context hide referenced
+- clean up data (remove references to empty objects - no subjects)
+- V handle objects without class
+- handle rdf lists
+- V handle blank nodes
+- V move graph using mouse drag
+- V resize table cells
+- V compute layout ausschalten wenn zu wenig bewegung
+- V control-F focus on search
+- limit count of shown nodes (show warning)
