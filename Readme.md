@@ -8,7 +8,7 @@ RDFGlance is an open-source application designed to provide a visual representat
 - No HTML
 - No Server needed
 - Programmed by real programmer with real programming language
-- The self-contained executable is only 17MB!
+- The self-contained executable is only 8MB!
 - Zero runtime needed
 
 ## Description
@@ -47,6 +47,7 @@ Some features of RDF are not supported very well. This includes:
 - String with Language (the language information is removed)
 
 I hope to improve it in later versions.
+You may use github issue system to report bug and feature wishes.
 
 ## Compilation
 
@@ -54,8 +55,8 @@ To compile RDFGlance, you need to have Rust installed on your system. Follow the
 
 1. Clone the repository:
   ```sh
-  git clone https://github.com/yourusername/RDFGlance.git
-  cd RDFGlance
+  git clone https://github.com/xdobry/rdfglance.git
+  cd rdfglance
   ```
 
 2. Build the application using Cargo:
@@ -69,10 +70,10 @@ To compile RDFGlance, you need to have Rust installed on your system. Follow the
 
 After compiling the application, you can run it using the following command:
 ```sh
-./target/release/RDFGlance
+./target/release/rdf-glance
 ```
 
-For more information on how to use RDFGlance, refer to the documentation provided in the repository.
+For more information on how to use RDFGlance, refer to the documentation provided in the [repository](documentation/manual.md).
 
 ## Known Problems
 
