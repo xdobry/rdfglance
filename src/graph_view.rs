@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing, layout, nobject::IriIndex, uitools::popup_at, ExpandType, NodeAction, VisualRdfApp,
+    drawing, layout, nobject::IriIndex, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
 };
 use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
 use egui::Slider;
@@ -24,7 +24,7 @@ impl VisualRdfApp {
                     &self.config,
                 );
                 if max_move < 0.8 && !self.layout_data.force_compute_layout {
-                    println!("turn off layout");
+                    // println!("turn off layout");
                     self.layout_data.compute_layout = false;
                 } 
                 if self.layout_data.compute_layout || self.layout_data.force_compute_layout {
@@ -153,6 +153,9 @@ impl VisualRdfApp {
                                         }
                                     }
                                 }
+                                ui.add(ColorBox::new(
+                                    self.color_cache.get_predicate_color(*reference_index),
+                                ));
                                 if ui.button("➕").clicked() {
                                     self.layout_data.compute_layout = true;
                                     let mut nodes_to_add: Vec<IriIndex> = Vec::new();
@@ -240,6 +243,9 @@ impl VisualRdfApp {
                                         }
                                     }
                                 }
+                                ui.add(ColorBox::new(
+                                    self.color_cache.get_predicate_color(*reference_index),
+                                ));
                                 if ui.button("➕").clicked() {
                                     self.layout_data.compute_layout = true;
                                     let mut nodes_to_add: Vec<IriIndex> = Vec::new();

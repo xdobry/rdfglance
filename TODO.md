@@ -85,7 +85,7 @@ ToDo
 
 # Own Grid
 - V own scroolbar
-- resesible columns
+- V resezible columns
 - V columns with action
 - V cells with overflow
 - move with mouse
@@ -101,11 +101,11 @@ ToDo
 - V zeige wie viewl wurde ausgefilter
 - V filter verwerfen
 - V zeige inhalt (on click)
-- zeige referenzen (on click - mit navigation)
-- sortiere nach referenzen
-- vertical scroll
+- V zeige referenzen (on click - mit navigation)
+- V sortiere nach referenzen
+- V vertical scroll
 - V scroll with mouse wheel
-- unhide columns
+- V unhide columns
 
 
 # Functionality
@@ -119,7 +119,7 @@ Table
 - prefix manager
    - automatically create prefixes
 - show prefixes list (easy to open)
-- graph view (show colors for references)
+- V graph view (show colors for references)
 - visual-graph show references with labels
   - node:context hide referenced
 - clean up data (remove references to empty objects - no subjects)
@@ -131,3 +131,17 @@ Table
 - V compute layout ausschalten wenn zu wenig bewegung
 - V control-F focus on search
 - limit count of shown nodes (show warning)
+
+Type, Predicate Label
+- node cache (aus dem rdfs bzw. owl)
+- aus dem iri
+- nachladen
+- show labels (tool tip full iri)
+- prefixed
+
+Prefix Manager - create automatically prefixes
+- show prefixes
+
+
+langString - config welche sprache soll ausgefiltert werden
+zeige nur eine Sprache

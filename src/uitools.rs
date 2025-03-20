@@ -1,6 +1,7 @@
 use eframe::egui::{
     vec2, Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui,
 };
+use egui::{Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(
     ui: &Ui,
@@ -44,4 +45,28 @@ fn set_menu_style(style: &mut Style) {
     style.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
     style.visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
     style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+}
+
+#[derive(Debug)]
+pub struct ColorBox {
+    color: Color32,
+}
+
+impl ColorBox {
+    pub fn new(color: Color32) -> Self {
+        ColorBox {
+            color
+        }
+    }
+}
+
+impl<'a> Widget for ColorBox {
+    fn ui(self, ui: &mut egui::Ui) -> Response {
+        let desired_size = Vec2::new(20.0, 15.0); // Box size
+        let (rect, response) = ui.allocate_at_least(desired_size, Sense::empty());
+
+        ui.painter().rect_filled(rect, 3.0, self.color);
+
+        response
+    }
 }
