@@ -3,7 +3,7 @@
 At this time the application may not be self-explained. So here some screenshot with additional informations.
 
 First you should load some rdf data. The application supports ttl (turtle) and rdf/xml formats.
-There is some sample rdf data in the [sample-rdf-data](../sample-rdf-data/programming_languages_filtered.ttl) directory
+There is some sample rdf data in the [sample-rdf-data](../sample-rdf-data/programming_languages.ttl) directory
 
 After it you may chosse 3 possilbe note tabs: Table, Visual Graph and Browser
 The good point is to start is table view.
