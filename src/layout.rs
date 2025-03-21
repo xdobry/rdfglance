@@ -15,12 +15,12 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &SortedVec, hidden_pr
     let repulsion_factor: f32 = config.repulsion_constant * ((500.0*500.0) / (visible_nodes.data.len() as f32));
     for obj_index in visible_nodes.data.iter() {
         let object = objects.get_node_by_index(*obj_index);
-        if let Some(object) = object {
+        if let Some((_,object)) = object {
             let mut f = Vec2::new(0.0, 0.0);
             for nobj_index in visible_nodes.data.iter() {
                 if *nobj_index != *obj_index {
                     let nobject = objects.get_node_by_index(*nobj_index);
-                    if let Some(nobject) = nobject {
+                    if let Some((_,nobject)) = nobject {
                         let direction = object.pos - nobject.pos;
                         let distance = direction.length();
                         if distance > 0.0 && distance < MAX_DISTANCE {
@@ -45,7 +45,7 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &SortedVec, hidden_pr
                         continue;
                     }
                     let nobject = objects.get_node_by_index(*refiri);
-                    if let Some(nobject) = nobject {
+                    if let Some((_,nobject)) = nobject {
                         let direction = nobject.pos - object.pos;
                         let distance = direction.length();
                         if distance > 0.0 {
@@ -63,7 +63,7 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &SortedVec, hidden_pr
     }
     for obj_index in visible_nodes.data.iter() {
         let object = objects.get_node_by_index_mut(*obj_index);
-        if let Some(object) = object {
+        if let Some((_,object)) = object {
             let f = moves.get(&obj_index).unwrap();
             let len = f.length();
             if len > max_move {

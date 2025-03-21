@@ -4,9 +4,9 @@ use eframe::{
     egui::{self, Pos2},
     Storage,
 };
-use egui::Vec2;
+use egui::{Align, Layout, Vec2};
 use egui_extras::StripBuilder;
-use nobject::{IriIndex, NodeData};
+use nobject::{IriIndex, LangIndex, NodeData};
 use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
 use rfd::FileDialog;
@@ -45,6 +45,8 @@ enum DisplayType {
     Graph,
     Table,
     PlayGround,
+    Prefixes,
+    Configuration,
 }
 
 // Define the application structure
@@ -67,7 +69,6 @@ struct VisualRdfApp {
     persistent_data: PersistentData,
     cache_statistics: CacheStatistics,
     prefix_manager: PrefixManager,
-    config: config::Config,
     play: PlayData,
 }
 
@@ -120,6 +121,8 @@ struct LayoutData {
     hidden_predicates: SortedVec,
     compute_layout: bool,
     force_compute_layout: bool,
+    display_language: LangIndex,
+    language_sort: Vec<LangIndex>,
     zoom: f32,
     offset: Pos2,
 }
@@ -132,6 +135,12 @@ struct SortedVec {
 struct PersistentData {
     last_files: Vec<String>,
     last_endpoints: Vec<String>,
+    #[serde(default = "default_config_data")]
+    config_data: config::Config,
+}
+
+fn default_config_data() -> config::Config {
+    config::Config::default()
 }
 
 pub enum NodeAction {
@@ -236,12 +245,12 @@ impl VisualRdfApp {
             status_message: String::new(),
             node_data: NodeData::new(),
             cache_statistics: CacheStatistics::new(),
-            config: config::Config::default(),
             prefix_manager: PrefixManager::new(),
             system_message: SystemMessage::None,
             persistent_data: presistentdata.unwrap_or(PersistentData {
                 last_files: vec![],
                 last_endpoints: vec![],
+                config_data: config::Config::default(),
             }),
             color_cache: ColorCache {
                 type_colors: HashMap::new(),
@@ -260,6 +269,8 @@ impl VisualRdfApp {
                 visible_nodes: SortedVec::new(),
                 hidden_predicates: SortedVec::new(),
                 offset_drag_start: None,
+                display_language: 0,
+                language_sort: Vec::new(),
             },
             play: PlayData {
                 row_count: 100,
@@ -291,14 +302,14 @@ impl VisualRdfApp {
         let cached_object_index = self.node_data.get_node_index(&self.object_iri);
         if let Some(cached_object_index) = cached_object_index {
             let cached_object = self.node_data.get_node_by_index(cached_object_index);
-            if let Some(cached_object) = cached_object {
+            if let Some((_,cached_object)) = cached_object {
                 if !cached_object.has_subject {
                     let new_object = self
                         .rdfwrap
                         .load_object(&self.object_iri, &mut self.node_data);
                     if let Some(new_object) = new_object {
                         self.current_iri = Some(cached_object_index);
-                        self.node_data.put_node_replace(new_object);
+                        self.node_data.put_node_replace(&self.object_iri, new_object);
                     }
                 } else {
                     self.current_iri = Some(cached_object_index);
@@ -312,7 +323,7 @@ impl VisualRdfApp {
                 if self.node_data.len() == 0 {
                     new_object.pos = Pos2::new(0.0, 0.0);
                 }
-                self.current_iri = Some(self.node_data.put_node(new_object));
+                self.current_iri = Some(self.node_data.put_node(&self.object_iri,new_object));
             } else {
                 self.system_message =
                     SystemMessage::Info(format!("Object not found: {}", self.object_iri));
@@ -328,9 +339,9 @@ impl VisualRdfApp {
             }
         }
         let node = self.node_data.get_node_by_index_mut(index);
-        if let Some(node) = node {
+        if let Some((node_iri,node)) = node {
             self.current_iri = Some(index);
-            self.object_iri = node.iri.clone();
+            self.object_iri = node_iri.clone();
             if add_history {
                 self.nav_history.truncate(self.nav_pos + 1);
                 self.nav_history.push(self.current_iri.unwrap());
@@ -346,7 +357,7 @@ impl VisualRdfApp {
         } else {
             let new_object = self.rdfwrap.load_object(iri, &mut self.node_data);
             if let Some(new_object) = new_object {
-                self.node_data.put_node(new_object);
+                self.node_data.put_node(iri,new_object);
             } else {
                 return false;
             }
@@ -356,14 +367,14 @@ impl VisualRdfApp {
     fn load_object_by_index(&mut self, index: IriIndex) -> bool {
         self.layout_data.compute_layout = true;
         let node = self.node_data.get_node_by_index_mut(index);
-        if let Some(node) = node {
+        if let Some((node_iri,node)) = node {
             if node.has_subject {
                 self.layout_data.visible_nodes.add(index);
             } else {
-                let node_iri = node.iri.clone();
+                let node_iri = node_iri.clone();
                 let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
                 if let Some(new_object) = new_object {
-                    self.node_data.put_node_replace(new_object);
+                    self.node_data.put_node_replace(&node_iri,new_object);
                 }
             }
             return true;
@@ -380,7 +391,7 @@ impl VisualRdfApp {
     fn expand_node(&mut self, iri_index: IriIndex, expand_type: ExpandType) {
         let refs_to_expand = {
             let nnode = self.node_data.get_node_by_index(iri_index);
-            if let Some(nnode) = nnode {
+            if let Some((_,nnode)) = nnode {
                 let mut refs_to_expand = vec![];
                 match expand_type {
                     ExpandType::References | ExpandType::Both => {
@@ -410,7 +421,7 @@ impl VisualRdfApp {
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         for visible_index in &self.layout_data.visible_nodes.data {
-            if let Some(nnode) = self.node_data.get_node_by_index(*visible_index) {
+            if let Some((_,nnode)) = self.node_data.get_node_by_index(*visible_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     refs_to_expand.insert(*ref_iri);
                 }
@@ -427,7 +438,7 @@ impl VisualRdfApp {
     }
     fn show_all(&mut self) {
         for iri_index in 0..self.node_data.len() {
-            self.node_data.get_node_by_index(iri_index).map(|node| {
+            self.node_data.get_node_by_index(iri_index).map(|(_,node)| {
                 if node.has_subject {
                     self.layout_data.visible_nodes.add(iri_index);
                 }
@@ -435,7 +446,8 @@ impl VisualRdfApp {
         }
     }
     fn load_ttl(&mut self, file_name: &str) {
-        let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data);
+        let language_filter = self.persistent_data.config_data.language_filter();
+        let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter);
         match rdfttl {
             Err(err) => {
                 self.system_message = SystemMessage::Error(format!("File not found: {}", err));
@@ -452,7 +464,7 @@ impl VisualRdfApp {
                 {
                     self.persistent_data.last_files.push(file_name.to_string());
                 }
-                self.cache_statistics.update(&self.node_data);
+                self.update_data_indexes();
                 let rdfs_label_index = self.node_data.get_predicate_index(rdfs::LABEL.as_str());
                 self.color_cache
                     .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
@@ -462,6 +474,16 @@ impl VisualRdfApp {
     fn set_status_message(&mut self, message: &str) {
         self.status_message.clear();
         self.status_message.push_str(message);
+    }
+    fn update_data_indexes(&mut self) {
+        self.layout_data.language_sort.clear();
+        for (_lang,index) in self.node_data.indexers.language_indexer.iter() {
+            self.layout_data.language_sort.push(*index as LangIndex);
+        }
+        self.layout_data.language_sort.sort_by(|a,b| {
+            self.node_data.get_language(*a).cmp(&self.node_data.get_language(*b))
+        });
+        self.cache_statistics.update(&self.node_data);
     }
 }
 
@@ -521,11 +543,30 @@ impl eframe::App for VisualRdfApp {
                         });
                     }
                 });
+                let selected_language = self.node_data.get_language(self.layout_data.display_language);
+                if let Some(selected_language) = selected_language {
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        egui::ComboBox::from_label("Data language")
+                        .selected_text(selected_language)
+                        .show_ui(ui, |ui| {
+                            for language_index in self.layout_data.language_sort.iter() {
+                                let language_str = self.node_data.get_language(*language_index);
+                                if let Some(language_str) = language_str {
+                                    if ui.selectable_label(self.layout_data.display_language == *language_index, language_str).clicked() {
+                                        self.layout_data.display_language = *language_index;
+                                    }
+                                }
+                            }
+                        });
+                  });
+                }
             });
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.display_type, DisplayType::Table, "Table");
                 ui.selectable_value(&mut self.display_type, DisplayType::Graph, "Visual Graph");
                 ui.selectable_value(&mut self.display_type, DisplayType::Browse, "Browse");
+                ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, "Prefixes");
+                ui.selectable_value(&mut self.display_type, DisplayType::Configuration, "Settings");
                 /*
                 ui.selectable_value(
                     &mut self.display_type,
@@ -553,6 +594,8 @@ impl eframe::App for VisualRdfApp {
                                 &mut *self.rdfwrap
                             ),
                             DisplayType::PlayGround => self.show_play(&ctx, ui),
+                            DisplayType::Configuration => self.show_config(&ctx, ui),
+                            DisplayType::Prefixes => self.show_prefixes(&ctx, ui)
                         };
                     });
                     strip.cell(|ui| {

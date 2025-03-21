@@ -1,15 +1,17 @@
 use eframe::egui::Pos2;
+use oxrdf::vocab::xsd;
 use oxrdf::NamedNode;
 use oxrdf::{vocab::rdf, NamedNodeRef, Subject, Term, Triple};
 use oxttl::TurtleParser;
 use oxrdfxml::RdfXmlParser;
 use rand::Rng;
 
-use crate::nobject::{NObject, NodeData, PredicateReference};
+use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use std::{fs::File, io::Read};
 use std::io::BufReader;
 
 use anyhow::{Context, Result};
+use std::time::Instant;
 
 pub trait RDFAdapter {
     fn load_object(&mut self, iri: &str, node_data: &mut NodeData) -> Option<NObject>;
@@ -20,6 +22,11 @@ pub struct RDFWrap {
     file_name: String,
 }
 
+struct IndexCache {
+    index: IriIndex,
+    iri: String,
+}
+
 impl RDFWrap {
     pub fn empty() -> Self {
         return RDFWrap {
@@ -27,7 +34,7 @@ impl RDFWrap {
         };
     }
 
-    pub fn load_file(file_name: &str, node_data: &mut NodeData) -> Result<u32> {
+    pub fn load_file(file_name: &str, node_data: &mut NodeData, language_filter: &Vec<String>) -> Result<u32> {
         // TODO Error handling for can not open ttl file
         let file =
             File::open(file_name).with_context(|| format!("Can not open file {}", file_name))?;
@@ -35,13 +42,18 @@ impl RDFWrap {
         let file_extension = file_name.split('.').last().unwrap();
         let mut triples_count = 0;
         let (indexer, cache) = node_data.split_mut();
+        let start = Instant::now();
+        let mut index_cache = IndexCache {
+            index: 0,
+            iri: String::with_capacity(100),
+        };
         match file_extension {
             "ttl" => {
                 let parser = TurtleParser::new().for_reader(reader);
                 for triple in parser {
                     match triple {
                         Ok(triple) => {
-                            add_triple(&mut triples_count, indexer, cache, triple);
+                            add_triple(&mut triples_count, indexer, cache, triple, &mut index_cache, language_filter);
                         }
                         Err(e) => {
                             eprintln!("Error parsing triple: {}", e);
@@ -53,13 +65,37 @@ impl RDFWrap {
                 let parser = RdfXmlParser::new().for_reader(reader);
                 for triple in parser {
                     let triple = triple?;
-                    add_triple(&mut triples_count, indexer, cache, triple);
+                    add_triple(&mut triples_count, indexer, cache, triple, &mut index_cache, language_filter);
+                }
+            }
+            "nt" => {
+                let parser = oxttl::NTriplesParser::new().for_reader(reader);
+                for triple in parser {
+                    let triple = triple?;
+                    add_triple(&mut triples_count, indexer, cache, triple, &mut index_cache, language_filter);
+                }
+            }
+            "trig" => {
+                let parser = oxttl::TriGParser::new().for_reader(reader);
+                for quad in parser {
+                    let quad = quad?;
+                    add_triple(&mut triples_count, indexer, cache, Triple::from(quad), &mut index_cache, language_filter);
+                }
+            }
+            "nq" => {
+                let parser = oxttl::NQuadsParser::new().for_reader(reader);
+                for quad in parser {
+                    let quad = quad?;
+                    add_triple(&mut triples_count, indexer, cache, Triple::from(quad), &mut index_cache, language_filter);
                 }
             }
             _ => {
                 return Err(anyhow::anyhow!("Unsupported file extension {} for rdf data import (known: ttl, rdf, xml)", file_extension));
             }
         };
+        let duration = start.elapsed();
+        println!("Time taken to read the file: {:?}", duration);
+        println!("Triples read per second: {}", triples_count as f64 / duration.as_secs_f64());
         return Ok(triples_count);
     }
 
@@ -98,13 +134,13 @@ impl RDFWrap {
                         Term::Literal(literal) => {
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                literal.value().to_string(),
+                                Literal::String(literal.value().to_string()),
                             ));
                         }
                         _ => {
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                triple.object.to_string(),
+                                Literal::String(triple.object.to_string()),
                             ));
                         }
                     }
@@ -132,7 +168,6 @@ impl RDFWrap {
             return None;
         }
         return Some(NObject {
-            iri: iri.to_string(),
             properties,
             references,
             reverse_references,
@@ -165,17 +200,29 @@ impl RDFWrap {
     }
 }
 
-fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, cache: &mut crate::nobject::NodeCache, triple: Triple) {
+fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, cache: &mut crate::nobject::NodeCache, triple: Triple, 
+    index_cache: &mut IndexCache,
+    language_filter: &Vec<String>) {
     match &triple.subject {
         Subject::BlankNode(blank_node) => {
             let iri = blank_node.as_str();
-            let node_index = cache.get_node_index_or_insert(iri);
-            add_predicate_object(triples_count, indexer, cache, node_index, triple.predicate, triple.object);
+            if index_cache.iri != iri {
+                index_cache.index = cache.get_node_index_or_insert(iri);
+                index_cache.iri.clear();
+                index_cache.iri.push_str(iri);
+            }
+            let node_index = index_cache.index;
+            add_predicate_object(triples_count, indexer, cache, node_index, triple.predicate, triple.object, language_filter);
         }
         Subject::NamedNode(named_subject) => {
             let iri = named_subject.as_str();
-            let node_index = cache.get_node_index_or_insert(iri);
-            add_predicate_object(triples_count, indexer, cache, node_index, triple.predicate, triple.object);
+            if index_cache.iri != iri {
+                index_cache.index = cache.get_node_index_or_insert(iri);
+                index_cache.iri.clear();
+                index_cache.iri.push_str(iri);
+            }
+            let node_index = index_cache.index;
+            add_predicate_object(triples_count, indexer, cache, node_index, triple.predicate, triple.object, language_filter);
         }
         _ => {
             println!(
@@ -186,11 +233,18 @@ fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, c
     }
 }
 
-fn add_predicate_object(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, cache: &mut crate::nobject::NodeCache, node_index: usize, predicate: NamedNode, object: Term) {
+fn add_predicate_object(triples_count: &mut u32, 
+    indexer: &mut crate::nobject::Indexers, 
+    cache: &mut crate::nobject::NodeCache, 
+    node_index: usize, 
+    predicate: NamedNode, 
+    object: Term,
+    language_filter: &Vec<String>
+) {
     if predicate == rdf::TYPE {
         match &object {
             Term::NamedNode(named_object) => {
-                let node = cache.get_node_by_index_mut(node_index).unwrap();
+                let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                 node.has_subject = true;
                 *triples_count += 1;
                 node.types
@@ -206,10 +260,10 @@ fn add_predicate_object(triples_count: &mut u32, indexer: &mut crate::nobject::I
                 let reference_index = cache.get_node_index_or_insert(named_object.as_str());
                 let predicate_index = indexer.get_predicate_index(predicate.as_str());
                 let predicate_literal: PredicateReference = (predicate_index,reference_index);
-                let node = cache.get_node_by_index_mut(node_index).unwrap();
+                let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                 node.references.push(predicate_literal);
                 node.has_subject = true;
-                let ref_node = cache.get_node_by_index_mut(reference_index).unwrap();
+                let (_riri, ref_node) = cache.get_node_by_index_mut(reference_index).unwrap();
                 ref_node.reverse_references.push((predicate_index,node_index));
                 *triples_count += 1;
             }
@@ -217,27 +271,48 @@ fn add_predicate_object(triples_count: &mut u32, indexer: &mut crate::nobject::I
                 let reference_index = cache.get_node_index_or_insert(blank_node.as_str());
                 let predicate_index = indexer.get_predicate_index(predicate.as_str());
                 let predicate_literal: PredicateReference = (predicate_index,reference_index);
-                let node = cache.get_node_by_index_mut(node_index).unwrap();
+                let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                 node.references.push(predicate_literal);
                 node.has_subject = true;
-                let ref_node = cache.get_node_by_index_mut(reference_index).unwrap();
+                let (_riri, ref_node) = cache.get_node_by_index_mut(reference_index).unwrap();
                 ref_node.reverse_references.push((predicate_index,node_index));
                 *triples_count += 1;
             }
             Term::Literal(literal) => {
                 let mut skip = false;
-                if let Some(language) = literal.language() {
-                    if language != "en" {
-                        skip = true;
+                if !language_filter.is_empty() {
+                    if let Some(language) = literal.language() {
+                        if language_filter.iter().all(|filter| filter != language) {
+                            skip = true;
+                        }
                     }
                 }
                 if !skip {
-                    let node = cache.get_node_by_index_mut(node_index).unwrap();
+                    let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                     node.has_subject = true;
-                    node.properties.push((
-                        indexer.get_predicate_index(predicate.as_str()),
-                        literal.value().to_string(),
-                    ));
+                    let value = literal.value();
+                    let language = literal.language();
+                    let datatype = literal.datatype();
+                    if language.is_some() {
+                        let language_index = indexer.get_language_index(language.unwrap());
+                        node.properties.push((
+                            indexer.get_predicate_index(predicate.as_str()),
+                            Literal::LangString(language_index, value.to_string()),
+                        ));
+                    } else {
+                        if datatype == xsd::STRING {
+                            node.properties.push((
+                                indexer.get_predicate_index(predicate.as_str()),
+                                Literal::String(value.to_string()),
+                            ));
+                        } else {
+                            let data_type_index = indexer.get_data_type_index(datatype.as_str());
+                            node.properties.push((
+                                indexer.get_predicate_index(predicate.as_str()),
+                                Literal::TypedString(data_type_index, value.to_string()),
+                            ));    
+                        }
+                    }
                     *triples_count += 1;
                 }
             }

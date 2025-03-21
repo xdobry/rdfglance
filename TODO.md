@@ -145,3 +145,32 @@ Prefix Manager - create automatically prefixes
 
 langString - config welche sprache soll ausgefiltert werden
 zeige nur eine Sprache
+
+#####################################
+- sprachen
+- type/predicate iri labels
+- prefix manager
+- list
+- browser
+- sparql browser
+- kann die App eine Viewer für dbdata and co. benutzt werden
+
+- (wenn immer prefix manager benutzt wird, dann braucht man keine iri short)
+- labels nachladen kann man als ein
+
+###########################
+DBPedia
+
+- Lade nich zu viel (Welche Props sollen geladen werden)
+ (z.B nicht alle Typen)
+- Ist es in named graph unterteilt
+- nur eine Sprache laden
+- nur bestimmte verweise laden
+(Das alles Konfigurierbar)
+
+###############################
+Zustand Abspeichern
+
+- Serialisierung (Ist es schneller als RDF)
+- Auch zustand der Graphen
+

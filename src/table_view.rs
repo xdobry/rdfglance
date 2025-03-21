@@ -1,16 +1,10 @@
-use std::{cmp::min, collections::HashMap, vec};
+use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{
-    browse_view::show_references,
-    nobject::{IriIndex, NodeData},
-    play_ground::ScrollBar,
-    prefix_manager::PrefixManager,
-    rdfwrap::{self, RDFWrap},
-    uitools::popup_at,
-    ColorCache, LayoutData, NodeAction,
+    browse_view::show_references, layout, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
 };
 
 pub struct CacheStatistics {
@@ -156,6 +150,8 @@ impl TypeData {
         node_data: &mut NodeData,
         color_cache: &ColorCache,
         rdfwrap: &mut dyn rdfwrap::RDFAdapter,
+        prefix_manager: &PrefixManager,
+        layout_data: &LayoutData,
     ) {
         let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
@@ -287,7 +283,7 @@ impl TypeData {
             [instance_index..min(instance_index + capacity, self.filtered_instances.len())]
         {
             let node = node_data.get_node_by_index(*instance_index);
-            if let Some(node) = node {
+            if let Some((node_iri,node)) = node {
                 if start_pos % 2 == 0 {
                     painter.rect_filled(
                         Rect::from_min_size(
@@ -302,7 +298,7 @@ impl TypeData {
                 let mut xpos = iri_len + ref_count_len;
                 let iri_top_left = available_rect.left_top() + Vec2::new(0.0, ypos);
 
-                text_wrapped(&node.iri, iri_len, painter, iri_top_left);
+                text_wrapped(&prefix_manager.get_prefixed(&node_iri), iri_len, painter, iri_top_left);
 
                 let cell_rect =
                     egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len, ROW_HIGHT));
@@ -342,23 +338,22 @@ impl TypeData {
                     .filter(|p| p.visible)
                     .skip(self.instance_view.column_pos as usize)
                 {
-                    for (predicate_index, value) in &node.properties {
-                        if column_desc.predicate_index == *predicate_index {
-                            let cell_rect = egui::Rect::from_min_size(
-                                available_rect.left_top() + Vec2::new(xpos, ypos),
-                                Vec2::new(column_desc.width, ROW_HIGHT),
+                    let property = node.get_property(column_desc.predicate_index, layout_data.display_language);
+                    if let Some(property) = property {
+                        let value = property.as_ref();
+                        let cell_rect = egui::Rect::from_min_size(
+                            available_rect.left_top() + Vec2::new(xpos, ypos),
+                            Vec2::new(column_desc.width, ROW_HIGHT),
+                        );
+                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top());
+                        if primary_clicked && cell_rect.contains(mouse_pos) {
+                            was_context_click = true;
+                            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                            self.instance_view.context_menu = TableContextMenu::CellMenu(
+                                mouse_pos,
+                                *instance_index,
+                                column_desc.predicate_index,
                             );
-                            text_wrapped(&value, column_desc.width, painter, cell_rect.left_top());
-                            if primary_clicked && cell_rect.contains(mouse_pos) {
-                                was_context_click = true;
-                                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                                self.instance_view.context_menu = TableContextMenu::CellMenu(
-                                    mouse_pos,
-                                    *instance_index,
-                                    column_desc.predicate_index,
-                                );
-                            }
-                            break;
                         }
                     }
                     xpos += column_desc.width;
@@ -448,10 +443,10 @@ impl TypeData {
                 TableContextMenu::CellMenu(_pos, instance_index, predictate) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
-                    if let Some(node) = node {
+                    if let Some((node_iri,node)) = node {
                         for (predicate_index, value) in &node.properties {
                             if predictate == *predicate_index {
-                                ui.label(value);
+                                ui.label(value.as_ref());
                             }
                         }
                         if ui.button("Close").clicked() {
@@ -469,7 +464,7 @@ impl TypeData {
                 TableContextMenu::RefMenu(_pos, instance_index) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
-                    if let Some(node) = node {
+                    if let Some((node_iri,node)) = node {
                         let mut node_to_click: Option<IriIndex> = None;
                         if let Some(node_index) = show_references(
                             node_data,
@@ -478,6 +473,7 @@ impl TypeData {
                             ui,
                             "References",
                             &node.references,
+                            layout_data,
                         ) {
                             node_to_click = Some(node_index);
                             close_menu = true;
@@ -489,6 +485,7 @@ impl TypeData {
                             ui,
                             "Referenced by",
                             &node.reverse_references,
+                            layout_data,
                         ) {
                             node_to_click = Some(node_index);
                             close_menu = true;
@@ -563,6 +560,8 @@ impl CacheStatistics {
 
     pub fn update(&mut self, node_data: &NodeData) {
         self.reset();
+        let start = Instant::now();
+        let node_len = node_data.len();
         for (node_index, (_, node)) in node_data.iter().enumerate() {
             if node.has_subject {
                 self.nodes += 1;
@@ -577,7 +576,7 @@ impl CacheStatistics {
                 type_data.instances.push(node_index);
                 for (predicate_index, value) in &node.properties {
                     type_data.count_property(*predicate_index, 1);
-                    type_data.max_len_property(*predicate_index, value.len() as u32);
+                    type_data.max_len_property(*predicate_index, value.as_ref().len() as u32);
                 }
                 for (predicate_index, _) in &node.references {
                     type_data.count_reverence(*predicate_index, 1);
@@ -622,6 +621,9 @@ impl CacheStatistics {
             let b_data = self.types.get(b).unwrap();
             b_data.instances.len().cmp(&a_data.instances.len())
         });
+        let duration = start.elapsed();
+        println!("Time taken to index {} nodes: {:?}", node_len, duration);
+        println!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
     }
 
     pub fn display(
@@ -816,6 +818,8 @@ impl CacheStatistics {
                                 node_data,
                                 color_cache,
                                 rdfwrap,
+                                prefix_manager,
+                                layout_data
                             );
                         });
                         strip.cell(|ui| {
@@ -856,10 +860,10 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some(node_a) = node_a {
-                                    if let Some(node_b) = node_b {
-                                        let a_value = node_a.get_property(predicate_to_sort);
-                                        let b_value = &node_b.get_property(predicate_to_sort);
+                                if let Some((_,node_a)) = node_a {
+                                    if let Some((_,node_b)) = node_b {
+                                        let a_value = &node_a.get_property(predicate_to_sort, layout_data.display_language);
+                                        let b_value = &node_b.get_property(predicate_to_sort, layout_data.display_language);
                                         a_value.cmp(b_value)
                                     } else {
                                         std::cmp::Ordering::Less
@@ -875,10 +879,10 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some(node_a) = node_a {
-                                    if let Some(node_b) = node_b {
-                                        let a_value = &node_a.get_property(predicate_to_sort);
-                                        let b_value = node_b.get_property(predicate_to_sort);
+                                if let Some((_,node_a)) = node_a {
+                                    if let Some((_,node_b)) = node_b {
+                                        let a_value = &node_a.get_property(predicate_to_sort, layout_data.display_language);
+                                        let b_value = node_b.get_property(predicate_to_sort, layout_data.display_language);
                                         b_value.cmp(a_value)
                                     } else {
                                         std::cmp::Ordering::Greater
@@ -894,8 +898,8 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some(node_a) = node_a {
-                                    if let Some(node_b) = node_b {
+                                if let Some((_,node_a)) = node_a {
+                                    if let Some((_,node_b)) = node_b {
                                         let a_value = &node_a.references.len()
                                             + &node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
@@ -915,8 +919,8 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some(node_a) = node_a {
-                                    if let Some(node_b) = node_b {
+                                if let Some((_,node_a)) = node_a {
+                                    if let Some((_,node_b)) = node_b {
                                         let a_value = &node_a.references.len()
                                             + &node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
@@ -938,8 +942,8 @@ impl CacheStatistics {
                             .cloned()
                             .filter(|&instance_index| {
                                 let node = node_data.get_node_by_index(instance_index);
-                                if let Some(node) = node {
-                                    if node.apply_filter(&type_data.instance_view.instance_filter) {
+                                if let Some((node_iri,node)) = node {
+                                    if node.apply_filter(&type_data.instance_view.instance_filter, &node_iri) {
                                         return true;
                                     }
                                 }

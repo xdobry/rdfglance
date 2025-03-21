@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing, layout, nobject::IriIndex, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
+    drawing, layout, nobject::{IriIndex, Literal}, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
 };
 use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
 use egui::Slider;
@@ -21,7 +21,7 @@ impl VisualRdfApp {
                     &mut self.node_data,
                     &self.layout_data.visible_nodes,
                     &self.layout_data.hidden_predicates,
-                    &self.config,
+                    &self.persistent_data.config_data,
                 );
                 if max_move < 0.8 && !self.layout_data.force_compute_layout {
                     // println!("turn off layout");
@@ -46,9 +46,9 @@ impl VisualRdfApp {
             }
             ui.checkbox(&mut self.show_properties, "Show Properties");
             ui.label("nodes force");
-            ui.add(Slider::new(&mut self.config.repulsion_constant, 0.3..=8.0));
+            ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
             ui.label("edges force");
-            ui.add(Slider::new(&mut self.config.attraction_factor, 0.005..=0.2));
+            ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.005..=0.2));
             ui.checkbox(&mut self.show_labels, "Show Labels");
             ui.checkbox(&mut self.short_iri, "Short Iri");
         });
@@ -79,8 +79,8 @@ impl VisualRdfApp {
         if let Some(iri) = &self.layout_data.selected_node {
             if self.layout_data.visible_nodes.contains(*iri) {
                 let current_node = self.node_data.get_node_by_index(*iri);
-                if let Some(current_node) = current_node {
-                    ui.label(&current_node.iri);
+                if let Some((current_node_iri,current_node)) = current_node {
+                    ui.label(current_node_iri);
                     for type_iri in &current_node.types {
                         ui.label(
                             self.rdfwrap
@@ -99,6 +99,31 @@ impl VisualRdfApp {
                         .max_col_width(available_width)
                         .show(ui, |ui| {
                         for (predicate_index, prop_value) in &current_node.properties {
+                            if self.persistent_data.config_data.supress_other_language_data {
+                                if let Literal::LangString(lang, _) = prop_value {
+                                    if *lang != self.layout_data.display_language {
+                                        if *lang == 0 && self.layout_data.display_language != 0 {
+                                            // it is fallback language so display if reall language could not be found
+                                            let mut found = false;
+                                            for (predicate_index2, prop_value2) in &current_node.properties {
+                                                if predicate_index2 == predicate_index && prop_value2 != prop_value {
+                                                    if let Literal::LangString(lang, _) = prop_value2 {
+                                                        if *lang == self.layout_data.display_language {
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            if found {
+                                                continue;
+                                            }
+                                        } else {
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
                             let predicate_label = self
                                 .rdfwrap
                                 .iri2label(self.node_data.get_predicate(*predicate_index).unwrap());
@@ -109,7 +134,7 @@ impl VisualRdfApp {
                                         .insert(*node_type_index, *predicate_index);
                                 }
                             }
-                            ui.label(prop_value);
+                            ui.label(prop_value.as_ref());
                             ui.end_row();
                         }
                         });
@@ -162,7 +187,7 @@ impl VisualRdfApp {
                                     for visible_index in &self.layout_data.visible_nodes.data {
                                         let visible_node =
                                             self.node_data.get_node_by_index(*visible_index);
-                                        if let Some(visible_node) = visible_node {
+                                        if let Some((v_node_iri,visible_node)) = visible_node {
                                             if visible_node.has_same_type(&current_node.types) {
                                                 for (predicate_index, ref_iri) in
                                                     &visible_node.references
@@ -252,7 +277,7 @@ impl VisualRdfApp {
                                     for visible_index in &self.layout_data.visible_nodes.data {
                                         let visible_node =
                                             self.node_data.get_node_by_index(*visible_index);
-                                        if let Some(visible_node) = visible_node {
+                                        if let Some((_,visible_node)) = visible_node {
                                             if visible_node.has_same_type(&current_node.types) {
                                                 for (predicate_index, ref_iri) in
                                                     &visible_node.reverse_references
@@ -320,11 +345,11 @@ impl VisualRdfApp {
             )
         };
         for iri_index in self.layout_data.visible_nodes.data.iter() {
-            if let Some(object) = self.node_data.get_node_by_index(*iri_index) {
+            if let Some((_,object)) = self.node_data.get_node_by_index(*iri_index) {
                 for (pred_index, ref_iri) in &object.references {
                     if !self.layout_data.hidden_predicates.contains(*pred_index) {
                         if self.layout_data.visible_nodes.data.contains(ref_iri) {
-                            if let Some(ref_object) = self.node_data.get_node_by_index(*ref_iri) {
+                            if let Some((_,ref_object)) = self.node_data.get_node_by_index(*ref_iri) {
                                 let pos1 = center + object.pos.to_vec2();
                                 let pos2 = center + ref_object.pos.to_vec2();
                                 drawing::draw_arrow_to_circle(
@@ -368,7 +393,7 @@ impl VisualRdfApp {
         }
         if let Some(node_to_drag_index) = &self.layout_data.node_to_drag {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if let Some(node_to_drag) =
+                if let Some((_,node_to_drag)) =
                     self.node_data.get_node_by_index_mut(*node_to_drag_index)
                 {
                     node_to_drag.pos = (pointer_pos - center).to_pos2();
@@ -377,7 +402,7 @@ impl VisualRdfApp {
         }
         let mut was_context_click = false;
         for node_index in self.layout_data.visible_nodes.data.iter() {
-            if let Some(object) = self.node_data.get_node_by_index(*node_index) {
+            if let Some((object_iri,object)) = self.node_data.get_node_by_index(*node_index) {
                 let pos = center + object.pos.to_vec2();
                 let mut was_action = false;
                 if single_clicked {
@@ -428,7 +453,7 @@ impl VisualRdfApp {
                     painter.text(
                         pos,
                         egui::Align2::CENTER_CENTER,
-                        object.node_label(&self.color_cache.label_predicate, self.short_iri),
+                        object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language),
                         font.clone(),
                         egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
                     );
@@ -445,7 +470,7 @@ impl VisualRdfApp {
         popup_at(ui, popup_id, self.layout_data.context_menu_pos, 200.0, |ui| {
             if let Some(node_index) = &self.layout_data.context_menu_node {
                 let current_node = self.node_data.get_node_by_index_mut(*node_index);
-                if let Some(current_node) = current_node {
+                if let Some((_,current_node)) = current_node {
                     let mut close_menu = false;
                     let current_index = *node_index;
                     // TODO need to clone the types to release the mutable borrow from current_node (node_data)
@@ -460,7 +485,7 @@ impl VisualRdfApp {
                         self.layout_data.visible_nodes.remove(current_index);
                         self.layout_data.visible_nodes.data.retain(|x| {
                             let node = self.node_data.get_node_by_index(*x);
-                            if let Some(node) = node {
+                            if let Some((_,node)) = node {
                                 !node.has_same_type(&types)
                             } else {
                                 true
@@ -478,7 +503,7 @@ impl VisualRdfApp {
                         self.layout_data.compute_layout = true;
                         self.layout_data.visible_nodes.data.retain(|x| {
                             let node = self.node_data.get_node_by_index(*x);
-                            if let Some(node) = node {
+                            if let Some((_,node)) = node {
                                 node.has_same_type(&types)
                             } else {
                                 false
@@ -511,17 +536,17 @@ impl VisualRdfApp {
             self.expand_node(node_to_click, ExpandType::Both);
         }
         if let Some(node_to_hover) = node_to_hover {
-            if let Some(hover_node) = self.node_data.get_node_by_index(node_to_hover) {
+            if let Some((hover_node_iri,hover_node)) = self.node_data.get_node_by_index(node_to_hover) {
                 self.status_message.clear();
-                self.status_message.push_str(hover_node.node_label(&self.color_cache.label_predicate, self.short_iri));
+                self.status_message.push_str(hover_node.node_label(hover_node_iri,&self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language));
             }
         } else {
             if let Some(selected_node) = &self.layout_data.selected_node {
                 self.status_message.clear();
-                if let Some(selected_node) = self.node_data.get_node_by_index(*selected_node) {
+                if let Some((selected_node_iri,selected_node)) = self.node_data.get_node_by_index(*selected_node) {
                     self.status_message.push_str(format!(
                         "Nodes: {}, Edges: {} Selected: {}",
-                        node_count, edge_count, selected_node.node_label(&self.color_cache.label_predicate, self.short_iri)
+                        node_count, edge_count, selected_node.node_label(selected_node_iri,&self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language)
                     ).as_str());
                 }
             } else {

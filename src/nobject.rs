@@ -6,15 +6,56 @@ use rand::Rng;
 
 use crate::SortedVec;
 
+pub type LangIndex = u16;
+pub type DataTypeIndex = u16;
+
+pub enum Literal {
+    String(String),
+    LangString(LangIndex, String),
+    TypedString(DataTypeIndex, String),
+}
+
+impl AsRef<str> for Literal {
+    fn as_ref(&self) -> &str {
+        match self {
+            Literal::String(str) => str,
+            Literal::LangString(_index,str) => str,
+            Literal::TypedString(_type, str) => str,
+        }
+    }
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl PartialOrd for Literal {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_ref().partial_cmp(other.as_ref())
+    }
+}
+
+impl Eq for Literal {
+    
+}
+
+impl Ord for Literal {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_ref().cmp(other.as_ref())
+    }
+}
+
+
+
 pub type IriIndex = usize;
-pub type ObjectType = String;
+pub type ObjectType = Literal;
 pub type PredicateLiteral = (IriIndex, ObjectType);
 pub type PredicateReference = (IriIndex, IriIndex);
 
+
 pub struct NObject {
-    // The iri exists twice in the object and in the cache as key,
-    // It could be optimized to store the node index in the nobject
-    pub iri: String,
     pub types: Vec<IriIndex>,
     pub properties: Vec<PredicateLiteral>,
     pub references: Vec<PredicateReference>,
@@ -23,6 +64,23 @@ pub struct NObject {
     pub has_subject: bool,
     pub is_bank_node: bool,
 }
+
+pub struct NodeData {
+    pub node_cache: NodeCache,
+    pub indexers: Indexers,
+}
+
+pub struct NodeCache {
+    cache: IndexMap<String, NObject>,
+}
+
+pub struct Indexers {
+    predicate_indexer: StringIndexer,
+    type_indexer: StringIndexer,
+    pub language_indexer: StringIndexer,
+    datatype_indexer: StringIndexer,
+}
+
 
 impl NObject {
     pub fn has_same_type(&self,types: &Vec<IriIndex>) -> bool {
@@ -34,53 +92,72 @@ impl NObject {
         return false;
     }
 
-    pub fn node_label(&self, label_predicate: &HashMap<IriIndex,IriIndex>, short_iri: bool) -> &str {
-        let label_opt = self.node_label_opt(label_predicate);
+    pub fn node_label<'a>(&'a self, iri: &'a str, label_predicate: &HashMap<IriIndex,IriIndex>, short_iri: bool, language_index: LangIndex) -> &'a str {
+        let label_opt = self.node_label_opt(label_predicate, language_index);
         if let Some(label) = label_opt {
             return label;
         }
         if short_iri {
-            let last_hash = self.iri.rfind('#');
+            let last_hash = iri.rfind('#');
             if let Some(last_hash) = last_hash {
-                return &self.iri[last_hash+1..];
+                return &iri[last_hash+1..];
             } else {
-                let last_slash = self.iri.rfind('/');
+                let last_slash = iri.rfind('/');
                 if let Some(last_slash) = last_slash {
-                    return &self.iri[last_slash+1..];
+                    return &iri[last_slash+1..];
                 }
             }
         }
-        return &self.iri
+        return iri
     }
 
-    pub fn node_label_opt(&self, label_predicate: &HashMap<IriIndex,IriIndex>) -> Option<&str> {
+    pub fn node_label_opt(&self, label_predicate: &HashMap<IriIndex,IriIndex>, language_index: LangIndex) -> Option<&str> {
         for type_index in self.types.iter() {
             if let Some(label_predicate) = label_predicate.get(type_index) {
-                for (predicate_index, value) in &self.properties {
-                    if label_predicate == predicate_index {
-                        return Some(value);
-                    }
+                let prop = self.get_property(*label_predicate, language_index);
+                if let Some(prop) = prop {
+                    return Some(prop.as_ref());
                 }
             }
         }
         return None;
     }
 
-    pub fn get_property(&self, predicate_index: IriIndex) -> Option<&ObjectType> {
+    pub fn get_property(&self, predicate_index: IriIndex, language_index: LangIndex) -> Option<&ObjectType> {
+        let mut no_lang: Option<&ObjectType> = None;
+        let mut fallback_lang: Option<&ObjectType> = None;
         for (predicate, value) in &self.properties {
             if predicate == &predicate_index {
-                return Some(value);
+                match value {
+                    ObjectType::LangString(lang, _) => {
+                        if  *lang==language_index {
+                            return Some(value);
+                        }
+                        if *lang == 0 {
+                            fallback_lang = Some(value);
+                        }
+                    }
+                    ObjectType::String(_) | ObjectType::TypedString(_, _) => {
+                        no_lang = Some(value);
+                    }
+                }
             }
+        }
+        if fallback_lang.is_some() {
+            return fallback_lang;
+        }
+        if no_lang.is_some() {
+            return no_lang;
         }
         None
     }
 
-    pub fn apply_filter(&self, filter: &str) -> bool {
-        if self.iri.contains(filter) {
+    pub fn apply_filter(&self, filter: &str, iri: &str) -> bool {
+        if iri.contains(filter) {
             return true;
         }
         for (_predicate, value) in &self.properties {
-            if value.contains(filter) {
+            if value.as_ref().contains(filter) {
                 return true;
             }
         }
@@ -88,35 +165,40 @@ impl NObject {
     }
 }
 
-pub struct NodeData {
-    pub node_cache: NodeCache,
-    indexers: Indexers,
-}
 
-pub struct NodeCache {
-    cache: IndexMap<String, NObject>,
-}
-
-pub struct Indexers {
-    predicate_indexer: StringIndexer,
-    type_indexer: StringIndexer,
-}
 
 impl Indexers {
+    pub fn new() -> Self {
+        let mut indexer = Self {
+            predicate_indexer: StringIndexer::new(),
+            type_indexer: StringIndexer::new(),
+            language_indexer: StringIndexer::new(),
+            datatype_indexer: StringIndexer::new(),
+        };
+        indexer.language_indexer.to_index("en");
+        return indexer;
+    }
+    
     pub fn get_type_index(&mut self, type_name: &str) -> IriIndex {
         self.type_indexer.to_index(type_name)
     }
     pub fn get_predicate_index(&mut self, predicate_name: &str) -> IriIndex {
         self.predicate_indexer.to_index(predicate_name)
     }
+    pub fn get_language_index(&mut self, language: &str) -> LangIndex {
+        self.language_indexer.to_index(language) as LangIndex
+    }
+    pub fn get_data_type_index(&mut self, data_type: &str) -> DataTypeIndex {
+        self.datatype_indexer.to_index(data_type) as DataTypeIndex
+    }
 }
 
 impl NodeCache {
-    pub fn get_node_by_index(&self, index: IriIndex) -> Option<&NObject> {
-        self.cache.get_index(index).map(|(_, node)| node)
+    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String, &NObject)> {
+        self.cache.get_index(index)
     }
-    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<&mut NObject> {
-        self.cache.get_index_mut(index).map(|(_, node)| node)
+    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&String, &mut NObject)> {
+        self.cache.get_index_mut(index)
     }
     pub fn get_node(&self, iri: &str) -> Option<&NObject> {
         self.cache.get(iri)
@@ -131,8 +213,7 @@ impl NodeCache {
         if let Some(index) = self.get_node_index(iri) {
             index
         } else {
-            self.put_node(NObject {
-                iri: iri.to_string(),
+            self.put_node(iri, NObject {
                 types: Vec::new(),
                 properties: Vec::new(),
                 references: Vec::new(),
@@ -155,16 +236,16 @@ impl NodeCache {
     pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
         self.cache.iter_mut()
     }
-    pub fn put_node(&mut self, node: NObject) -> usize {
+    pub fn put_node(&mut self, iri: &str, node: NObject) -> usize {
         let new_index = self.cache.len();
-        let option = self.cache.insert(node.iri.clone(), node);
+        let option = self.cache.insert(iri.to_owned(), node);
         if !option.is_none() {
             panic!("Node already exists");
         }
         return new_index;
     }
-    pub fn put_node_replace(&mut self, node: NObject) {
-        let option = self.cache.insert(node.iri.clone(), node);
+    pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
+        let option = self.cache.insert(iri.to_owned(), node);
         if option.is_none() {
             panic!("Node can not be replaced");
         }
@@ -174,7 +255,7 @@ impl NodeCache {
         let mut y = 0.0;
         let mut count = 0;
         for visible_index in visible_nodes.data.iter() {
-            if let Some(node) = self.get_node_by_index(*visible_index) {
+            if let Some((_,node)) = self.get_node_by_index(*visible_index) {
                 x += node.pos.x;
                 y += node.pos.y;
                 count += 1;
@@ -203,16 +284,13 @@ impl NodeData {
             node_cache: NodeCache {
                 cache: IndexMap::new(),
             },
-            indexers : Indexers {
-                predicate_indexer: StringIndexer::new(),
-                type_indexer: StringIndexer::new(),
-            }
+            indexers : Indexers::new(),
         }
     }
-    pub fn get_node_by_index(&self, index: IriIndex) -> Option<&NObject> {
+    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String,&NObject)> {
         self.node_cache.get_node_by_index(index)
     }
-    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<&mut NObject> {
+    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&String,&mut NObject)> {
         self.node_cache.get_node_by_index_mut(index)
     }
     pub fn get_node(&self, iri: &str) -> Option<&NObject> {
@@ -236,11 +314,11 @@ impl NodeData {
     pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
         self.node_cache.iter_mut()
     }
-    pub fn put_node(&mut self, node: NObject) -> usize {
-        self.node_cache.put_node(node)
+    pub fn put_node(&mut self, iri: &str, node: NObject) -> usize {
+        self.node_cache.put_node(iri,node)
     }
-    pub fn put_node_replace(&mut self, node: NObject) {
-        self.node_cache.put_node_replace(node)
+    pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
+        self.node_cache.put_node_replace(iri, node)
     }
     pub fn split_mut(&mut self) -> (&mut Indexers, &mut NodeCache) {
         (&mut self.indexers, &mut self.node_cache)
@@ -257,18 +335,30 @@ impl NodeData {
     pub fn get_predicate_index(&mut self, predicate_name: &str) -> IriIndex {
         self.indexers.predicate_indexer.to_index(predicate_name)
     }
+    pub fn get_language(&self, language_index: LangIndex) -> Option<&str> {
+        self.indexers.language_indexer.from_index(language_index as usize)
+    }
+    pub fn get_language_index(&mut self, language: &str) -> LangIndex {
+        self.indexers.language_indexer.to_index(language) as LangIndex
+    }
     pub fn unique_predicates(&self) -> usize {
         self.indexers.predicate_indexer.map.len()
     }
     pub fn unique_types(&self) -> usize {
         self.indexers.type_indexer.map.len()
     }
+    pub fn unique_languages(&self) -> usize {
+        self.indexers.language_indexer.map.len()
+    }
+    pub fn unique_data_types(&self) -> usize {
+        self.indexers.datatype_indexer.map.len()
+    }
     pub fn clean(&mut self) {
         self.node_cache.cache.clear();
     }
 }
 
-struct StringIndexer {
+pub struct StringIndexer {
     map: IndexMap<String, usize>,
 }
 
@@ -291,5 +381,9 @@ impl StringIndexer {
     /// Retrieves a string from an index
     fn from_index(&self, index: usize) -> Option<&str> {
         self.map.get_index(index).map(|(key, _)| key.as_str())
+    }
+
+    pub fn iter(&self) -> indexmap::map::Iter<String, usize> {
+        self.map.iter()
     }
 }
