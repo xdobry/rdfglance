@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use eframe::egui::Pos2;
 use indexmap::IndexMap;
+use oxrdf::vocab::rdfs;
 use rand::Rng;
 
-use crate::SortedVec;
+use crate::{config::IriDisplay, prefix_manager::PrefixManager, SortedVec};
 
 pub type LangIndex = u16;
 pub type DataTypeIndex = u16;
@@ -60,7 +61,6 @@ pub struct NObject {
     pub properties: Vec<PredicateLiteral>,
     pub references: Vec<PredicateReference>,
     pub reverse_references: Vec<PredicateReference>,
-    pub pos: Pos2,
     pub has_subject: bool,
     pub is_bank_node: bool,
 }
@@ -81,6 +81,35 @@ pub struct Indexers {
     datatype_indexer: StringIndexer,
 }
 
+pub enum LabelDisplayValue<'a> {
+    FullStr(String),
+    FullRef(&'a str),
+    ShortAndIri(&'a str, &'a str)
+}
+
+impl<'a> LabelDisplayValue<'a> {
+    pub fn as_str(&self) -> &str {
+        match self {
+            LabelDisplayValue::FullStr(str) => str,
+            LabelDisplayValue::FullRef(str) => str,
+            LabelDisplayValue::ShortAndIri(str, _) => str,
+        }
+    }
+}
+
+pub fn short_iri<'a>(iri: &'a str) -> &'a str {
+    let last_hash = iri.rfind('#');
+    if let Some(last_hash) = last_hash {
+        return &iri[last_hash+1..];
+    } else {
+        let last_slash = iri.rfind('/');
+        if let Some(last_slash) = last_slash {
+            return &iri[last_slash+1..];
+        }
+    }
+    return iri
+}
+
 
 impl NObject {
     pub fn has_same_type(&self,types: &Vec<IriIndex>) -> bool {
@@ -92,21 +121,13 @@ impl NObject {
         return false;
     }
 
-    pub fn node_label<'a>(&'a self, iri: &'a str, label_predicate: &HashMap<IriIndex,IriIndex>, short_iri: bool, language_index: LangIndex) -> &'a str {
+    pub fn node_label<'a>(&'a self, iri: &'a str, label_predicate: &HashMap<IriIndex,IriIndex>, should_short_iri: bool, language_index: LangIndex) -> &'a str {
         let label_opt = self.node_label_opt(label_predicate, language_index);
         if let Some(label) = label_opt {
             return label;
         }
-        if short_iri {
-            let last_hash = iri.rfind('#');
-            if let Some(last_hash) = last_hash {
-                return &iri[last_hash+1..];
-            } else {
-                let last_slash = iri.rfind('/');
-                if let Some(last_slash) = last_slash {
-                    return &iri[last_slash+1..];
-                }
-            }
+        if should_short_iri {
+            return short_iri(iri);
         }
         return iri
     }
@@ -176,6 +197,7 @@ impl Indexers {
             datatype_indexer: StringIndexer::new(),
         };
         indexer.language_indexer.to_index("en");
+        indexer.predicate_indexer.to_index(rdfs::LABEL.as_str());
         return indexer;
     }
     
@@ -218,10 +240,6 @@ impl NodeCache {
                 properties: Vec::new(),
                 references: Vec::new(),
                 reverse_references: Vec::new(),
-                pos: Pos2::new(
-                    rand::rng().random_range(0.0..100.0),
-                    rand::rng().random_range(0.0..100.0),
-                ),
                 has_subject: false,
                 is_bank_node: false,
             })
@@ -249,32 +267,6 @@ impl NodeCache {
         if option.is_none() {
             panic!("Node can not be replaced");
         }
-    }
-    pub fn to_center(&mut self, visible_nodes: &SortedVec) {
-        let mut x = 0.0;
-        let mut y = 0.0;
-        let mut count = 0;
-        for visible_index in visible_nodes.data.iter() {
-            if let Some((_,node)) = self.get_node_by_index(*visible_index) {
-                x += node.pos.x;
-                y += node.pos.y;
-                count += 1;
-            }    
-        }
-        x /= count as f32;
-        y /= count as f32;
-        for node in self.cache.iter_mut() {
-            node.1.pos.x -= x;
-            node.1.pos.y -= y;
-        }
-        /*
-        for visible_index in visible_nodes.iter() {
-            if let Some(node) = self.get_node_by_index(*visible_index) {
-                node.pos.x -= x;
-                node.pos.y -= y;
-                }
-        }
-         */
     }
 }
 
@@ -356,7 +348,110 @@ impl NodeData {
     pub fn clean(&mut self) {
         self.node_cache.cache.clear();
     }
-}
+    pub fn type_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
+        let type_iri = self.indexers.type_indexer.from_index(type_index);
+        if let Some(type_iri) = type_iri {
+            if let Some(node) = self.get_node(type_iri) {
+                let prop = node.get_property(0, language_index);
+                if let Some(prop) = prop {
+                    return Some(prop.as_ref());
+                }
+            }
+        }
+        return None;
+    }
+    pub fn predicate_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
+        let predicate_iri = self.indexers.predicate_indexer.from_index(type_index);
+        if let Some(predicate_iri) = predicate_iri {
+            if let Some(node) = self.get_node(predicate_iri) {
+                let prop = node.get_property(0, language_index);
+                if let Some(prop) = prop {
+                    return Some(prop.as_ref());
+                }
+            }
+        }
+        return None;
+    }
+    pub fn type_display(&self, type_index: IriIndex, language_index: LangIndex, iri_display: IriDisplay, prefix_manager: &PrefixManager) -> LabelDisplayValue {
+        let type_iri = self.indexers.type_indexer.from_index(type_index);
+        return if let Some(type_iri) = type_iri {
+            match iri_display {
+                IriDisplay::Full => {
+                    let full_iri = prefix_manager.get_full_opt(type_iri);
+                    if let Some(full_iri) = full_iri {
+                        return LabelDisplayValue::FullStr(full_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(type_iri);
+                    }
+                }
+                IriDisplay::Prefixed => {
+                    return LabelDisplayValue::FullRef(type_iri);
+                }
+                IriDisplay::Label => {
+                    let type_label = self.type_label(type_index, language_index);
+                    if let Some(type_label) = type_label {
+                        return LabelDisplayValue::ShortAndIri(type_label,type_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(type_iri);
+                    } 
+                }
+                IriDisplay::Shorten => {
+                    return LabelDisplayValue::FullRef(short_iri(type_iri));
+                }
+                IriDisplay::LabelOrShorten => {
+                    let type_label = self.type_label(type_index, language_index);
+                    if let Some(type_label) = type_label {
+                        return LabelDisplayValue::ShortAndIri(type_label,type_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(short_iri(type_iri));
+                    } 
+                }
+            }
+        } else {
+            LabelDisplayValue::FullRef("!Unknown")
+        }
+    }
+
+    pub fn predicate_display(&self, predicate_index: IriIndex, language_index: LangIndex, iri_display: IriDisplay, prefix_manager: &PrefixManager) -> LabelDisplayValue {
+        let predicate_iri = self.indexers.predicate_indexer.from_index(predicate_index);
+        return if let Some(predicate_iri) = predicate_iri {
+            match iri_display {
+                IriDisplay::Full => {
+                    let full_iri = prefix_manager.get_full_opt(predicate_iri);
+                    if let Some(full_iri) = full_iri {
+                        return LabelDisplayValue::FullStr(full_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(predicate_iri);
+                    }
+                }
+                IriDisplay::Prefixed => {
+                    return LabelDisplayValue::FullRef(predicate_iri);
+                }
+                IriDisplay::Label => {
+                    let type_label = self.type_label(predicate_index, language_index);
+                    if let Some(type_label) = type_label {
+                        return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(predicate_iri);
+                    } 
+                }
+                IriDisplay::Shorten => {
+                    return LabelDisplayValue::FullRef(short_iri(predicate_iri));
+                }
+                IriDisplay::LabelOrShorten => {
+                    let type_label = self.type_label(predicate_index, language_index);
+                    if let Some(type_label) = type_label {
+                        return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
+                    } else {
+                        return LabelDisplayValue::FullRef(short_iri(predicate_iri));
+                    } 
+                }
+            }
+        } else {
+            LabelDisplayValue::FullRef("!Unknown")
+        }
+    }
+} 
 
 pub struct StringIndexer {
     map: IndexMap<String, usize>,

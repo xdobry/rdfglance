@@ -7,6 +7,7 @@ use eframe::{
 use egui::{Align, Layout, Vec2};
 use egui_extras::StripBuilder;
 use nobject::{IriIndex, LangIndex, NodeData};
+use layout::{NodeLayout, SortedNodeLayout};
 use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
 use rfd::FileDialog;
@@ -117,7 +118,7 @@ struct LayoutData {
     context_menu_node: Option<IriIndex>,
     context_menu_pos: Pos2,
     node_to_drag: Option<IriIndex>,
-    visible_nodes: SortedVec,
+    visible_nodes: SortedNodeLayout,
     hidden_predicates: SortedVec,
     compute_layout: bool,
     force_compute_layout: bool,
@@ -130,6 +131,7 @@ struct LayoutData {
 struct SortedVec {
     pub data: Vec<IriIndex>,
 }
+
 
 #[derive(Serialize, Deserialize)]
 struct PersistentData {
@@ -266,7 +268,7 @@ impl VisualRdfApp {
                 compute_layout: true,
                 force_compute_layout: false,
                 offset: Pos2::new(0.0, 0.0),
-                visible_nodes: SortedVec::new(),
+                visible_nodes: SortedNodeLayout::new(),
                 hidden_predicates: SortedVec::new(),
                 offset_drag_start: None,
                 display_language: 0,
@@ -319,10 +321,7 @@ impl VisualRdfApp {
             let new_object = self
                 .rdfwrap
                 .load_object(&self.object_iri, &mut self.node_data);
-            if let Some(mut new_object) = new_object {
-                if self.node_data.len() == 0 {
-                    new_object.pos = Pos2::new(0.0, 0.0);
-                }
+            if let Some(new_object) = new_object {
                 self.current_iri = Some(self.node_data.put_node(&self.object_iri,new_object));
             } else {
                 self.system_message =
@@ -353,7 +352,7 @@ impl VisualRdfApp {
     fn load_object(&mut self, iri: &str) -> bool {
         let iri_index = self.node_data.get_node_index(iri);
         if let Some(iri_index) = iri_index {
-            self.layout_data.visible_nodes.add(iri_index);
+            self.layout_data.visible_nodes.add_by_index(iri_index);
         } else {
             let new_object = self.rdfwrap.load_object(iri, &mut self.node_data);
             if let Some(new_object) = new_object {
@@ -369,7 +368,7 @@ impl VisualRdfApp {
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,node)) = node {
             if node.has_subject {
-                self.layout_data.visible_nodes.add(index);
+                self.layout_data.visible_nodes.add_by_index(index);
             } else {
                 let node_iri = node_iri.clone();
                 let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
@@ -421,7 +420,7 @@ impl VisualRdfApp {
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         for visible_index in &self.layout_data.visible_nodes.data {
-            if let Some((_,nnode)) = self.node_data.get_node_by_index(*visible_index) {
+            if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     refs_to_expand.insert(*ref_iri);
                 }
@@ -440,14 +439,14 @@ impl VisualRdfApp {
         for iri_index in 0..self.node_data.len() {
             self.node_data.get_node_by_index(iri_index).map(|(_,node)| {
                 if node.has_subject {
-                    self.layout_data.visible_nodes.add(iri_index);
+                    self.layout_data.visible_nodes.add_by_index(iri_index);
                 }
             });
         }
     }
     fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
-        let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter);
+        let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);
         match rdfttl {
             Err(err) => {
                 self.system_message = SystemMessage::Error(format!("File not found: {}", err));
@@ -465,7 +464,8 @@ impl VisualRdfApp {
                     self.persistent_data.last_files.push(file_name.to_string());
                 }
                 self.update_data_indexes();
-                let rdfs_label_index = self.node_data.get_predicate_index(rdfs::LABEL.as_str());
+                let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
+                let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
                 self.color_cache
                     .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
             }
@@ -591,7 +591,8 @@ impl eframe::App for VisualRdfApp {
                                 &mut self.layout_data,
                                 &self.prefix_manager,
                                 &self.color_cache,
-                                &mut *self.rdfwrap
+                                &mut *self.rdfwrap,
+                                self.persistent_data.config_data.iri_display,
                             ),
                             DisplayType::PlayGround => self.show_play(&ctx, ui),
                             DisplayType::Configuration => self.show_config(&ctx, ui),
@@ -614,7 +615,7 @@ impl eframe::App for VisualRdfApp {
                 }
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
-                    self.layout_data.visible_nodes.add(node_index);
+                    self.layout_data.visible_nodes.add_by_index(node_index);
                     self.layout_data.selected_node = Some(node_index);
                 }
                 NodeAction::None => {}

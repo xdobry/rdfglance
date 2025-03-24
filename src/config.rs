@@ -11,6 +11,20 @@ pub struct Config {
     pub language_filter: String,
     #[serde(default = "default_supress_other_language_data")]
     pub supress_other_language_data: bool,
+    #[serde(default = "default_create_iri_prefixes_automatically")]
+    pub create_iri_prefixes_automatically: bool,
+    #[serde(default = "default_iri_display")]
+    pub iri_display: IriDisplay,
+}
+
+#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Clone)]
+pub enum IriDisplay {
+    Full,
+    Prefixed,
+    Label,
+    LabelOrShorten,
+    Shorten,
 }
 
 impl Default for Config {
@@ -20,12 +34,22 @@ impl Default for Config {
             attraction_factor: 0.05,
             language_filter: "en".to_string(),
             supress_other_language_data: true,
+            create_iri_prefixes_automatically: true,
+            iri_display: IriDisplay::Full,
         }
     }
 }
 
 fn default_supress_other_language_data() -> bool {
     return true;
+}
+
+fn default_create_iri_prefixes_automatically() -> bool {
+    return true;
+}
+
+fn default_iri_display() -> IriDisplay {
+    return IriDisplay::Full;
 }
 
 impl Config {
@@ -41,6 +65,12 @@ impl VisualRdfApp {
             ui.text_edit_singleline(&mut self.persistent_data.config_data.language_filter);
         });
         ui.checkbox(&mut self.persistent_data.config_data.supress_other_language_data, "Supress data in not display language");
+        ui.label("Predicate and Type display:");
+        ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Label, "Label");
+        ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::LabelOrShorten, "Label or IRI Shorten");
+        ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Prefixed, "IRI Prefixed");
+        ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Shorten, "IRI Shorten");
+        ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Full, "Full IRI");
         return NodeAction::None;
     }
 }

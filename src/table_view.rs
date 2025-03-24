@@ -1,10 +1,10 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
-use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Vec2};
+use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{
-    browse_view::show_references, layout, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
+    browse_view::show_references, config::IriDisplay, layout, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
 };
 
 pub struct CacheStatistics {
@@ -13,6 +13,7 @@ pub struct CacheStatistics {
     pub unique_types: usize,
     pub properties: usize,
     pub references: usize,
+    pub blank_nodes: usize,
     pub unresolved_references: usize,
     pub types: HashMap<IriIndex, TypeData>,
     pub types_order: Vec<IriIndex>,
@@ -93,6 +94,7 @@ pub struct ColumnDesc {
 const ROW_HIGHT: f32 = 17.0;
 const CHAR_WIDTH: f32 = 8.0;
 const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
+const COLUMN_GAP: f32 = 2.0;
 
 impl TypeData {
     pub fn new(_type_index: IriIndex) -> Self {
@@ -155,7 +157,7 @@ impl TypeData {
     ) {
         let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
-        let capacity = (a_height / ROW_HIGHT) as usize;
+        let capacity = (a_height / ROW_HIGHT) as usize - 1;
 
         let available_rect = ui.max_rect(); // Get the full available area
 
@@ -240,17 +242,18 @@ impl TypeData {
             .skip(self.instance_view.column_pos as usize)
         {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
+            let predicate_label = RDFWrap::iri2label_fallback(
+                node_data
+                    .get_predicate(column_desc.predicate_index)
+                    .unwrap(),
+            );
             text_wrapped(
-                RDFWrap::iri2label_fallback(
-                    node_data
-                        .get_predicate(column_desc.predicate_index)
-                        .unwrap(),
-                ),
+                predicate_label,
                 column_desc.width,
                 painter,
                 top_left,
             );
-            xpos += column_desc.width;
+            xpos += column_desc.width + COLUMN_GAP;
             let column_rect =
                 egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
             if secondary_clicked && column_rect.contains(mouse_pos) {
@@ -356,7 +359,7 @@ impl TypeData {
                             );
                         }
                     }
-                    xpos += column_desc.width;
+                    xpos += column_desc.width + COLUMN_GAP;
                     if xpos > available_rect.width() {
                         break;
                     }
@@ -364,6 +367,22 @@ impl TypeData {
                 ypos += ROW_HIGHT;
             }
         }
+        // Draw vertical lines
+        painter.line([Pos2::new(available_rect.left()+iri_len-COLUMN_GAP,available_rect.top()),Pos2::new(available_rect.left()+iri_len-COLUMN_GAP, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
+        painter.line([Pos2::new(available_rect.left()+iri_len+ref_count_len+-COLUMN_GAP,available_rect.top()),Pos2::new(available_rect.left()+ref_count_len+iri_len-COLUMN_GAP, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
+        xpos = iri_len + ref_count_len;
+        for column_desc in self
+            .instance_view
+            .display_properties
+            .iter()
+            .filter(|p| p.visible)
+            .skip(self.instance_view.column_pos as usize)
+        {
+            xpos += column_desc.width;
+            painter.line([Pos2::new(available_rect.left()+xpos,available_rect.top()),Pos2::new(available_rect.left()+xpos, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
+            xpos += COLUMN_GAP;
+        }
+
         if !was_context_click && (secondary_clicked || primary_clicked) {
             self.instance_view.context_menu = TableContextMenu::None;
             ui.memory_mut(|mem| mem.close_popup());
@@ -540,6 +559,7 @@ impl CacheStatistics {
             unique_types: 0,
             properties: 0,
             references: 0,
+            blank_nodes: 0,
             unresolved_references: 0,
             types: HashMap::new(),
             types_order: Vec::new(),
@@ -553,6 +573,7 @@ impl CacheStatistics {
         self.unique_types = 0;
         self.properties = 0;
         self.references = 0;
+        self.blank_nodes = 0;
         self.unresolved_references = 0;
         self.types.clear();
         self.types_order.clear();
@@ -567,6 +588,9 @@ impl CacheStatistics {
                 self.nodes += 1;
             } else {
                 self.unresolved_references += 1;
+            }
+            if node.is_bank_node {
+                self.blank_nodes += 1;
             }
             for type_index in &node.types {
                 let type_data = self
@@ -593,7 +617,7 @@ impl CacheStatistics {
         for (type_index, type_data) in self.types.iter_mut() {
             self.types_order.push(*type_index);
             for (predicate_index, data_characteristics) in type_data.properties.iter() {
-                if type_data.instance_view.get_column(*type_index).is_none() {
+                if type_data.instance_view.get_column(*predicate_index).is_none() {
                     let predicate_str = node_data.get_predicate(*predicate_index);
                     let column_desc = ColumnDesc {
                         predicate_index: *predicate_index,
@@ -613,7 +637,7 @@ impl CacheStatistics {
                     type_data.instance_view.display_properties.push(column_desc);
                 }
             }
-            type_data.filtered_instances = type_data.instances.clone();
+            type_data.filtered_instances = type_data.instances.clone();          
         }
         self.selected_type = None;
         self.types_order.sort_by(|a, b| {
@@ -635,6 +659,7 @@ impl CacheStatistics {
         prefix_manager: &PrefixManager,
         color_cache: &ColorCache,
         rdfwrap: &mut dyn rdfwrap::RDFAdapter,
+        iri_display: IriDisplay,
     ) -> NodeAction {
         if node_data.len() == 0 {
             ui.heading("No data loaded. Load RDF file first.");
@@ -650,10 +675,13 @@ impl CacheStatistics {
                         "Unresolved References: {}",
                         self.unresolved_references
                     ));
+                    ui.label(format!("Blank Nodes: {}", self.blank_nodes));
                     ui.label(format!("Properties: {}", self.properties));
                     ui.label(format!("References: {}", self.references));
-                    ui.label(format!("Unique Predicates: {}", self.unique_types));
+                    ui.label(format!("Unique Predicates: {}", self.unique_predicates));
                     ui.label(format!("Unique Types: {}", self.unique_types));
+                    ui.label(format!("Unique Languages: {}", node_data.unique_languages()));
+                    ui.label(format!("Unique Data Types: {}", node_data.unique_data_types()));
                     /*
                     ui.horizontal(|ui| {
                         if ui.button("Update").clicked() {
@@ -679,20 +707,18 @@ impl CacheStatistics {
                             ui.end_row();
                             for type_index in &self.types_order {
                                 let type_data = self.types.get(type_index).unwrap();
+                                let type_label = node_data.type_display(*type_index, layout_data.display_language, iri_display, prefix_manager);
                                 if matches!(self.selected_type, Some(selected_index) if selected_index == *type_index) {
                                     egui::Frame::new()
                                         .fill(egui::Color32::LIGHT_BLUE)
                                         .show(ui, |ui | {
-                                            ui.label(prefix_manager.get_prefixed(node_data.get_type(*type_index).unwrap()));
+                                            ui.label(type_label.as_str());
                                         });
                                 } else {
-                                    if ui.button(
-                                        prefix_manager.get_prefixed(node_data.get_type(*type_index).unwrap()),
-                                    ).clicked() {
+                                    if ui.button(type_label.as_str()).clicked() {
                                         self.selected_type = Some(*type_index);
                                     }
                                 }
-
                                 ui.label(type_data.instances.len().to_string());
                                 ui.label(type_data.properties.len().to_string());
                                 ui.label(type_data.references.len().to_string());
@@ -713,9 +739,8 @@ impl CacheStatistics {
                                 ui.heading("Max Len");
                                 ui.end_row();
                                 for (predicate_index, pcharecteristics) in &type_data.properties {
-                                    ui.label(prefix_manager.get_prefixed(
-                                        node_data.get_predicate(*predicate_index).unwrap(),
-                                    ));
+                                    let predicate_label = node_data.predicate_display(*predicate_index, layout_data.display_language, iri_display, prefix_manager);                                    
+                                    ui.label(predicate_label.as_str());
                                     ui.label(pcharecteristics.count.to_string());
                                     ui.label(pcharecteristics.max_len.to_string());
                                     ui.end_row();
@@ -731,9 +756,8 @@ impl CacheStatistics {
                                 ui.heading("Count");
                                 ui.end_row();
                                 for (predicate_index, count) in &type_data.references {
-                                    ui.label(prefix_manager.get_prefixed(
-                                        node_data.get_predicate(*predicate_index).unwrap(),
-                                    ));
+                                    let predicate_label = node_data.predicate_label(*predicate_index, layout_data.display_language).unwrap_or(node_data.get_predicate(*predicate_index).unwrap());                                    
+                                    ui.label(predicate_label);
                                     ui.label(count.to_string());
                                     ui.end_row();
                                 }
@@ -804,7 +828,7 @@ impl CacheStatistics {
                         ));
                     }
                 });
-                let needed_len = (type_data.filtered_instances.len() + 1) as f32 * ROW_HIGHT;
+                let needed_len = (type_data.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
                 let a_height = ui.available_height();
                 StripBuilder::new(ui)
                     .size(egui_extras::Size::remainder())

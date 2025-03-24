@@ -118,7 +118,7 @@ Table
 - V layout animation (check box)
 - prefix manager
    - automatically create prefixes
-- show prefixes list (easy to open)
+- V show prefixes list (easy to open)
 - V graph view (show colors for references)
 - visual-graph show references with labels
   - node:context hide referenced
@@ -131,20 +131,6 @@ Table
 - V compute layout ausschalten wenn zu wenig bewegung
 - V control-F focus on search
 - limit count of shown nodes (show warning)
-
-Type, Predicate Label
-- node cache (aus dem rdfs bzw. owl)
-- aus dem iri
-- nachladen
-- show labels (tool tip full iri)
-- prefixed
-
-Prefix Manager - create automatically prefixes
-- show prefixes
-
-
-langString - config welche sprache soll ausgefiltert werden
-zeige nur eine Sprache
 
 #####################################
 - sprachen

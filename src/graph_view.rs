@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing, layout, nobject::{IriIndex, Literal}, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
+    drawing, layout::{self, NodeLayout}, nobject::{IriIndex, Literal}, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
 };
 use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
 use egui::Slider;
@@ -19,7 +19,7 @@ impl VisualRdfApp {
             if self.layout_data.compute_layout || self.layout_data.force_compute_layout {
                 let max_move = layout::layout_graph(
                     &mut self.node_data,
-                    &self.layout_data.visible_nodes,
+                    &mut self.layout_data.visible_nodes,
                     &self.layout_data.hidden_predicates,
                     &self.persistent_data.config_data,
                 );
@@ -37,9 +37,7 @@ impl VisualRdfApp {
             }
             if ui.button("To Center").clicked() {
                 self.layout_data.offset = Pos2::ZERO;
-                self.node_data
-                    .node_cache
-                    .to_center(&self.layout_data.visible_nodes);
+                self.layout_data.visible_nodes.to_center();
             }
             if ui.button("Show all").clicked() {
                 self.show_all();
@@ -174,7 +172,7 @@ impl VisualRdfApp {
                                     self.layout_data.compute_layout = true;
                                     for (predicate_index, ref_iri) in &current_node.references {
                                         if predicate_index == reference_index {
-                                            self.layout_data.visible_nodes.add(*ref_iri);
+                                            self.layout_data.visible_nodes.add(NodeLayout::new(*ref_iri));
                                         }
                                     }
                                 }
@@ -184,9 +182,9 @@ impl VisualRdfApp {
                                 if ui.button("➕").clicked() {
                                     self.layout_data.compute_layout = true;
                                     let mut nodes_to_add: Vec<IriIndex> = Vec::new();
-                                    for visible_index in &self.layout_data.visible_nodes.data {
+                                    for visible_index in self.layout_data.visible_nodes.data.iter() {
                                         let visible_node =
-                                            self.node_data.get_node_by_index(*visible_index);
+                                            self.node_data.get_node_by_index(visible_index.node_index);
                                         if let Some((v_node_iri,visible_node)) = visible_node {
                                             if visible_node.has_same_type(&current_node.types) {
                                                 for (predicate_index, ref_iri) in
@@ -200,7 +198,7 @@ impl VisualRdfApp {
                                         }
                                     }
                                     for node_to_add in nodes_to_add.iter() {
-                                        self.layout_data.visible_nodes.add(*node_to_add);
+                                        self.layout_data.visible_nodes.add(NodeLayout::new(*node_to_add));
                                     }
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
@@ -264,7 +262,7 @@ impl VisualRdfApp {
                                         &current_node.reverse_references
                                     {
                                         if predicate_index == reference_index {
-                                            self.layout_data.visible_nodes.add(*ref_iri);
+                                            self.layout_data.visible_nodes.add_by_index(*ref_iri);
                                         }
                                     }
                                 }
@@ -274,9 +272,9 @@ impl VisualRdfApp {
                                 if ui.button("➕").clicked() {
                                     self.layout_data.compute_layout = true;
                                     let mut nodes_to_add: Vec<IriIndex> = Vec::new();
-                                    for visible_index in &self.layout_data.visible_nodes.data {
+                                    for node_layout in &self.layout_data.visible_nodes.data {
                                         let visible_node =
-                                            self.node_data.get_node_by_index(*visible_index);
+                                            self.node_data.get_node_by_index(node_layout.node_index);
                                         if let Some((_,visible_node)) = visible_node {
                                             if visible_node.has_same_type(&current_node.types) {
                                                 for (predicate_index, ref_iri) in
@@ -290,7 +288,7 @@ impl VisualRdfApp {
                                         }
                                     }
                                     for node_to_add in nodes_to_add.iter() {
-                                        self.layout_data.visible_nodes.add(*node_to_add);
+                                        self.layout_data.visible_nodes.add_by_index(*node_to_add);
                                     }
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
@@ -344,13 +342,13 @@ impl VisualRdfApp {
                 response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0)),
             )
         };
-        for iri_index in self.layout_data.visible_nodes.data.iter() {
-            if let Some((_,object)) = self.node_data.get_node_by_index(*iri_index) {
+        for node_layout in self.layout_data.visible_nodes.data.iter() {
+            if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                 for (pred_index, ref_iri) in &object.references {
                     if !self.layout_data.hidden_predicates.contains(*pred_index) {
-                        if self.layout_data.visible_nodes.data.contains(ref_iri) {
-                            if let Some((_,ref_object)) = self.node_data.get_node_by_index(*ref_iri) {
-                                let pos1 = center + object.pos.to_vec2();
+                        if self.layout_data.visible_nodes.contains(*ref_iri) {
+                            if let Some(ref_object) = self.layout_data.visible_nodes.get(*ref_iri) {
+                                let pos1 = center + node_layout.pos.to_vec2();
                                 let pos2 = center + ref_object.pos.to_vec2();
                                 drawing::draw_arrow_to_circle(
                                     painter,
@@ -393,27 +391,27 @@ impl VisualRdfApp {
         }
         if let Some(node_to_drag_index) = &self.layout_data.node_to_drag {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if let Some((_,node_to_drag)) =
-                    self.node_data.get_node_by_index_mut(*node_to_drag_index)
+                if let Some(node_to_drag) =
+                    self.layout_data.visible_nodes.get_mut(*node_to_drag_index)
                 {
                     node_to_drag.pos = (pointer_pos - center).to_pos2();
                 }
             }
         }
         let mut was_context_click = false;
-        for node_index in self.layout_data.visible_nodes.data.iter() {
-            if let Some((object_iri,object)) = self.node_data.get_node_by_index(*node_index) {
-                let pos = center + object.pos.to_vec2();
+        for node_layout in self.layout_data.visible_nodes.data.iter() {
+            if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
+                let pos = center + node_layout.pos.to_vec2();
                 let mut was_action = false;
                 if single_clicked {
                     if (pos - sc_mouse_pos).length() < radius {
-                        self.layout_data.selected_node = Some(*node_index);
+                        self.layout_data.selected_node = Some(node_layout.node_index);
                         was_action = true;
                     }
                 }
                 if double_clicked {
                     if (pos - mouse_pos).length() < radius {
-                        node_to_click = Some(*node_index);
+                        node_to_click = Some(node_layout.node_index);
                         was_action = true;
                     }
                 }
@@ -422,7 +420,7 @@ impl VisualRdfApp {
                         was_context_click = true;
                         self.layout_data.context_menu_pos = sec_mouse_pos;
                         ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                        self.layout_data.context_menu_node = Some(*node_index);
+                        self.layout_data.context_menu_node = Some(node_layout.node_index);
                         was_action = true;
                     }
                 }
@@ -430,7 +428,7 @@ impl VisualRdfApp {
                     if let Some(pointer_pos) = response.interact_pointer_pos() {
                         if (pos - pointer_pos).length() < radius {
                             was_action = true;
-                            self.layout_data.node_to_drag = Some(*node_index);
+                            self.layout_data.node_to_drag = Some(node_layout.node_index);
                         }
                     }
                 }
@@ -439,10 +437,10 @@ impl VisualRdfApp {
                     && (pos - hover_pos.unwrap()).length() < radius
                 {
                     // just hover
-                    node_to_hover = Some(*node_index);
+                    node_to_hover = Some(node_layout.node_index);
                 }
                 if self.layout_data.selected_node.is_some()
-                    && self.layout_data.selected_node.unwrap() == *node_index
+                    && self.layout_data.selected_node.unwrap() == node_layout.node_index
                 {
                     painter.circle_filled(pos, radius + 3.0, egui::Color32::YELLOW);
                 }
@@ -484,7 +482,7 @@ impl VisualRdfApp {
                         self.layout_data.compute_layout = true;
                         self.layout_data.visible_nodes.remove(current_index);
                         self.layout_data.visible_nodes.data.retain(|x| {
-                            let node = self.node_data.get_node_by_index(*x);
+                            let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 !node.has_same_type(&types)
                             } else {
@@ -496,13 +494,13 @@ impl VisualRdfApp {
                     if ui.button("Hide other").clicked() {
                         self.layout_data.compute_layout = true;
                         self.layout_data.visible_nodes.data.clear();
-                        self.layout_data.visible_nodes.add(current_index);
+                        self.layout_data.visible_nodes.add_by_index(current_index);
                         close_menu = true;
                     }
                     if ui.button("Hide other Types").clicked() {
                         self.layout_data.compute_layout = true;
                         self.layout_data.visible_nodes.data.retain(|x| {
-                            let node = self.node_data.get_node_by_index(*x);
+                            let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 node.has_same_type(&types)
                             } else {
