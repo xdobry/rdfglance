@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
-use eframe::egui::Pos2;
 use indexmap::IndexMap;
-use oxrdf::vocab::rdfs;
-use rand::Rng;
+use oxrdf::vocab::{rdf, rdfs};
 
-use crate::{config::IriDisplay, prefix_manager::PrefixManager, SortedVec};
+use crate::{config::IriDisplay, prefix_manager::PrefixManager};
 
 pub type LangIndex = u16;
 pub type DataTypeIndex = u16;
 
+#[derive(Clone)]
 pub enum Literal {
     String(String),
     LangString(LangIndex, String),
     TypedString(DataTypeIndex, String),
 }
+
 
 impl AsRef<str> for Literal {
     fn as_ref(&self) -> &str {
@@ -62,7 +62,7 @@ pub struct NObject {
     pub references: Vec<PredicateReference>,
     pub reverse_references: Vec<PredicateReference>,
     pub has_subject: bool,
-    pub is_bank_node: bool,
+    pub is_blank_node: bool,
 }
 
 pub struct NodeData {
@@ -231,7 +231,7 @@ impl NodeCache {
     pub fn get_node_index(&self, iri: &str) -> Option<IriIndex> {
         self.cache.get_full(iri).map(|(index, _, _)| index)
     }
-    pub fn get_node_index_or_insert(&mut self, iri: &str) -> IriIndex {
+    pub fn get_node_index_or_insert(&mut self, iri: &str, is_blank_node: bool) -> IriIndex {
         if let Some(index) = self.get_node_index(iri) {
             index
         } else {
@@ -241,7 +241,7 @@ impl NodeCache {
                 references: Vec::new(),
                 reverse_references: Vec::new(),
                 has_subject: false,
-                is_bank_node: false,
+                is_blank_node,
             })
         }
     }
@@ -294,8 +294,8 @@ impl NodeData {
     pub fn get_node_index(&self, iri: &str) -> Option<IriIndex> {
         self.node_cache.cache.get_full(iri).map(|(index, _, _)| index)
     }
-    pub fn get_node_index_or_insert(&mut self, iri: &str) -> IriIndex {
-        self.node_cache.get_node_index_or_insert(iri)
+    pub fn get_node_index_or_insert(&mut self, iri: &str, is_blank_node: bool) -> IriIndex {
+        self.node_cache.get_node_index_or_insert(iri, is_blank_node)
     }
     pub fn len(&self) -> usize {
         self.node_cache.len()
@@ -449,6 +449,82 @@ impl NodeData {
             }
         } else {
             LabelDisplayValue::FullRef("!Unknown")
+        }
+    }
+
+    pub fn resolve_rdf_lists(&mut self, prefix_manager: &PrefixManager) {
+        let predicate_first = self.indexers.predicate_indexer.to_index(&prefix_manager.get_prefixed(rdf::FIRST.as_str()));
+        let predicate_rest = self.indexers.predicate_indexer.to_index(&prefix_manager.get_prefixed(rdf::REST.as_str()));
+        let node_nil = self.get_node_index(&prefix_manager.get_prefixed(rdf::NIL.as_str())).unwrap_or(0);
+        let mut next_list : Vec<(IriIndex,IriIndex)> = Vec::new();
+        let mut node_index: usize = 0;
+        for (_,node) in self.iter() {
+            for (predicate,ref_index) in &node.references {
+                if *predicate == predicate_rest {
+                    next_list.push((node_index,*ref_index));
+                }
+            }
+            node_index += 1;
+        }
+        let mut head_nodes: Vec<IriIndex> = Vec::new();
+        for &(first, _) in &next_list {
+            if !next_list.iter().any(|&(_, second)| second == first) {
+                head_nodes.push(first);
+            }
+        }
+        for head_node in &head_nodes {
+            let mut current_node = Some(*head_node);
+            let mut list: Vec<IriIndex> = Vec::new();
+            while let Some(c_node) = current_node {
+                if c_node != node_nil {
+                    list.push(c_node);
+                }
+                current_node = next_list.iter().find_map(|e| {
+                    if e.0 == c_node {
+                        return Some(e.1);
+                    }
+                    None
+                });
+            }
+            let mut list_holders: Vec<(IriIndex,IriIndex)> = Vec::new();
+            for node_index in list.iter() {
+                let node = self.get_node_by_index_mut(*node_index).unwrap().1;
+                let mut literal : Option<Literal> = None;
+                let mut reference: Option<IriIndex> = None;
+                for (predicate,value) in &node.properties {
+                    if *predicate == predicate_first {
+                        literal = Some(value.clone());
+                        break;
+                    }
+                }
+                if literal.is_none() {
+                    for (predicate,value) in &node.references {
+                        if *predicate == predicate_first {
+                            reference = Some(*value);
+                            break;
+                        }
+                    }
+                }
+                if list_holders.len()==0 {
+                   list_holders = node.reverse_references.clone();
+                   if list_holders.len() == 0 {
+                        continue;
+                   }
+                }
+                for (predicate,holder) in &list_holders {
+                    let holder_node: &mut NObject = self.get_node_by_index_mut(*holder).unwrap().1;
+                    if let Some(literal) = &literal {
+                        holder_node.properties.push((*predicate,literal.clone()));
+                    } else if let Some(reference) = reference {
+                        holder_node.references.push((*predicate,reference));
+                    }
+                }
+            }
+            // Remove reference to rdf list
+            for (predicate,holder) in &list_holders {
+                let holder_node: &mut NObject = self.get_node_by_index_mut(*holder).unwrap().1;
+                holder_node.references.retain(|(ref_predicate,ref_index)| ref_predicate != predicate || ref_index != head_node);
+            }
         }
     }
 } 

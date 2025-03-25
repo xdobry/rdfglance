@@ -36,15 +36,19 @@ The RDF Data can be loaded by using following formats:
 
 - ttl
 - rdf/xml
+- trig - namded graphs are ignored
+- nt (n-tuples)
+- nq (n-quads) - namded graphs are ignored
+
+Defined prefixes are taken from the input file if possible.
 
 The program assumes that the RDF nodes (tripples) are organized using RDFS (RDF Schema).
 So every node have a assigned rdf type. The program index and show all data using these types.
 
 Some features of RDF are not supported very well. This includes:
 
-- RDF list (you have just blank nodes and first, rest predicates)
-- RDF types (internally all data are kept as string)
-- String with Language (the language information is removed)
+- named graphs
+- RDF list (you may resolve the lists to simple predicates. The order are preserved)
 
 I hope to improve it in later versions.
 You may use github issue system to report bug and feature wishes.

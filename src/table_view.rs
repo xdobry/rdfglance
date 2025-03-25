@@ -589,7 +589,7 @@ impl CacheStatistics {
             } else {
                 self.unresolved_references += 1;
             }
-            if node.is_bank_node {
+            if node.is_blank_node {
                 self.blank_nodes += 1;
             }
             for type_index in &node.types {

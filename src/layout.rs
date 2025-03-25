@@ -148,11 +148,13 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
     }
     for node_layout in visible_nodes.data.iter_mut() {
         let f = moves.get(&node_layout.node_index).unwrap();
-        let len = f.length();
+        node_layout.vel *= 0.8;
+        node_layout.vel += *f;
+        let len = node_layout.vel.length();
         if len > max_move {
             max_move = len;
         }
-        node_layout.pos += *f;
+        node_layout.pos += node_layout.vel;
     }
     return max_move;
 }

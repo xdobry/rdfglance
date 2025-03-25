@@ -142,7 +142,7 @@ Table
 - kann die App eine Viewer für dbdata and co. benutzt werden
 
 - (wenn immer prefix manager benutzt wird, dann braucht man keine iri short)
-- labels nachladen kann man als ein
+- labels nachladen kann man als eine Aktion (wenn sparql)
 
 ###########################
 DBPedia

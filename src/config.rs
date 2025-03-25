@@ -9,12 +9,14 @@ pub struct Config {
     // edges force
     pub attraction_factor: f32,
     pub language_filter: String,
-    #[serde(default = "default_supress_other_language_data")]
+    #[serde(default = "default_true")]
     pub supress_other_language_data: bool,
-    #[serde(default = "default_create_iri_prefixes_automatically")]
+    #[serde(default = "default_true")]
     pub create_iri_prefixes_automatically: bool,
     #[serde(default = "default_iri_display")]
     pub iri_display: IriDisplay,
+    #[serde(default = "default_true")]
+    pub resolve_rdf_lists: bool,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -36,15 +38,12 @@ impl Default for Config {
             supress_other_language_data: true,
             create_iri_prefixes_automatically: true,
             iri_display: IriDisplay::Full,
+            resolve_rdf_lists: true,
         }
     }
 }
 
-fn default_supress_other_language_data() -> bool {
-    return true;
-}
-
-fn default_create_iri_prefixes_automatically() -> bool {
+fn default_true() -> bool {
     return true;
 }
 
@@ -71,6 +70,7 @@ impl VisualRdfApp {
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Prefixed, "IRI Prefixed");
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Shorten, "IRI Shorten");
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Full, "Full IRI");
+        ui.checkbox(&mut self.persistent_data.config_data.resolve_rdf_lists, "Resolve rdf lists");
         return NodeAction::None;
     }
 }

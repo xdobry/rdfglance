@@ -36,7 +36,6 @@ impl RDFWrap {
     }
 
     pub fn load_file(file_name: &str, node_data: &mut NodeData, language_filter: &Vec<String>, prefix_manager: &mut PrefixManager) -> Result<u32> {
-        // TODO Error handling for can not open ttl file
         let file =
             File::open(file_name).with_context(|| format!("Can not open file {}", file_name))?;
         let reader = BufReader::new(file);
@@ -56,7 +55,7 @@ impl RDFWrap {
                     if !prefix_read {
                         for (prefix,iri) in parser.prefixes() {
                             prefix_manager.add_prefix(prefix, iri);
-                        };
+                        }
                         prefix_read = true;
                     }
                     match triple {
@@ -70,8 +69,15 @@ impl RDFWrap {
                 }
             }
             "rdf" | "xml" => {
-                let parser = RdfXmlParser::new().for_reader(reader);
-                for triple in parser {
+                let mut parser = RdfXmlParser::new().for_reader(reader);
+                let mut prefix_read = false;
+                while let Some(triple) = parser.next() {
+                    if !prefix_read {
+                        for (prefix,iri) in parser.prefixes() {
+                            prefix_manager.add_prefix(prefix, iri);
+                        }
+                        prefix_read = true;
+                    }
                     let triple = triple?;
                     add_triple(&mut triples_count, indexer, cache, triple, &mut index_cache, language_filter, prefix_manager);
                 }
@@ -84,8 +90,15 @@ impl RDFWrap {
                 }
             }
             "trig" => {
-                let parser = oxttl::TriGParser::new().for_reader(reader);
-                for quad in parser {
+                let mut parser = oxttl::TriGParser::new().for_reader(reader);
+                let mut prefix_read = false;
+                while let Some(quad) = parser.next() {
+                    if !prefix_read {
+                        for (prefix,iri) in parser.prefixes() {
+                            prefix_manager.add_prefix(prefix, iri);
+                        }
+                        prefix_read = true;
+                    }
                     let quad = quad?;
                     add_triple(&mut triples_count, indexer, cache, Triple::from(quad), &mut index_cache, language_filter, prefix_manager);
                 }
@@ -136,7 +149,7 @@ impl RDFWrap {
                         Term::NamedNode(named_object) => {
                             references.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                node_data.get_node_index_or_insert(named_object.as_str()),
+                                node_data.get_node_index_or_insert(named_object.as_str(), false),
                             ));
                         }
                         Term::Literal(literal) => {
@@ -158,7 +171,7 @@ impl RDFWrap {
                     Subject::NamedNode(named_subject) => {
                         reverse_references.push((
                             node_data.get_predicate_index(triple.predicate.as_str()),
-                            node_data.get_node_index_or_insert(named_subject.as_str()),
+                            node_data.get_node_index_or_insert(named_subject.as_str(), false),
                         ));
                     }
                     _ => {
@@ -181,7 +194,7 @@ impl RDFWrap {
             reverse_references,
             types,
             has_subject: true,
-            is_bank_node: false,
+            is_blank_node: false,
         });
     }
     pub fn iri2label_fallback<'a>(iri: &'a str) -> &'a str {
@@ -213,7 +226,7 @@ fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, c
         Subject::BlankNode(blank_node) => {
             let iri = blank_node.as_str();
             if index_cache.iri != iri {
-                index_cache.index = cache.get_node_index_or_insert(iri);
+                index_cache.index = cache.get_node_index_or_insert(iri, true);
                 index_cache.iri.clear();
                 index_cache.iri.push_str(iri);
             }
@@ -223,7 +236,7 @@ fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, c
         Subject::NamedNode(named_subject) => {
             let iri = prefix_manager.get_prefixed(named_subject.as_str());
             if index_cache.iri != iri {
-                index_cache.index = cache.get_node_index_or_insert(&iri);
+                index_cache.index = cache.get_node_index_or_insert(&iri, false);
                 index_cache.iri.clear();
                 index_cache.iri.push_str(&iri);
             }
@@ -232,7 +245,7 @@ fn add_triple(triples_count: &mut u32, indexer: &mut crate::nobject::Indexers, c
         }
         _ => {
             println!(
-                "Subject is not named node {} and will be ignored",
+                "Subject is not named or blank node {} and will be ignored",
                 triple.subject.to_string()
             );
         }
@@ -267,7 +280,7 @@ fn add_predicate_object(triples_count: &mut u32,
         match &object {
             Term::NamedNode(named_object) => {
                 let reference_iri = prefix_manager.get_prefixed(named_object.as_str());
-                let reference_index = cache.get_node_index_or_insert(&reference_iri);
+                let reference_index = cache.get_node_index_or_insert(&reference_iri, false);
                 let predicate_literal: PredicateReference = (predicate_index,reference_index);
                 let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                 node.references.push(predicate_literal);
@@ -277,7 +290,7 @@ fn add_predicate_object(triples_count: &mut u32,
                 *triples_count += 1;
             }
             Term::BlankNode(blank_node) => {
-                let reference_index = cache.get_node_index_or_insert(blank_node.as_str());
+                let reference_index = cache.get_node_index_or_insert(blank_node.as_str(), true);
                 let predicate_literal: PredicateReference = (predicate_index,reference_index);
                 let (_iri,node) = cache.get_node_by_index_mut(node_index).unwrap();
                 node.references.push(predicate_literal);

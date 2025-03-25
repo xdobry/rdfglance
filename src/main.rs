@@ -7,7 +7,7 @@ use eframe::{
 use egui::{Align, Layout, Vec2};
 use egui_extras::StripBuilder;
 use nobject::{IriIndex, LangIndex, NodeData};
-use layout::{NodeLayout, SortedNodeLayout};
+use layout::SortedNodeLayout;
 use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
 use rfd::FileDialog;
@@ -483,8 +483,12 @@ impl VisualRdfApp {
         self.layout_data.language_sort.sort_by(|a,b| {
             self.node_data.get_language(*a).cmp(&self.node_data.get_language(*b))
         });
+        if self.persistent_data.config_data.resolve_rdf_lists {
+            self.node_data.resolve_rdf_lists(&self.prefix_manager);
+        }
         self.cache_statistics.update(&self.node_data);
     }
+
 }
 
 impl eframe::App for VisualRdfApp {
