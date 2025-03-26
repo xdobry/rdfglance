@@ -58,7 +58,7 @@ impl Config {
 }
 
 impl VisualRdfApp {
-    pub fn show_config(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_config(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         ui.horizontal(|ui| {
             ui.label("language filter (comma separated):");
             ui.text_edit_singleline(&mut self.persistent_data.config_data.language_filter);

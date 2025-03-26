@@ -4,7 +4,7 @@ use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke
 use egui_extras::StripBuilder;
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, layout, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
 };
 
 pub struct CacheStatistics {
@@ -462,7 +462,7 @@ impl TypeData {
                 TableContextMenu::CellMenu(_pos, instance_index, predictate) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
-                    if let Some((node_iri,node)) = node {
+                    if let Some((_node_iri,node)) = node {
                         for (predicate_index, value) in &node.properties {
                             if predictate == *predicate_index {
                                 ui.label(value.as_ref());
@@ -544,7 +544,7 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2)
     job.wrap = egui::text::TextWrapping {
         max_width: width,
         max_rows: 1,
-        overflow_character: Some('…'),
+        // overflow_character: Some('…'),
         ..Default::default()
     };
     let galley = painter.layout_job(job);
@@ -583,7 +583,7 @@ impl CacheStatistics {
         self.reset();
         let start = Instant::now();
         let node_len = node_data.len();
-        for (node_index, (_, node)) in node_data.iter().enumerate() {
+        for (node_index, (node_iri, node)) in node_data.iter().enumerate() {
             if node.has_subject {
                 self.nodes += 1;
             } else {

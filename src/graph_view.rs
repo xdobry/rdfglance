@@ -185,7 +185,7 @@ impl VisualRdfApp {
                                     for visible_index in self.layout_data.visible_nodes.data.iter() {
                                         let visible_node =
                                             self.node_data.get_node_by_index(visible_index.node_index);
-                                        if let Some((v_node_iri,visible_node)) = visible_node {
+                                        if let Some((_v_node_iri,visible_node)) = visible_node {
                                             if visible_node.has_same_type(&current_node.types) {
                                                 for (predicate_index, ref_iri) in
                                                     &visible_node.references

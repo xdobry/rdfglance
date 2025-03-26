@@ -107,6 +107,10 @@ pub fn short_iri<'a>(iri: &'a str) -> &'a str {
             return &iri[last_slash+1..];
         }
     }
+    let first_colon = iri.find(':');
+    if let Some(first_colon) = first_colon {
+        return &iri[first_colon+1..];
+    }
     return iri
 }
 

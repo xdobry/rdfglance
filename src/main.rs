@@ -101,9 +101,7 @@ struct PlayData {
     row_count: usize,
     row_height: f32,
     position: f32,
-    drag_pos: Option<f32>,
-    canvas_size: Vec2, // The size of the virtual canvas
-    points: Vec<(f32, f32)>,
+    drag_pos: Option<f32>
 }
 
 struct ColorCache {
@@ -279,15 +277,6 @@ impl VisualRdfApp {
                 row_height: 20.0,
                 position: 0.0,
                 drag_pos: None,
-                canvas_size: Vec2::new(2000.0, 2000.0), // Large virtual drawing area
-                points: (0..40)
-                    .map(|_| {
-                        (
-                            rand::random::<f32>() * 1000.0,
-                            rand::random::<f32>() * 1000.0,
-                        )
-                    })
-                    .collect(),
             },
         }
     }
@@ -471,6 +460,27 @@ impl VisualRdfApp {
             }
         }
     }
+    fn load_ttl_dir(&mut self, dir_name: &str) {
+        let language_filter = self.persistent_data.config_data.language_filter();
+        let rdfttl = rdfwrap::RDFWrap::load_from_dir(dir_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);
+        match rdfttl {
+            Err(err) => {
+                self.system_message = SystemMessage::Error(format!("Directory not found: {}", err));
+            }
+            Ok(triples_count) => {
+                self.system_message = SystemMessage::Info(format!(
+                    "Loaded: {} triples: {}",
+                    dir_name, triples_count
+                ));
+                self.update_data_indexes();
+                let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
+                let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
+                self.color_cache
+                    .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
+            }
+        }
+    }
+
     fn set_status_message(&mut self, message: &str) {
         self.status_message.clear();
         self.status_message.push_str(message);
@@ -515,6 +525,15 @@ impl eframe::App for VisualRdfApp {
                             let selected_file = Some(path.display().to_string());
                             if let Some(selected_file) = &selected_file {
                                 self.load_ttl(&selected_file);
+                            }
+                        }
+                        ui.close_menu();
+                    }
+                    if ui.button("Load all from dir").clicked() {
+                        if let Some(path) = FileDialog::new().pick_folder() {
+                            let selected_dir = Some(path.display().to_string());
+                            if let Some(selected_dir) = &selected_dir {
+                                self.load_ttl_dir(&selected_dir);
                             }
                         }
                         ui.close_menu();
