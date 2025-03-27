@@ -1,10 +1,17 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
-use egui_extras::StripBuilder;
+use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, uitools::popup_at, ColorCache, LayoutData, NodeAction
+    browse_view::show_references,
+    config::IriDisplay,
+    nobject::{IriIndex, NodeData},
+    play_ground::ScrollBar,
+    prefix_manager::PrefixManager,
+    rdfwrap::{self, RDFWrap},
+    uitools::popup_at,
+    ColorCache, LayoutData, NodeAction,
 };
 
 pub struct CacheStatistics {
@@ -247,12 +254,7 @@ impl TypeData {
                     .get_predicate(column_desc.predicate_index)
                     .unwrap(),
             );
-            text_wrapped(
-                predicate_label,
-                column_desc.width,
-                painter,
-                top_left,
-            );
+            text_wrapped(predicate_label, column_desc.width, painter, top_left);
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect =
                 egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
@@ -286,7 +288,7 @@ impl TypeData {
             [instance_index..min(instance_index + capacity, self.filtered_instances.len())]
         {
             let node = node_data.get_node_by_index(*instance_index);
-            if let Some((node_iri,node)) = node {
+            if let Some((node_iri, node)) = node {
                 if start_pos % 2 == 0 {
                     painter.rect_filled(
                         Rect::from_min_size(
@@ -301,7 +303,12 @@ impl TypeData {
                 let mut xpos = iri_len + ref_count_len;
                 let iri_top_left = available_rect.left_top() + Vec2::new(0.0, ypos);
 
-                text_wrapped(&prefix_manager.get_prefixed(&node_iri), iri_len, painter, iri_top_left);
+                text_wrapped(
+                    &prefix_manager.get_prefixed(&node_iri),
+                    iri_len,
+                    painter,
+                    iri_top_left,
+                );
 
                 let cell_rect =
                     egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len, ROW_HIGHT));
@@ -341,7 +348,8 @@ impl TypeData {
                     .filter(|p| p.visible)
                     .skip(self.instance_view.column_pos as usize)
                 {
-                    let property = node.get_property(column_desc.predicate_index, layout_data.display_language);
+                    let property = node
+                        .get_property(column_desc.predicate_index, layout_data.display_language);
                     if let Some(property) = property {
                         let value = property.as_ref();
                         let cell_rect = egui::Rect::from_min_size(
@@ -368,8 +376,34 @@ impl TypeData {
             }
         }
         // Draw vertical lines
-        painter.line([Pos2::new(available_rect.left()+iri_len-COLUMN_GAP,available_rect.top()),Pos2::new(available_rect.left()+iri_len-COLUMN_GAP, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
-        painter.line([Pos2::new(available_rect.left()+iri_len+ref_count_len+-COLUMN_GAP,available_rect.top()),Pos2::new(available_rect.left()+ref_count_len+iri_len-COLUMN_GAP, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
+        painter.line(
+            [
+                Pos2::new(
+                    available_rect.left() + iri_len - COLUMN_GAP,
+                    available_rect.top(),
+                ),
+                Pos2::new(
+                    available_rect.left() + iri_len - COLUMN_GAP,
+                    available_rect.top() + ypos,
+                ),
+            ]
+            .to_vec(),
+            Stroke::new(1.0, Color32::DARK_GRAY),
+        );
+        painter.line(
+            [
+                Pos2::new(
+                    available_rect.left() + iri_len + ref_count_len + -COLUMN_GAP,
+                    available_rect.top(),
+                ),
+                Pos2::new(
+                    available_rect.left() + ref_count_len + iri_len - COLUMN_GAP,
+                    available_rect.top() + ypos,
+                ),
+            ]
+            .to_vec(),
+            Stroke::new(1.0, Color32::DARK_GRAY),
+        );
         xpos = iri_len + ref_count_len;
         for column_desc in self
             .instance_view
@@ -379,7 +413,14 @@ impl TypeData {
             .skip(self.instance_view.column_pos as usize)
         {
             xpos += column_desc.width;
-            painter.line([Pos2::new(available_rect.left()+xpos,available_rect.top()),Pos2::new(available_rect.left()+xpos, available_rect.top()+ypos)].to_vec(), Stroke::new(1.0, Color32::DARK_GRAY));
+            painter.line(
+                [
+                    Pos2::new(available_rect.left() + xpos, available_rect.top()),
+                    Pos2::new(available_rect.left() + xpos, available_rect.top() + ypos),
+                ]
+                .to_vec(),
+                Stroke::new(1.0, Color32::DARK_GRAY),
+            );
             xpos += COLUMN_GAP;
         }
 
@@ -462,7 +503,7 @@ impl TypeData {
                 TableContextMenu::CellMenu(_pos, instance_index, predictate) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
-                    if let Some((_node_iri,node)) = node {
+                    if let Some((_node_iri, node)) = node {
                         for (predicate_index, value) in &node.properties {
                             if predictate == *predicate_index {
                                 ui.label(value.as_ref());
@@ -483,7 +524,7 @@ impl TypeData {
                 TableContextMenu::RefMenu(_pos, instance_index) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
-                    if let Some((node_iri,node)) = node {
+                    if let Some((_node_iri, node)) = node {
                         let mut node_to_click: Option<IriIndex> = None;
                         if let Some(node_index) = show_references(
                             node_data,
@@ -493,22 +534,28 @@ impl TypeData {
                             "References",
                             &node.references,
                             layout_data,
+                            300.0,
+                            "ref",
                         ) {
                             node_to_click = Some(node_index);
                             close_menu = true;
                         }
-                        if let Some(node_index) = show_references(
-                            node_data,
-                            rdfwrap,
-                            color_cache,
-                            ui,
-                            "Referenced by",
-                            &node.reverse_references,
-                            layout_data,
-                        ) {
-                            node_to_click = Some(node_index);
-                            close_menu = true;
-                        }
+                        ui.push_id("refby", |ui| {
+                            if let Some(node_index) = show_references(
+                                node_data,
+                                rdfwrap,
+                                color_cache,
+                                ui,
+                                "Referenced by",
+                                &node.reverse_references,
+                                layout_data,
+                                300.0,
+                                "ref_by",
+                            ) {
+                                node_to_click = Some(node_index);
+                                close_menu = true;
+                            }
+                        });
                         if let Some(node_to_click) = node_to_click {
                             *instance_action = NodeAction::BrowseNode(node_to_click);
                         }
@@ -617,7 +664,11 @@ impl CacheStatistics {
         for (type_index, type_data) in self.types.iter_mut() {
             self.types_order.push(*type_index);
             for (predicate_index, data_characteristics) in type_data.properties.iter() {
-                if type_data.instance_view.get_column(*predicate_index).is_none() {
+                if type_data
+                    .instance_view
+                    .get_column(*predicate_index)
+                    .is_none()
+                {
                     let predicate_str = node_data.get_predicate(*predicate_index);
                     let column_desc = ColumnDesc {
                         predicate_index: *predicate_index,
@@ -637,7 +688,7 @@ impl CacheStatistics {
                     type_data.instance_view.display_properties.push(column_desc);
                 }
             }
-            type_data.filtered_instances = type_data.instances.clone();          
+            type_data.filtered_instances = type_data.instances.clone();
         }
         self.selected_type = None;
         self.types_order.sort_by(|a, b| {
@@ -647,7 +698,10 @@ impl CacheStatistics {
         });
         let duration = start.elapsed();
         println!("Time taken to index {} nodes: {:?}", node_len, duration);
-        println!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
+        println!(
+            "Nodes per second: {}",
+            node_len as f64 / duration.as_secs_f64()
+        );
     }
 
     pub fn display(
@@ -666,7 +720,7 @@ impl CacheStatistics {
             return NodeAction::None;
         }
         let mut instance_action = NodeAction::None;
-        egui::ScrollArea::horizontal().id_salt("h").show(ui, | ui|  {
+        egui::ScrollArea::horizontal().id_salt("h").show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
                 ui.vertical(|ui| {
                     ui.heading("Statistics:");
@@ -680,8 +734,14 @@ impl CacheStatistics {
                     ui.label(format!("References: {}", self.references));
                     ui.label(format!("Unique Predicates: {}", self.unique_predicates));
                     ui.label(format!("Unique Types: {}", self.unique_types));
-                    ui.label(format!("Unique Languages: {}", node_data.unique_languages()));
-                    ui.label(format!("Unique Data Types: {}", node_data.unique_data_types()));
+                    ui.label(format!(
+                        "Unique Languages: {}",
+                        node_data.unique_languages()
+                    ));
+                    ui.label(format!(
+                        "Unique Data Types: {}",
+                        node_data.unique_data_types()
+                    ));
                     /*
                     ui.horizontal(|ui| {
                         if ui.button("Update").clicked() {
@@ -694,97 +754,143 @@ impl CacheStatistics {
                     });
                     */
                 });
-            ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("types")
-                    .show(ui, |ui| {
-                        egui::Grid::new("types").show(ui, |ui| {
-                            ui.heading("Type IRI");
-                            ui.heading("Instances");
-                            ui.heading("Data");
-                            ui.heading("Out Ref");
-                            ui.heading("In Ref");
-                            ui.end_row();
-                            for type_index in &self.types_order {
-                                let type_data = self.types.get(type_index).unwrap();
-                                let type_label = node_data.type_display(*type_index, layout_data.display_language, iri_display, prefix_manager);
-                                if matches!(self.selected_type, Some(selected_index) if selected_index == *type_index) {
-                                    egui::Frame::new()
-                                        .fill(egui::Color32::LIGHT_BLUE)
-                                        .show(ui, |ui | {
-                                            ui.label(type_label.as_str());
-                                        });
-                                } else {
-                                    if ui.button(type_label.as_str()).clicked() {
-                                        self.selected_type = Some(*type_index);
-                                    }
-                                }
-                                ui.label(type_data.instances.len().to_string());
-                                ui.label(type_data.properties.len().to_string());
-                                ui.label(type_data.references.len().to_string());
-                                ui.label(type_data.rev_references.len().to_string());
-                                ui.end_row();
+                ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                    ui.push_id("types", |ui| {
+                        let (selected_type, type_table_action) = self.show_types(
+                            ui,
+                            node_data,
+                            prefix_manager,
+                            layout_data,
+                            iri_display,
+                            200.0,
+                        );
+                        if selected_type.is_some() {
+                            self.selected_type = selected_type;
+                        }
+                        match type_table_action {
+                            TypeTableAction::SortByLabel => {
+                                self.types_order.sort_by(|a, b| {
+                                    let label_a = node_data.type_display(
+                                        *a,
+                                        layout_data.display_language,
+                                        iri_display,
+                                        prefix_manager,
+                                    );
+                                    let label_b = node_data.type_display(
+                                        *b,
+                                        layout_data.display_language,
+                                        iri_display,
+                                        prefix_manager,
+                                    );
+                                    return label_a.as_str().cmp(label_b.as_str());
+                                });
+                            },
+                            TypeTableAction::SortByInstances => {
+                                self.types_order.sort_by(|a, b| {
+                                    let a_data = self.types.get(a).unwrap();
+                                    let b_data = self.types.get(b).unwrap();
+                                    b_data.instances.len().cmp(&a_data.instances.len())
+                                });
+                            },
+                            TypeTableAction::SortByDataProps => {
+                                self.types_order.sort_by(|a, b| {
+                                    let a_data = self.types.get(a).unwrap();
+                                    let b_data = self.types.get(b).unwrap();
+                                    b_data.properties.len().cmp(&a_data.properties.len())
+                                });
+                            },
+                            TypeTableAction::SortByOutRef => {
+                                self.types_order.sort_by(|a, b| {
+                                    let a_data = self.types.get(a).unwrap();
+                                    let b_data = self.types.get(b).unwrap();
+                                    b_data.references.len().cmp(&a_data.references.len())
+                                });
+                            },
+                            TypeTableAction::SortByInRef => {
+                                self.types_order.sort_by(|a, b| {
+                                    let a_data = self.types.get(a).unwrap();
+                                    let b_data = self.types.get(b).unwrap();
+                                    b_data.rev_references.len().cmp(&a_data.rev_references.len())
+                                });
                             }
-                        });
+                            TypeTableAction::None => {
+
+                            }
+                        }
                     });
-            });
-            if let Some(selected_type) = self.selected_type {
-                if let Some(type_data) = self.types.get_mut(&selected_type) {
-                    ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
-                        ui.separator();
-                        egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
-                            egui::Grid::new("fields").show(ui, |ui| {
-                                ui.heading("Data IRI");
-                                ui.heading("Count");
-                                ui.heading("Max Len");
-                                ui.end_row();
-                                for (predicate_index, pcharecteristics) in &type_data.properties {
-                                    let predicate_label = node_data.predicate_display(*predicate_index, layout_data.display_language, iri_display, prefix_manager);                                    
-                                    ui.label(predicate_label.as_str());
-                                    ui.label(pcharecteristics.count.to_string());
-                                    ui.label(pcharecteristics.max_len.to_string());
+                });
+                if let Some(selected_type) = self.selected_type {
+                    if let Some(type_data) = self.types.get_mut(&selected_type) {
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
+                                egui::Grid::new("fields").show(ui, |ui| {
+                                    ui.strong("Data IRI");
+                                    ui.strong("Count");
+                                    ui.strong("Max Len");
                                     ui.end_row();
-                                }
+                                    for (predicate_index, pcharecteristics) in &type_data.properties
+                                    {
+                                        let predicate_label = node_data.predicate_display(
+                                            *predicate_index,
+                                            layout_data.display_language,
+                                            iri_display,
+                                            prefix_manager,
+                                        );
+                                        ui.label(predicate_label.as_str());
+                                        ui.label(pcharecteristics.count.to_string());
+                                        ui.label(pcharecteristics.max_len.to_string());
+                                        ui.end_row();
+                                    }
+                                });
                             });
                         });
-                    });
-                    ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
-                        ui.separator();
-                        egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
-                            egui::Grid::new("referenced").show(ui, |ui| {
-                                ui.heading("Out Ref");
-                                ui.heading("Count");
-                                ui.end_row();
-                                for (predicate_index, count) in &type_data.references {
-                                    let predicate_label = node_data.predicate_label(*predicate_index, layout_data.display_language).unwrap_or(node_data.get_predicate(*predicate_index).unwrap());                                    
-                                    ui.label(predicate_label);
-                                    ui.label(count.to_string());
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
+                                egui::Grid::new("referenced").show(ui, |ui| {
+                                    ui.strong("Out Ref");
+                                    ui.strong("Count");
                                     ui.end_row();
-                                }
-                            });
-                        });
-                    });
-                    ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
-                        ui.separator();
-                        egui::ScrollArea::vertical()
-                            .id_salt("refby")
-                            .show(ui, |ui| {
-                                egui::Grid::new("referenced by").show(ui, |ui| {
-                                    ui.heading("In Ref");
-                                    ui.heading("Count");
-                                    ui.end_row();
-                                    for (predicate_index, count) in &type_data.rev_references {
-                                        ui.label(prefix_manager.get_prefixed(
-                                            node_data.get_predicate(*predicate_index).unwrap(),
-                                        ));
+                                    for (predicate_index, count) in &type_data.references {
+                                        let predicate_label = node_data.predicate_display(
+                                            *predicate_index,
+                                            layout_data.display_language,
+                                            iri_display,
+                                            prefix_manager,
+                                        );
+                                        ui.label(predicate_label.as_str());
                                         ui.label(count.to_string());
                                         ui.end_row();
                                     }
                                 });
                             });
-                    });
+                        });
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical()
+                                .id_salt("refby")
+                                .show(ui, |ui| {
+                                    egui::Grid::new("referenced by").show(ui, |ui| {
+                                        ui.strong("In Ref");
+                                        ui.strong("Count");
+                                        ui.end_row();
+                                        for (predicate_index, count) in &type_data.rev_references {
+                                            let predicate_label = node_data.predicate_display(
+                                                *predicate_index,
+                                                layout_data.display_language,
+                                                iri_display,
+                                                prefix_manager,
+                                            );
+                                            ui.label(predicate_label.as_str());
+                                            ui.label(count.to_string());
+                                            ui.end_row();
+                                        }
+                                    });
+                                });
+                        });
+                    }
                 }
-            }
             });
         });
         ui.separator();
@@ -843,7 +949,7 @@ impl CacheStatistics {
                                 color_cache,
                                 rdfwrap,
                                 prefix_manager,
-                                layout_data
+                                layout_data,
                             );
                         });
                         strip.cell(|ui| {
@@ -884,10 +990,16 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some((_,node_a)) = node_a {
-                                    if let Some((_,node_b)) = node_b {
-                                        let a_value = &node_a.get_property(predicate_to_sort, layout_data.display_language);
-                                        let b_value = &node_b.get_property(predicate_to_sort, layout_data.display_language);
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
+                                        let a_value = &node_a.get_property(
+                                            predicate_to_sort,
+                                            layout_data.display_language,
+                                        );
+                                        let b_value = &node_b.get_property(
+                                            predicate_to_sort,
+                                            layout_data.display_language,
+                                        );
                                         a_value.cmp(b_value)
                                     } else {
                                         std::cmp::Ordering::Less
@@ -903,10 +1015,16 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some((_,node_a)) = node_a {
-                                    if let Some((_,node_b)) = node_b {
-                                        let a_value = &node_a.get_property(predicate_to_sort, layout_data.display_language);
-                                        let b_value = node_b.get_property(predicate_to_sort, layout_data.display_language);
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
+                                        let a_value = &node_a.get_property(
+                                            predicate_to_sort,
+                                            layout_data.display_language,
+                                        );
+                                        let b_value = node_b.get_property(
+                                            predicate_to_sort,
+                                            layout_data.display_language,
+                                        );
                                         b_value.cmp(a_value)
                                     } else {
                                         std::cmp::Ordering::Greater
@@ -922,8 +1040,8 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some((_,node_a)) = node_a {
-                                    if let Some((_,node_b)) = node_b {
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
                                         let a_value = &node_a.references.len()
                                             + &node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
@@ -943,8 +1061,8 @@ impl CacheStatistics {
                             type_data.filtered_instances.sort_by(|a, b| {
                                 let node_a = node_data.get_node_by_index(*a);
                                 let node_b = node_data.get_node_by_index(*b);
-                                if let Some((_,node_a)) = node_a {
-                                    if let Some((_,node_b)) = node_b {
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
                                         let a_value = &node_a.references.len()
                                             + &node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
@@ -966,8 +1084,11 @@ impl CacheStatistics {
                             .cloned()
                             .filter(|&instance_index| {
                                 let node = node_data.get_node_by_index(instance_index);
-                                if let Some((node_iri,node)) = node {
-                                    if node.apply_filter(&type_data.instance_view.instance_filter, &node_iri) {
+                                if let Some((node_iri, node)) = node {
+                                    if node.apply_filter(
+                                        &type_data.instance_view.instance_filter,
+                                        &node_iri,
+                                    ) {
                                         return true;
                                     }
                                 }
@@ -986,6 +1107,102 @@ impl CacheStatistics {
         }
         return instance_action;
     }
+
+    fn show_types(
+        &self,
+        ui: &mut egui::Ui,
+        node_data: &mut NodeData,
+        prefix_manager: &PrefixManager,
+        layout_data: &LayoutData,
+        iri_display: IriDisplay,
+        height: f32,
+    ) -> (Option<IriIndex>,TypeTableAction) {
+        let mut selected_type: Option<IriIndex> = None;
+        let mut type_table_action: TypeTableAction = TypeTableAction::None;
+        let text_height = egui::TextStyle::Body
+            .resolve(ui.style())
+            .size
+            .max(ui.spacing().interact_size.y);
+
+        let table: TableBuilder<'_> = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::exact(200.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .min_scrolled_height(height)
+            .max_scroll_height(height)
+            .sense(Sense::click());
+
+        table
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("Type IRI");
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByLabel;
+                    }
+                });
+                header.col(|ui| {
+                    ui.strong("Inst#");
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByInstances;
+                    }
+                });
+                header.col(|ui| {
+                    ui.strong("Data#");
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByDataProps;
+                    }
+                });
+                header.col(|ui| {
+                    ui.strong("Out Ref#");
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByOutRef;
+                    }
+                });
+                header.col(|ui| {
+                    ui.strong("In Ref#");
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByInRef;
+                    }
+                });
+            })
+            .body(|body| {
+                body.rows(text_height, self.types_order.len(), |mut row| {
+                    let type_index = self.types_order.get(row.index()).unwrap();
+                    row.set_selected(selected_type == Some(*type_index));
+                    let type_data = self.types.get(type_index).unwrap();
+                    let type_label = node_data.type_display(
+                        *type_index,
+                        layout_data.display_language,
+                        iri_display,
+                        prefix_manager,
+                    );
+                    row.col(|ui| {
+                        ui.label(type_label.as_str());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.instances.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.properties.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.references.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.rev_references.len().to_string());
+                    });
+                    if row.response().clicked() {
+                        selected_type = Some(*type_index);
+                    }
+                });
+            });
+        return (selected_type, type_table_action);
+    }
 }
 
 pub enum TableAction {
@@ -997,4 +1214,13 @@ pub enum TableAction {
     SortRefAsc(),
     SortRefDesc(),
     Filter,
+}
+
+enum TypeTableAction {
+    None,
+    SortByLabel,
+    SortByInstances,
+    SortByDataProps,
+    SortByOutRef,
+    SortByInRef,
 }

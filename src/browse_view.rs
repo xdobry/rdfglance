@@ -1,5 +1,9 @@
+use egui::ScrollArea;
+use egui_extras::{Column, StripBuilder, TableBuilder};
+
 use crate::{
-    nobject::{IriIndex, Literal, NodeData}, rdfwrap, ColorCache, LayoutData, NodeAction, VisualRdfApp
+    nobject::{IriIndex, Literal, NObject, NodeData},
+    rdfwrap, ColorCache, LayoutData, NodeAction, VisualRdfApp,
 };
 
 impl VisualRdfApp {
@@ -27,7 +31,7 @@ impl VisualRdfApp {
         let mut node_to_click: Option<IriIndex> = None;
         if let Some(current_iri_index) = self.current_iri {
             let current_node = self.node_data.get_node_by_index(current_iri_index);
-            if let Some((iri,current_node)) = current_node {
+            if let Some((iri, current_node)) = current_node {
                 ui.label(iri);
                 if ui.button("Visual Graph").clicked() {
                     action_type_index = NodeAction::ShowVisual(current_iri_index);
@@ -43,73 +47,71 @@ impl VisualRdfApp {
                         action_type_index = NodeAction::ShowType(*type_index);
                     }
                 }
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    if !current_node.properties.is_empty() {
+                if current_node.properties.is_empty() {
+                    let h = (ui.available_height()-40.0).max(300.0);
+                    node_to_click = show_refs_table(ui, current_node, &self.node_data, 
+                        &mut *self.rdfwrap, &self.color_cache, &self.layout_data, h);
+                } else {
+                    egui::ScrollArea::vertical()
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                        .show(ui, |ui| {
                         ui.heading("Data Property");
-                        let avialable_width = (ui.available_width()-100.0).max(200.0);
+                        let avialable_width = (ui.available_width() - 100.0).max(200.0);
                         egui::Grid::new("properties")
                             .striped(true)
                             .max_col_width(avialable_width)
                             .show(ui, |ui| {
-                            for (predicate_index, prop_value) in &current_node.properties {
-                                if self.persistent_data.config_data.supress_other_language_data {
-                                    if let Literal::LangString(lang, _) = prop_value {
-                                        if *lang != self.layout_data.display_language {
-                                            if *lang == 0 && self.layout_data.display_language != 0 {
-                                                // it is fallback language so display if reall language could not be found
-                                                let mut found = false;
-                                                for (predicate_index2, prop_value2) in &current_node.properties {
-                                                    if predicate_index2 == predicate_index && prop_value2 != prop_value {
-                                                        if let Literal::LangString(lang, _) = prop_value2 {
-                                                            if *lang == self.layout_data.display_language {
-                                                                found = true;
-                                                                break;
+                                for (predicate_index, prop_value) in &current_node.properties {
+                                    if self.persistent_data.config_data.supress_other_language_data
+                                    {
+                                        if let Literal::LangString(lang, _) = prop_value {
+                                            if *lang != self.layout_data.display_language {
+                                                if *lang == 0
+                                                    && self.layout_data.display_language != 0
+                                                {
+                                                    // it is fallback language so display if reall language could not be found
+                                                    let mut found = false;
+                                                    for (predicate_index2, prop_value2) in
+                                                        &current_node.properties
+                                                    {
+                                                        if predicate_index2 == predicate_index
+                                                            && prop_value2 != prop_value
+                                                        {
+                                                            if let Literal::LangString(lang, _) =
+                                                                prop_value2
+                                                            {
+                                                                if *lang
+                                                                    == self
+                                                                        .layout_data
+                                                                        .display_language
+                                                                {
+                                                                    found = true;
+                                                                    break;
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
-                                                if found {
+                                                    if found {
+                                                        continue;
+                                                    }
+                                                } else {
                                                     continue;
                                                 }
-                                            } else {
-                                                continue;
                                             }
                                         }
                                     }
+                                    ui.label(self.rdfwrap.iri2label(
+                                        self.node_data.get_predicate(*predicate_index).unwrap(),
+                                    ));
+                                    ui.label(prop_value.as_ref());
+                                    ui.end_row();
                                 }
-                                ui.label(self.rdfwrap.iri2label(
-                                    self.node_data.get_predicate(*predicate_index).unwrap(),
-                                ));
-                                ui.label(prop_value.as_ref());
-                                ui.end_row();
-                            }
-                        });
-                    }
-                    // I could not separate new self method because the borrow checker
-                    // so new method that need to pass all needed substructures
-                    if let Some(node_index) = show_references(
-                        &self.node_data,
-                        &mut *self.rdfwrap,
-                        &self.color_cache,
-                        ui,
-                        "References",
-                        &current_node.references,
-                        &self.layout_data,
-                    ) {
-                        node_to_click = Some(node_index);
-                    }
-                    if let Some(node_index) = show_references(
-                        &self.node_data,
-                        &mut *self.rdfwrap,
-                        &self.color_cache,
-                        ui,
-                        "Referenced by",
-                        &current_node.reverse_references,
-                        &self.layout_data,
-                    ) {
-                        node_to_click = Some(node_index);
-                    }
-                });
+                            });
+                        let h = (ui.available_height()-40.0).max(300.0);
+                        node_to_click = show_refs_table(ui, current_node, &self.node_data, 
+                            &mut *self.rdfwrap, &self.color_cache, &self.layout_data, h);
+                    });
+                }
             }
         }
         if let Some(node_to_click) = node_to_click {
@@ -117,6 +119,52 @@ impl VisualRdfApp {
         }
         return action_type_index;
     }
+
+}
+
+pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject, 
+    node_data: &NodeData, rdfwrap: &mut dyn rdfwrap::RDFAdapter, 
+    color_cache: &ColorCache, 
+    layout_data: &LayoutData, h: f32) -> Option<IriIndex> {
+    let mut node_to_click: Option<IriIndex> = None;        
+    StripBuilder::new(ui)
+    .size(egui_extras::Size::exact(600.0))
+    .size(egui_extras::Size::exact(600.0)) // Two resizable panels with equal initial width
+    .horizontal(|mut strip| {
+        strip.cell(|ui| {
+            if let Some(node_index) = show_references(
+                &node_data,
+                rdfwrap,
+                &color_cache,
+                ui,
+                "References",
+                &current_node.references,
+                &layout_data,
+                h,
+                "ref",
+            ) {
+                node_to_click = Some(node_index);
+            }
+        });
+        strip.cell(|ui| {
+            ui.push_id("ref2", |ui| {
+                if let Some(node_index) = show_references(
+                    &node_data,
+                    rdfwrap,
+                    &color_cache,
+                    ui,
+                    "Referenced by",
+                    &current_node.reverse_references,
+                    &layout_data,
+                    h,
+                    "ref_by",
+                ) {
+                    node_to_click = Some(node_index);
+                }
+            });
+        });
+    });
+    return node_to_click;
 }
 
 pub fn show_references(
@@ -127,27 +175,83 @@ pub fn show_references(
     label: &str,
     references: &Vec<(IriIndex, IriIndex)>,
     layout_data: &LayoutData,
+    height: f32,
+    id_salt: &str,
 ) -> Option<IriIndex> {
     let mut node_to_click: Option<IriIndex> = None;
     if !references.is_empty() {
         ui.heading(label);
-        for (predicate_index, ref_index) in references.iter() {
-            ui.horizontal(|ui| {
-                ui.label(rdfwrap.iri2label(node_data.get_predicate(*predicate_index).unwrap()));
-                node_data.get_node_by_index(*ref_index).map(|(ref_iri,ref_node)| {
-                    if ui.button(ref_iri).clicked() {
-                        node_to_click = Some(*ref_index);
-                    }
-                    ref_node.types.iter().for_each(|type_index| {
-                        ui.label(rdfwrap.iri2label(node_data.get_type(*type_index).unwrap()));
+        let text_height = egui::TextStyle::Body
+            .resolve(ui.style())
+            .size
+            .max(ui.spacing().interact_size.y);
+
+        let table: TableBuilder<'_> = TableBuilder::new(ui)
+            .striped(true)
+            .id_salt(id_salt)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(200.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
+            .min_scrolled_height(height)
+            .max_scroll_height(height);
+
+        table
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong("Predicate");
+                });
+                header.col(|ui| {
+                    ui.strong("Iri");
+                });
+                header.col(|ui| {
+                    ui.strong("Type");
+                });
+                header.col(|ui| {
+                    ui.strong("Label");
+                });
+            })
+            .body(|body| {
+                body.rows(text_height, references.len(), |mut row| {
+                    let (predicate_index, ref_index) = references.get(row.index()).unwrap();
+                    row.col(|ui| {
+                        ui.label(
+                            rdfwrap.iri2label(node_data.get_predicate(*predicate_index).unwrap()),
+                        );
                     });
-                    let label = ref_node.node_label_opt(&color_cache.label_predicate,layout_data.display_language);
-                    if let Some(label) = label {
-                        ui.label(label);
-                    }
+                    node_data
+                        .get_node_by_index(*ref_index)
+                        .map(|(ref_iri, ref_node)| {
+                            row.col(|ui| {
+                                if ui.button(ref_iri).clicked() {
+                                    node_to_click = Some(*ref_index);
+                                }
+                            });
+                            row.col(|ui| {
+                                let types_label = ref_node
+                                    .types
+                                    .iter()
+                                    .map(|type_index| {
+                                        rdfwrap.iri2label(node_data.get_type(*type_index).unwrap())
+                                    })
+                                    .collect::<Vec<&str>>()
+                                    .join(", ");
+                                ui.label(types_label);
+                            });
+                            row.col(|ui| {
+                                let label = ref_node.node_label_opt(
+                                    &color_cache.label_predicate,
+                                    layout_data.display_language,
+                                );
+                                if let Some(label) = label {
+                                    ui.label(label);
+                                }
+                            });
+                        });
                 });
             });
-        }
     }
     return node_to_click;
 }
