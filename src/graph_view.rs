@@ -129,16 +129,22 @@ impl VisualRdfApp {
                                     }
                                 }
                             }
-                            let predicate_label = self
-                                .rdfwrap
-                                .iri2label(self.node_data.get_predicate(*predicate_index).unwrap());
-                            if ui.button(predicate_label).clicked() {
+                            let predicate_label = self.node_data.predicate_display(
+                                *predicate_index,
+                                self.layout_data.display_language,
+                                self.persistent_data.config_data.iri_display,
+                                &self.prefix_manager,
+                            );
+                            let lab_button = egui::Button::new(predicate_label.as_str());
+                            let lab_button_response = ui.add(lab_button);
+                            if lab_button_response.clicked() {
                                 for node_type_index in current_node.types.iter() {
                                     self.color_cache
                                         .label_predicate
                                         .insert(*node_type_index, *predicate_index);
                                 }
                             }
+                            lab_button_response.on_hover_text("Set this property as label for the node type");
                             ui.label(prop_value.as_ref());
                             ui.end_row();
                         }
@@ -445,6 +451,7 @@ impl VisualRdfApp {
                 {
                     // just hover
                     node_to_hover = Some(node_layout.node_index);
+                    ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
                 }
                 if self.layout_data.selected_node.is_some()
                     && self.layout_data.selected_node.unwrap() == node_layout.node_index

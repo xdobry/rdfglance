@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::HashMap, time::Instant, vec};
+use std::{cell, cmp::min, collections::HashMap, time::Instant, vec};
 
 use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
@@ -258,7 +258,7 @@ impl TypeData {
                     .get_predicate(column_desc.predicate_index)
                     .unwrap(),
             );
-            text_wrapped(predicate_label, column_desc.width, painter, top_left);
+            text_wrapped(predicate_label, column_desc.width, painter, top_left, false);
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect =
                 egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
@@ -347,7 +347,7 @@ impl TypeData {
                     egui::Align2::LEFT_TOP,
                     s,
                     font_id.clone(),
-                    egui::Color32::BLACK,
+                    if ref_rect.contains(mouse_pos) { egui::Color32::DARK_BLUE } else { egui::Color32::BLACK },
                 );
                 if primary_clicked && ref_rect.contains(mouse_pos) {
                     was_context_click = true;
@@ -371,7 +371,11 @@ impl TypeData {
                             available_rect.left_top() + Vec2::new(xpos, ypos),
                             Vec2::new(column_desc.width, ROW_HIGHT),
                         );
-                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top());
+                        let mut cell_hovered = false;
+                        if cell_rect.contains(mouse_pos) {
+                            cell_hovered = true;
+                        }
+                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered);
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
                             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
@@ -524,7 +528,10 @@ impl TypeData {
                                 ui.label(value.as_ref());
                             }
                         }
-                        if ui.button("Close").clicked() {
+                        let button_text = egui::RichText::new("Close").size(16.0);
+                        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                        let b_resp = ui.add(nav_but);
+                        if b_resp.clicked() {
                             close_menu = true;
                         }
                     } else {
@@ -574,7 +581,11 @@ impl TypeData {
                         if let Some(node_to_click) = node_to_click {
                             *instance_action = NodeAction::BrowseNode(node_to_click);
                         }
-                        if ui.button("Close").clicked() {
+                        let button_text = egui::RichText::new("Close").size(16.0);
+                        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                        let b_resp = ui.add(nav_but);
+                        if b_resp.clicked() {
+
                             close_menu = true;
                         }
                     } else {
@@ -591,14 +602,14 @@ impl TypeData {
     }
 }
 
-fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2) {
+fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
         0.0,
         egui::TextFormat {
             font_id: egui::FontId::default(),
-            color: Color32::BLACK,
+            color: if cell_hovered { Color32::DARK_BLUE } else { Color32::BLACK },
             ..Default::default()
         },
     );
@@ -1180,7 +1191,7 @@ impl CacheStatistics {
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    strong_unselectable(ui,"Type IRI");
+                    strong_unselectable(ui,"Type");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
