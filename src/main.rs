@@ -498,6 +498,51 @@ impl VisualRdfApp {
         }
         self.cache_statistics.update(&self.node_data);
     }
+    fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("No data loaded. Load RDF file first.");
+        let button_text = egui::RichText::new("Open RDF File").size(16.0);
+        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+        let b_resp = ui.add(nav_but);
+        if b_resp.clicked() {
+            self.load_file_dialog(ui);
+        }
+        if self.persistent_data.last_files.len() > 0 {
+            let mut last_file_clicked: Option<String> = None;
+            let mut last_file_foget: Option<String> = None;
+            ui.spacing();
+            ui.heading("Last visited files:");
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::Grid::new("lfiles").striped(true).show(ui, |ui| {
+                    for last_file in &self.persistent_data.last_files {
+                        if ui.button(last_file).clicked() {
+                            last_file_clicked = Some(last_file.clone());
+                        }
+                        if ui.button("Forget me").clicked() {
+                            last_file_foget = Some(last_file.clone());
+                        }
+                        ui.end_row();
+                    }
+                });
+           });
+            if let Some(last_file_clicked) = last_file_clicked {
+                self.load_ttl(&last_file_clicked);
+            }
+            if let Some(last_file_forget) = last_file_foget {
+                self.persistent_data.last_files.retain(|file| file != &last_file_forget);
+            }
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.node_data.len() == 0
+    }
+    fn load_file_dialog(&mut self, ui: &mut egui::Ui) {
+        if let Some(path) = FileDialog::new().pick_file() {
+            let selected_file = Some(path.display().to_string());
+            if let Some(selected_file) = &selected_file {
+                self.load_ttl(&selected_file);
+            }
+        }
+    }
 
 }
 
@@ -519,14 +564,9 @@ impl eframe::App for VisualRdfApp {
                 ui.disable();
             }
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("RDF Glance", |ui| {
+                ui.menu_button("File", |ui| {
                     if ui.button("Load RDF File").clicked() {
-                        if let Some(path) = FileDialog::new().pick_file() {
-                            let selected_file = Some(path.display().to_string());
-                            if let Some(selected_file) = &selected_file {
-                                self.load_ttl(&selected_file);
-                            }
-                        }
+                        self.load_file_dialog(ui);
                         ui.close_menu();
                     }
                     if ui.button("Load all from dir").clicked() {
@@ -548,6 +588,7 @@ impl eframe::App for VisualRdfApp {
                     if ui.button("Clean Data").clicked() {
                         self.node_data.clean();
                         self.layout_data.visible_nodes.data.clear();
+                        self.display_type = DisplayType::Table;
                         ui.close_menu();
                     }
                     if self.persistent_data.last_files.len() > 0 {
@@ -585,9 +626,11 @@ impl eframe::App for VisualRdfApp {
                 }
             });
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.display_type, DisplayType::Table, "Table");
-                ui.selectable_value(&mut self.display_type, DisplayType::Graph, "Visual Graph");
-                ui.selectable_value(&mut self.display_type, DisplayType::Browse, "Browse");
+                ui.selectable_value(&mut self.display_type, DisplayType::Table, "Tables");
+                ui.add_enabled_ui(!self.is_empty(), |ui| {
+                    ui.selectable_value(&mut self.display_type, DisplayType::Graph, "Visual Graph");
+                    ui.selectable_value(&mut self.display_type, DisplayType::Browse, "Browse");
+                });
                 ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, "Prefixes");
                 ui.selectable_value(&mut self.display_type, DisplayType::Configuration, "Settings");
                 /*
@@ -607,16 +650,23 @@ impl eframe::App for VisualRdfApp {
                         node_action = match self.display_type {
                             DisplayType::Browse => self.show_table(ui),
                             DisplayType::Graph => self.show_graph(&ctx, ui),
-                            DisplayType::Table => self.cache_statistics.display(
-                                &ctx,
-                                ui,
-                                &mut self.node_data,
-                                &mut self.layout_data,
-                                &self.prefix_manager,
-                                &self.color_cache,
-                                &mut *self.rdfwrap,
-                                self.persistent_data.config_data.iri_display,
-                            ),
+                            DisplayType::Table => {
+                                if self.is_empty() {
+                                    self.empty_data_ui(ui);
+                                    NodeAction::None
+                                } else {
+                                    self.cache_statistics.display(
+                                        &ctx,
+                                        ui,
+                                        &mut self.node_data,
+                                        &mut self.layout_data,
+                                        &self.prefix_manager,
+                                        &self.color_cache,
+                                        &mut *self.rdfwrap,
+                                        self.persistent_data.config_data.iri_display,
+                                    )
+                                }
+                            },
                             DisplayType::PlayGround => self.show_play(&ctx, ui),
                             DisplayType::Configuration => self.show_config(&ctx, ui),
                             DisplayType::Prefixes => self.show_prefixes(&ctx, ui)
@@ -670,6 +720,7 @@ impl eframe::App for VisualRdfApp {
 
         });
     }
+
     fn save(&mut self, _storage: &mut dyn Storage) {
         if let Ok(persistent_data_string) = serde_json::to_string(&self.persistent_data) {
             _storage.set_string("persistent_data", persistent_data_string);
@@ -677,3 +728,5 @@ impl eframe::App for VisualRdfApp {
         }
     }
 }
+
+

@@ -10,7 +10,7 @@ use crate::{
     play_ground::ScrollBar,
     prefix_manager::PrefixManager,
     rdfwrap::{self, RDFWrap},
-    uitools::popup_at,
+    uitools::{popup_at, strong_unselectable},
     ColorCache, LayoutData, NodeAction,
 };
 
@@ -214,10 +214,14 @@ impl TypeData {
         );
         let mut was_context_click = false;
 
-        if secondary_clicked && ref_column_rec.contains(mouse_pos) {
-            was_context_click = true;
-            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-            self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
+        if ref_column_rec.contains(mouse_pos) {
+            if secondary_clicked {
+                was_context_click = true;
+                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
+            } else {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
+            }
         }
 
         xpos += iri_len + ref_count_len;
@@ -258,11 +262,15 @@ impl TypeData {
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect =
                 egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
-            if secondary_clicked && column_rect.contains(mouse_pos) {
-                was_context_click = true;
-                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                self.instance_view.context_menu =
-                    TableContextMenu::ColumnMenu(mouse_pos, column_desc.predicate_index);
+            if column_rect.contains(mouse_pos) {
+                if secondary_clicked {
+                    was_context_click = true;
+                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                    self.instance_view.context_menu =
+                        TableContextMenu::ColumnMenu(mouse_pos, column_desc.predicate_index);
+                } else {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
+                }
             }
             let colums_drag_size_rect = egui::Rect::from_min_size(
                 top_left + Vec2::new(column_desc.width - 3.0, 0.0),
@@ -303,19 +311,26 @@ impl TypeData {
                 let mut xpos = iri_len + ref_count_len;
                 let iri_top_left = available_rect.left_top() + Vec2::new(0.0, ypos);
 
-                text_wrapped(
+                let cell_rect =
+                    egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len, ROW_HIGHT));
+
+                let mut cell_hovered = false;
+                if cell_rect.contains(mouse_pos) {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    cell_hovered = true;
+                }
+
+                text_wrapped_link(
                     &prefix_manager.get_prefixed(&node_iri),
                     iri_len,
                     painter,
                     iri_top_left,
+                    cell_hovered,
                 );
 
-                let cell_rect =
-                    egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len, ROW_HIGHT));
                 if primary_clicked && cell_rect.contains(mouse_pos) {
                     *instance_action = NodeAction::BrowseNode(*instance_index);
-                }
-                if secondary_clicked && cell_rect.contains(mouse_pos) {
+                } else if secondary_clicked && cell_rect.contains(mouse_pos) {
                     *instance_action = NodeAction::ShowVisual(*instance_index);
                 }
                 let s = format!(
@@ -598,6 +613,33 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2)
     painter.galley(top_left, galley, Color32::BLACK);
 }
 
+fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool) {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        text,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::default(),
+            color: Color32::BLUE,
+            underline: if hovered {
+                Stroke::new(1.0, Color32::BLUE)
+            } else {
+                Stroke::NONE
+            },
+            ..Default::default()
+        },
+    );
+
+    job.wrap = egui::text::TextWrapping {
+        max_width: width,
+        max_rows: 1,
+        // overflow_character: Some('…'),
+        ..Default::default()
+    };
+    let galley = painter.layout_job(job);
+    painter.galley(top_left, galley, Color32::BLACK);
+}
+
 impl CacheStatistics {
     pub fn new() -> Self {
         Self {
@@ -715,10 +757,6 @@ impl CacheStatistics {
         rdfwrap: &mut dyn rdfwrap::RDFAdapter,
         iri_display: IriDisplay,
     ) -> NodeAction {
-        if node_data.len() == 0 {
-            ui.heading("No data loaded. Load RDF file first.");
-            return NodeAction::None;
-        }
         let mut instance_action = NodeAction::None;
         egui::ScrollArea::horizontal().id_salt("h").show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
@@ -1104,6 +1142,8 @@ impl CacheStatistics {
                     TableAction::None => {}
                 }
             }
+        } else {
+            ui.label("Select a type to display its instances");
         }
         return instance_action;
     }
@@ -1140,31 +1180,46 @@ impl CacheStatistics {
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("Type IRI");
+                    strong_unselectable(ui,"Type IRI");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
                     if ui.response().clicked() {
                         type_table_action = TypeTableAction::SortByLabel;
                     }
                 });
                 header.col(|ui| {
-                    ui.strong("Inst#");
+                    strong_unselectable(ui,"Inst#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
                     if ui.response().clicked() {
                         type_table_action = TypeTableAction::SortByInstances;
                     }
                 });
                 header.col(|ui| {
-                    ui.strong("Data#");
+                    strong_unselectable(ui,"Data#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
                     if ui.response().clicked() {
                         type_table_action = TypeTableAction::SortByDataProps;
                     }
                 });
                 header.col(|ui| {
-                    ui.strong("Out Ref#");
+                    strong_unselectable(ui,"Out Ref#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
                     if ui.response().clicked() {
                         type_table_action = TypeTableAction::SortByOutRef;
                     }
                 });
                 header.col(|ui| {
-                    ui.strong("In Ref#");
+                    strong_unselectable(ui,"In Ref#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
                     if ui.response().clicked() {
                         type_table_action = TypeTableAction::SortByInRef;
                     }
@@ -1182,7 +1237,7 @@ impl CacheStatistics {
                         prefix_manager,
                     );
                     row.col(|ui| {
-                        ui.label(type_label.as_str());
+                        ui.add(egui::Label::new(type_label.as_str()).selectable(false));
                     });
                     row.col(|ui| {
                         ui.label(type_data.instances.len().to_string());

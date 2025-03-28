@@ -78,20 +78,27 @@ impl VisualRdfApp {
             if self.layout_data.visible_nodes.contains(*iri) {
                 let current_node = self.node_data.get_node_by_index(*iri);
                 if let Some((current_node_iri,current_node)) = current_node {
-                    ui.label(current_node_iri);
-                    for type_iri in &current_node.types {
-                        ui.label(
-                            self.rdfwrap
-                                .iri2label(self.node_data.get_type(*type_iri).unwrap()),
-                        );
-                    }
-                    if ui.button("browser").clicked() {
+                    if ui.link(current_node_iri).clicked() {
                         node_to_click = NodeAction::BrowseNode(*iri);
                     }
+                    ui.horizontal(|ui| {
+                        ui.strong("Types:");
+                        for type_index in &current_node.types {
+                            let type_label = self.node_data.type_display(
+                                *type_index,
+                                self.layout_data.display_language,
+                                self.persistent_data.config_data.iri_display,
+                                &self.prefix_manager,
+                            );
+                            if ui.button(type_label.as_str()).clicked() {
+                                node_to_click = NodeAction::ShowType(*type_index);
+                            }
+                        }
+                    });
                     ui.add_space(10.0);
                     if !current_node.properties.is_empty() {
                         let available_width = (ui.available_width() - 100.0).max(400.0);
-                        ui.label("Data Property");
+                        ui.strong("Data Properties:");
                         egui::Grid::new("properties")
                         .striped(true)
                         .max_col_width(available_width)
@@ -139,7 +146,7 @@ impl VisualRdfApp {
                     }
                     if !current_node.references.is_empty() {
                         ui.add_space(10.0);
-                        ui.label("References");
+                        ui.strong("References");
                         let mut reference_state: HashMap<IriIndex, ReferencesState> =
                             HashMap::new();
                         let mut references: Vec<IriIndex> = Vec::new();
@@ -227,7 +234,7 @@ impl VisualRdfApp {
                     }
                     if !current_node.reverse_references.is_empty() {
                         ui.add_space(10.0);
-                        ui.label("Referenced by");
+                        ui.strong("Referenced by");
                         let mut reference_state: HashMap<IriIndex, ReferencesState> =
                             HashMap::new();
                         let mut references: Vec<IriIndex> = Vec::new();

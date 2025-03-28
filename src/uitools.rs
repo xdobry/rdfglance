@@ -47,6 +47,11 @@ fn set_menu_style(style: &mut Style) {
     style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
 }
 
+pub fn strong_unselectable(ui: &mut Ui, text: impl Into<egui::RichText>) {
+    let l = egui::Label::new(text.into().strong()).selectable(false);
+    ui.add(l);
+}
+
 #[derive(Debug)]
 pub struct ColorBox {
     color: Color32,

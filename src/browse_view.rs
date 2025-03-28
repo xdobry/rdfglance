@@ -32,21 +32,32 @@ impl VisualRdfApp {
         if let Some(current_iri_index) = self.current_iri {
             let current_node = self.node_data.get_node_by_index(current_iri_index);
             if let Some((iri, current_node)) = current_node {
-                ui.label(iri);
-                if ui.button("Visual Graph").clicked() {
+                let full_iri = self.prefix_manager.get_full_opt(iri).unwrap_or(iri.to_owned());
+                ui.horizontal(|ui|{
+                    ui.strong("full iri:");
+                    ui.label(full_iri);
+                });
+                let button_text = egui::RichText::new("See in Visual Graph").size(16.0);
+                let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                let b_resp = ui.add(nav_but);
+                if b_resp.clicked() {
                     action_type_index = NodeAction::ShowVisual(current_iri_index);
                 }
-                for type_index in &current_node.types {
-                    if ui
-                        .button(
-                            self.rdfwrap
-                                .iri2label(self.node_data.get_type(*type_index).unwrap()),
-                        )
-                        .clicked()
-                    {
-                        action_type_index = NodeAction::ShowType(*type_index);
+                b_resp.on_hover_text("This will add the node to the visual graph and switch to visual graph view. The node will be selected.");
+                ui.horizontal(|ui|{
+                    ui.strong("types:");
+                    for type_index in &current_node.types {
+                        let type_label = self.node_data.type_display(
+                            *type_index,
+                            self.layout_data.display_language,
+                            self.persistent_data.config_data.iri_display,
+                            &self.prefix_manager,
+                        );
+                        if ui.button(type_label.as_str()).clicked() {
+                            action_type_index = NodeAction::ShowType(*type_index);
+                        }
                     }
-                }
+                });
                 if current_node.properties.is_empty() {
                     let h = (ui.available_height()-40.0).max(300.0);
                     node_to_click = show_refs_table(ui, current_node, &self.node_data, 
@@ -100,9 +111,13 @@ impl VisualRdfApp {
                                             }
                                         }
                                     }
-                                    ui.label(self.rdfwrap.iri2label(
-                                        self.node_data.get_predicate(*predicate_index).unwrap(),
-                                    ));
+                                    let predicate_label = self.node_data.predicate_display(
+                                        *predicate_index,
+                                        self.layout_data.display_language,
+                                        self.persistent_data.config_data.iri_display,
+                                        &self.prefix_manager,
+                                    );
+                                    ui.label(predicate_label.as_str());
                                     ui.label(prop_value.as_ref());
                                     ui.end_row();
                                 }
@@ -217,6 +232,8 @@ pub fn show_references(
                 body.rows(text_height, references.len(), |mut row| {
                     let (predicate_index, ref_index) = references.get(row.index()).unwrap();
                     row.col(|ui| {
+                        
+                        
                         ui.label(
                             rdfwrap.iri2label(node_data.get_predicate(*predicate_index).unwrap()),
                         );
@@ -225,7 +242,7 @@ pub fn show_references(
                         .get_node_by_index(*ref_index)
                         .map(|(ref_iri, ref_node)| {
                             row.col(|ui| {
-                                if ui.button(ref_iri).clicked() {
+                                if ui.link(ref_iri).clicked() {
                                     node_to_click = Some(*ref_index);
                                 }
                             });
