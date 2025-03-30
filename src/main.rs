@@ -30,6 +30,7 @@ mod sparql;
 mod sparql_dialog;
 mod table_view;
 mod uitools;
+mod persistency;
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
