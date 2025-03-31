@@ -118,19 +118,20 @@ Table
 - V layout animation (check box)
 - prefix manager
    - automatically create prefixes
-- V show prefixes list (easy to open)
-- V graph view (show colors for references)
 - visual-graph show references with labels
   - node:context hide referenced
-- clean up data (remove references to empty objects - no subjects)
 - V handle objects without class
-- handle rdf lists
+- V handle rdf lists
 - V handle blank nodes
 - V move graph using mouse drag
 - V resize table cells
 - V compute layout ausschalten wenn zu wenig bewegung
 - V control-F focus on search
 - limit count of shown nodes (show warning)
+
+- zoom for graph view
+- hint user how use graph view (double click and expand)
+- 
 
 #####################################
 - sprachen

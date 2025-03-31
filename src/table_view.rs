@@ -1,17 +1,11 @@
 use std::{cell, cmp::min, collections::HashMap, time::Instant, vec};
 
-use egui::{Align, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use const_format::concatcp;
+use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references,
-    config::IriDisplay,
-    nobject::{IriIndex, NodeData},
-    play_ground::ScrollBar,
-    prefix_manager::PrefixManager,
-    rdfwrap::{self, RDFWrap},
-    uitools::{popup_at, strong_unselectable},
-    ColorCache, LayoutData, NodeAction,
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, ColorCache, LayoutData, NodeAction
 };
 
 pub struct CacheStatistics {
@@ -309,10 +303,29 @@ impl TypeData {
                 }
                 start_pos += 1;
                 let mut xpos = iri_len + ref_count_len;
-                let iri_top_left = available_rect.left_top() + Vec2::new(0.0, ypos);
+
+                let graph_button_width = 20.0;
+                let graph_pos = available_rect.left_top() + Vec2::new(0.0, ypos+1.0);
+                let button_rect = Rect::from_min_size(
+                    graph_pos,
+                    Vec2::new(graph_button_width, ROW_HIGHT-2.0),
+                );
+                let button_background = if button_rect.contains(mouse_pos) {
+                    if primary_clicked {
+                        *instance_action = NodeAction::ShowVisual(*instance_index);
+                    }
+                    Color32::YELLOW
+                } else {
+                    Color32::LIGHT_YELLOW
+                };
+
+                painter.rect_filled(button_rect, 3.0, button_background);
+                painter.text(graph_pos+Vec2::new(graph_button_width/2.0,(ROW_HIGHT-2.0)/2.0), Align2::CENTER_CENTER , ICON_GRAPH, egui::FontId::default(), Color32::BLACK);
+
+                let iri_top_left = available_rect.left_top() + Vec2::new(graph_button_width, ypos);
 
                 let cell_rect =
-                    egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len, ROW_HIGHT));
+                    egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len-graph_button_width, ROW_HIGHT));
 
                 let mut cell_hovered = false;
                 if cell_rect.contains(mouse_pos) {
@@ -322,7 +335,7 @@ impl TypeData {
 
                 text_wrapped_link(
                     &prefix_manager.get_prefixed(&node_iri),
-                    iri_len,
+                    iri_len-graph_button_width,
                     painter,
                     iri_top_left,
                     cell_hovered,
@@ -528,7 +541,7 @@ impl TypeData {
                                 ui.label(value.as_ref());
                             }
                         }
-                        let button_text = egui::RichText::new("Close").size(16.0);
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE," Close")).size(16.0);
                         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
@@ -581,7 +594,7 @@ impl TypeData {
                         if let Some(node_to_click) = node_to_click {
                             *instance_action = NodeAction::BrowseNode(node_to_click);
                         }
-                        let button_text = egui::RichText::new("Close").size(16.0);
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE," Close")).size(16.0);
                         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
@@ -874,7 +887,7 @@ impl CacheStatistics {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
                                 egui::Grid::new("fields").show(ui, |ui| {
-                                    ui.strong("Data IRI");
+                                    ui.strong("Data Property");
                                     ui.strong("Count");
                                     ui.strong("Max Len");
                                     ui.end_row();
@@ -1239,7 +1252,7 @@ impl CacheStatistics {
             .body(|body| {
                 body.rows(text_height, self.types_order.len(), |mut row| {
                     let type_index = self.types_order.get(row.index()).unwrap();
-                    row.set_selected(selected_type == Some(*type_index));
+                    row.set_selected(self.selected_type == Some(*type_index));
                     let type_data = self.types.get(type_index).unwrap();
                     let type_label = node_data.type_display(
                         *type_index,

@@ -1,7 +1,7 @@
 use egui::{Color32, Pos2, Rect, Response, Sense, Vec2, Widget};
 use egui_extras::StripBuilder;
 
-use crate::{NodeAction, VisualRdfApp};
+use crate::{NodeAction, RdfGlanceApp};
 
 #[derive(Debug)]
 pub struct ScrollBar<'a> {
@@ -102,7 +102,7 @@ impl<'a> Widget for ScrollBar<'a> {
     }
 }
 
-impl VisualRdfApp {
+impl RdfGlanceApp {
     pub fn show_play(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
 

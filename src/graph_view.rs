@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing, layout::{self, NodeLayout}, nobject::{IriIndex, Literal}, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, VisualRdfApp,
+    drawing, layout::{self, NodeLayout}, nobject::{IriIndex, Literal}, style::ICON_GRAPH, uitools::{popup_at, ColorBox}, ExpandType, NodeAction, RdfGlanceApp
 };
+use const_format::concatcp;
 use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
 use egui::Slider;
 
@@ -11,9 +12,13 @@ struct ReferencesState {
     pub visible: u32,
 }
 
-impl VisualRdfApp {
+impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
+        if self.layout_data.visible_nodes.data.is_empty() {
+            ui.heading(concatcp!("No nodes to display. Go to tables or browser and add a node to graph using button with ",ICON_GRAPH));
+            return NodeAction::None;
+        }
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.layout_data.force_compute_layout, "Force Layout");
             if self.layout_data.compute_layout || self.layout_data.force_compute_layout {

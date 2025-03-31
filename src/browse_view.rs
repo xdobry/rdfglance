@@ -1,22 +1,22 @@
+use const_format::concatcp;
 use egui::ScrollArea;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, Literal, NObject, NodeData},
-    rdfwrap, ColorCache, LayoutData, NodeAction, VisualRdfApp,
+    nobject::{IriIndex, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, ColorCache, LayoutData, NodeAction, RdfGlanceApp
 };
 
-impl VisualRdfApp {
+impl RdfGlanceApp {
     pub fn show_table(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut action_type_index: NodeAction = NodeAction::None;
         ui.horizontal(|ui| {
             ui.horizontal(|ui| {
-                if ui.button("<").clicked() && self.nav_pos > 0 {
+                if ui.button("\u{2b05}").clicked() && self.nav_pos > 0 {
                     self.nav_pos -= 1;
                     let object_iri_index = self.nav_history[self.nav_pos];
                     self.show_object_by_index(object_iri_index, false);
                 }
-                if ui.button(">").clicked() && self.nav_pos < self.nav_history.len() - 1 {
+                if ui.button("\u{27a1}").clicked() && self.nav_pos < self.nav_history.len() - 1 {
                     self.nav_pos += 1;
                     let object_iri_index = self.nav_history[self.nav_pos];
                     self.show_object_by_index(object_iri_index, false);
@@ -37,7 +37,7 @@ impl VisualRdfApp {
                     ui.strong("full iri:");
                     ui.label(full_iri);
                 });
-                let button_text = egui::RichText::new("See in Visual Graph").size(16.0);
+                let button_text = egui::RichText::new(concatcp!(ICON_GRAPH," See in Visual Graph")).size(16.0);
                 let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
                 let b_resp = ui.add(nav_but);
                 if b_resp.clicked() {
@@ -128,6 +128,8 @@ impl VisualRdfApp {
                     });
                 }
             }
+        } else {
+            ui.heading("No node selected. Please enter Node IRI or click node link from table or graph view.");
         }
         if let Some(node_to_click) = node_to_click {
             self.show_object_by_index(node_to_click, true);

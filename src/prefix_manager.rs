@@ -1,6 +1,7 @@
 use bimap::BiMap;
+use serde::de;
 
-use crate::{NodeAction, VisualRdfApp};
+use crate::{NodeAction, RdfGlanceApp};
 
 pub struct PrefixManager {
     // key is the full iri and value is the prefix
@@ -64,11 +65,25 @@ impl PrefixManager {
     }
 
     pub fn get_prefixed(&self, iri: &str) -> String {
-        let delimiter_pos = iri.rfind(&['#', '/'][..]).unwrap_or(0) + 1;
-        let base_iri = &iri[..delimiter_pos];
-        let prefix = self.prefixes.get_by_left(base_iri);
-        if let Some(prefix) = prefix {
-            return format!("{}:{}", prefix, &iri[delimiter_pos..]);
+        let delimiter_pos = iri.rfind(&['#', '/'][..]);
+        if let Some(delimiter_pos) = delimiter_pos {
+            let delimiter_pos = delimiter_pos + 1;
+            let base_iri = &iri[..delimiter_pos];
+            let prefix = self.prefixes.get_by_left(base_iri);
+            if let Some(prefix) = prefix {
+                return format!("{}:{}", prefix, &iri[delimiter_pos..]);
+            } else {
+                let new_search = &iri[..delimiter_pos-1];
+                let delemiter_pos2 = new_search.rfind('/');
+                if let Some(delemiter_pos2) = delemiter_pos2 {
+                    let delemiter_pos2 = delemiter_pos2 + 1;
+                    let base_iri2 = &iri[..delemiter_pos2];
+                    let prefix2 = self.prefixes.get_by_left(base_iri2);
+                    if let Some(prefix2) = prefix2 {
+                        return format!("{}:{}", prefix2, &iri[delemiter_pos2..]);
+                    }
+                }
+            }
         }
         return iri.to_string();
     }
@@ -110,23 +125,22 @@ impl PrefixManager {
             self.prefixes.insert(iri.to_string(), prefix.to_string());
         }
     }
-
 }
 
-impl VisualRdfApp {
-    pub fn show_prefixes(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
-        egui::Grid::new("prefixes")
-            .striped(true)
-            .show(ui, |ui| {
+impl RdfGlanceApp {
+    pub fn show_prefixes(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::Grid::new("prefixes").striped(true).show(ui, |ui| {
                 ui.heading("Prefix");
                 ui.heading("Iri");
                 ui.end_row();
-            for (iri, prefix) in &self.prefix_manager.prefixes {
+                for (iri, prefix) in &self.prefix_manager.prefixes {
                     ui.label(prefix);
                     ui.label(iri);
                     ui.end_row();
                 }
             });
+        });
         return NodeAction::None;
     }
 }

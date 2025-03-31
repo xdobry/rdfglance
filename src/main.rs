@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use const_format::concatcp;
 
 use eframe::{
     egui::{self, Pos2},
@@ -14,6 +15,7 @@ use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sparql_dialog::SparqlDialog;
+use style::*;
 use table_view::CacheStatistics;
 
 mod browse_view;
@@ -30,13 +32,14 @@ mod sparql;
 mod sparql_dialog;
 mod table_view;
 mod uitools;
+mod style;
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         "rdf-glance",
         options,
-        Box::new(|cc| Ok(Box::new(VisualRdfApp::new(cc.storage)))),
+        Box::new(|cc| Ok(Box::new(RdfGlanceApp::new(cc.storage)))),
     )
 }
 
@@ -51,7 +54,7 @@ enum DisplayType {
 }
 
 // Define the application structure
-struct VisualRdfApp {
+struct RdfGlanceApp {
     object_iri: String,
     current_iri: Option<IriIndex>,
     rdfwrap: Box<dyn rdfwrap::RDFAdapter>,
@@ -212,7 +215,7 @@ impl ColorCache {
 }
 
 // Implement default values for MyApp
-impl VisualRdfApp {
+impl RdfGlanceApp {
     fn new(storage: Option<&dyn Storage>) -> Self {
         let presistentdata: Option<PersistentData> = match storage {
             Some(storage) => {
@@ -288,7 +291,7 @@ enum ExpandType {
     Both,
 }
 
-impl VisualRdfApp {
+impl RdfGlanceApp {
     fn show_current(&mut self) -> bool {
         let cached_object_index = self.node_data.get_node_index(&self.object_iri);
         if let Some(cached_object_index) = cached_object_index {
@@ -441,10 +444,11 @@ impl VisualRdfApp {
                 self.system_message = SystemMessage::Error(format!("File not found: {}", err));
             }
             Ok(triples_count) => {
-                self.system_message = SystemMessage::Info(format!(
+                let load_message = format!(
                     "Loaded: {} triples: {}",
                     file_name, triples_count
-                ));
+                );
+                self.set_status_message(&load_message);
                 if !self
                     .persistent_data
                     .last_files
@@ -500,7 +504,7 @@ impl VisualRdfApp {
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
-        let button_text = egui::RichText::new("Open RDF File").size(16.0);
+        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER," Open RDF File")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
@@ -517,7 +521,7 @@ impl VisualRdfApp {
                         if ui.button(last_file).clicked() {
                             last_file_clicked = Some(last_file.clone());
                         }
-                        if ui.button("Forget me").clicked() {
+                        if ui.button(ICON_DELETE).clicked() {
                             last_file_foget = Some(last_file.clone());
                         }
                         ui.end_row();
@@ -546,7 +550,7 @@ impl VisualRdfApp {
 
 }
 
-impl eframe::App for VisualRdfApp {
+impl eframe::App for RdfGlanceApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -610,7 +614,7 @@ impl eframe::App for VisualRdfApp {
                 let selected_language = self.node_data.get_language(self.layout_data.display_language);
                 if let Some(selected_language) = selected_language {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        egui::ComboBox::from_label("Data language")
+                        egui::ComboBox::from_label(concatcp!(ICON_LANG," Data language"))
                         .selected_text(selected_language)
                         .show_ui(ui, |ui| {
                             for language_index in self.layout_data.language_sort.iter() {
@@ -625,14 +629,15 @@ impl eframe::App for VisualRdfApp {
                   });
                 }
             });
+            ui.separator();
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.display_type, DisplayType::Table, "Tables");
+                ui.selectable_value(&mut self.display_type, DisplayType::Table, concatcp!(ICON_TABLE," Tables"));
                 ui.add_enabled_ui(!self.is_empty(), |ui| {
-                    ui.selectable_value(&mut self.display_type, DisplayType::Graph, "Visual Graph");
-                    ui.selectable_value(&mut self.display_type, DisplayType::Browse, "Browse");
+                    ui.selectable_value(&mut self.display_type, DisplayType::Graph, concatcp!(ICON_GRAPH," Visual Graph"));
+                    ui.selectable_value(&mut self.display_type, DisplayType::Browse, concatcp!(ICON_BROWSE," Browse"));
                 });
-                ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, "Prefixes");
-                ui.selectable_value(&mut self.display_type, DisplayType::Configuration, "Settings");
+                ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, concatcp!(ICON_PREFIX," Prefixes"));
+                ui.selectable_value(&mut self.display_type, DisplayType::Configuration, concatcp!(ICON_CONFIG," Settings"));
                 /*
                 ui.selectable_value(
                     &mut self.display_type,
@@ -641,6 +646,7 @@ impl eframe::App for VisualRdfApp {
                 );
                  */
             });
+            ui.separator();
             let mut node_action = NodeAction::None;
             StripBuilder::new(ui)
                 .size(egui_extras::Size::remainder())

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{NodeAction, VisualRdfApp};
+use crate::{NodeAction, RdfGlanceApp};
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
@@ -37,7 +37,7 @@ impl Default for Config {
             language_filter: "en".to_string(),
             supress_other_language_data: true,
             create_iri_prefixes_automatically: true,
-            iri_display: IriDisplay::Full,
+            iri_display: IriDisplay::LabelOrShorten,
             resolve_rdf_lists: true,
         }
     }
@@ -57,7 +57,7 @@ impl Config {
     }
 }
 
-impl VisualRdfApp {
+impl RdfGlanceApp {
     pub fn show_config(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         ui.horizontal(|ui| {
             ui.label("language filter (comma separated):");
