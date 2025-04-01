@@ -463,8 +463,8 @@ fn add_predicate_object(
                     let value = literal.value();
                     let language = literal.language();
                     let datatype = literal.datatype();
-                    if language.is_some() {
-                        let language_index = indexer.get_language_index(language.unwrap());
+                    if let Some(language) = language {
+                        let language_index = indexer.get_language_index(language);
                         node.properties.push((
                             predicate_index,
                             Literal::LangString(language_index, value.to_string()),
@@ -474,7 +474,8 @@ fn add_predicate_object(
                             node.properties
                                 .push((predicate_index, Literal::String(value.to_string())));
                         } else {
-                            let data_type_index = indexer.get_data_type_index(datatype.as_str());
+                            let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
+                            let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
                             node.properties.push((
                                 predicate_index,
                                 Literal::TypedString(data_type_index, value.to_string()),
