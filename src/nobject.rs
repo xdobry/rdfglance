@@ -75,10 +75,10 @@ pub struct NodeCache {
 }
 
 pub struct Indexers {
-    predicate_indexer: StringIndexer,
-    type_indexer: StringIndexer,
+    pub predicate_indexer: StringIndexer,
+    pub type_indexer: StringIndexer,
     pub language_indexer: StringIndexer,
-    datatype_indexer: StringIndexer,
+    pub datatype_indexer: StringIndexer,
 }
 
 pub enum LabelDisplayValue<'a> {
@@ -201,7 +201,7 @@ impl Indexers {
             datatype_indexer: StringIndexer::new(),
         };
         indexer.language_indexer.to_index("en");
-        indexer.predicate_indexer.to_index(rdfs::LABEL.as_str());
+        indexer.predicate_indexer.to_index("rdfs:label");
         return indexer;
     }
     
@@ -541,11 +541,11 @@ impl NodeData {
 } 
 
 pub struct StringIndexer {
-    map: IndexMap<String, usize>,
+    pub map: IndexMap<String, usize>,
 }
 
 impl StringIndexer {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { map: IndexMap::new() }
     }
 
