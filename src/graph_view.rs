@@ -369,7 +369,7 @@ impl RdfGlanceApp {
             let available_height = ui.available_height();
             let size = Vec2::new(available_width, available_height);
 
-            let (rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
+            let (rect, response) = ui.allocate_at_least(size, Sense::empty());
             let painter = ui.painter();
     
             let center = rect.center();
@@ -388,6 +388,7 @@ impl RdfGlanceApp {
             ctx.input(|input| {
                 single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
                 secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
+                double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
             });
     
             for node_layout in self.layout_data.visible_nodes.data.iter() {
@@ -413,7 +414,6 @@ impl RdfGlanceApp {
                 }
             }
             
-            let hover_pos = response.hover_pos();
             let drag_started = response.drag_started();
             if response.drag_stopped() {
                 self.layout_data.node_to_drag = None;
@@ -459,11 +459,7 @@ impl RdfGlanceApp {
                             }
                         }
                     }
-                    if !was_action
-                        && hover_pos.is_some()
-                        && (pos - hover_pos.unwrap()).length() < radius
-                    {
-                        // just hover
+                    if !was_action && (pos - mouse_pos).length() < radius {
                         node_to_hover = Some(node_layout.node_index);
                         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
                     }
