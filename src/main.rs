@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::collections::{HashMap, HashSet};
 use const_format::concatcp;
 
@@ -5,11 +7,12 @@ use eframe::{
     egui::{self, Pos2},
     Storage,
 };
-use egui::{Align, Layout, Vec2};
+use egui::{Align, Layout, Rect, ViewportBuilder};
 use egui_extras::StripBuilder;
+use graph_view::NeighbourPos;
 use nobject::{IriIndex, LangIndex, NodeData};
 use layout::SortedNodeLayout;
-use oxrdf::vocab::rdfs;
+use oxrdf::{vocab::rdfs, IriParseError};
 use prefix_manager::PrefixManager;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
@@ -17,6 +20,7 @@ use serde_json;
 use sparql_dialog::SparqlDialog;
 use style::*;
 use table_view::CacheStatistics;
+use uitools::load_icon;
 
 mod browse_view;
 mod config;
@@ -35,8 +39,14 @@ mod uitools;
 mod style;
 mod persistency;
 
+
+
 fn main() -> Result<(), eframe::Error> {
-    let options = eframe::NativeOptions::default();
+    let options = eframe::NativeOptions {
+        viewport: ViewportBuilder::default()
+            .with_icon(load_icon()),
+        ..eframe::NativeOptions::default()
+    };
     eframe::run_native(
         "rdf-glance",
         options,
@@ -116,7 +126,6 @@ struct ColorCache {
 
 struct LayoutData {
     selected_node: Option<IriIndex>,
-    offset_drag_start: Option<Pos2>,
     context_menu_node: Option<IriIndex>,
     context_menu_pos: Pos2,
     node_to_drag: Option<IriIndex>,
@@ -126,8 +135,7 @@ struct LayoutData {
     force_compute_layout: bool,
     display_language: LangIndex,
     language_sort: Vec<LangIndex>,
-    zoom: f32,
-    offset: Pos2,
+    scene_rect: Rect,
 }
 
 struct SortedVec {
@@ -154,6 +162,19 @@ pub enum NodeAction {
     ShowVisual(IriIndex),
 }
 
+impl LayoutData {
+    pub fn clean(&mut self) {
+        self.selected_node = None;
+        self.context_menu_node = None;
+        self.node_to_drag = None;
+        self.visible_nodes.data.clear();
+        self.hidden_predicates.data.clear();
+        self.compute_layout = true;
+        self.force_compute_layout = false;
+        self.scene_rect = Rect::ZERO;
+    }
+}
+
 impl ColorCache {
     fn get_type_color(&mut self, types: &Vec<IriIndex>) -> egui::Color32 {
         let len = self.type_colors.len();
@@ -173,6 +194,12 @@ impl ColorCache {
             .entry(iri)
             .or_insert_with(|| distinct_colors::next_distinct_color(len, 0.5, 0.3))
             .clone()
+    }
+
+    pub fn clean(&mut self) {
+        self.type_colors.clear();
+        self.predicate_colors.clear();
+        self.label_predicate.clear();
     }
 }
 
@@ -266,13 +293,11 @@ impl RdfGlanceApp {
                 node_to_drag: None,
                 context_menu_node: None,
                 context_menu_pos: Pos2::new(0.0, 0.0),
-                zoom: 1.0,
+                scene_rect: Rect::ZERO,
                 compute_layout: true,
                 force_compute_layout: false,
-                offset: Pos2::new(0.0, 0.0),
                 visible_nodes: SortedNodeLayout::new(),
                 hidden_predicates: SortedVec::new(),
-                offset_drag_start: None,
                 display_language: 0,
                 language_sort: Vec::new(),
             },
@@ -361,7 +386,7 @@ impl RdfGlanceApp {
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,node)) = node {
             if node.has_subject {
-                self.layout_data.visible_nodes.add_by_index(index);
+                return self.layout_data.visible_nodes.add_by_index(index);
             } else {
                 let node_iri = node_iri.clone();
                 let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
@@ -369,7 +394,6 @@ impl RdfGlanceApp {
                     self.node_data.put_node_replace(&node_iri,new_object);
                 }
             }
-            return true;
         }
         return false;
     }
@@ -406,27 +430,40 @@ impl RdfGlanceApp {
                 vec![]
             }
         };
+        let mut npos = NeighbourPos::new();
         for ref_index in refs_to_expand {
-            self.load_object_by_index(ref_index);
+            if self.load_object_by_index(ref_index) {
+                npos.insert(iri_index, ref_index);
+            }
         }
+        npos.position(&mut self.layout_data.visible_nodes);
     }
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
+        let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
         for visible_index in &self.layout_data.visible_nodes.data {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
-                    refs_to_expand.insert(*ref_iri);
+                    if refs_to_expand.insert(*ref_iri) {
+                        parent_ref.push((visible_index.node_index,*ref_iri));
+                    }
                 }
                 for (_, ref_iri) in nnode.reverse_references.iter() {
-                    refs_to_expand.insert(*ref_iri);
+                    if refs_to_expand.insert(*ref_iri) {
+                        parent_ref.push((visible_index.node_index,*ref_iri));
+                    }
                 }
             }
         }
-        for ref_index in refs_to_expand {
+        let mut npos = NeighbourPos::new();
+        for (parent_index,ref_index) in parent_ref {
             if !self.layout_data.visible_nodes.contains(ref_index) {
-                self.load_object_by_index(ref_index);
+                if self.load_object_by_index(ref_index) {
+                    npos.insert(parent_index, ref_index);
+                }
             }
         }
+        npos.position(&mut self.layout_data.visible_nodes);
     }
     fn show_all(&mut self) {
         for iri_index in 0..self.node_data.len() {
@@ -548,7 +585,18 @@ impl RdfGlanceApp {
             }
         }
     }
-
+    fn clean_data(&mut self) {
+        self.node_data.clean();
+        self.layout_data.clean();
+        self.cache_statistics.clean();
+        self.color_cache.clean();
+        self.display_type = DisplayType::Table; 
+        self.nav_history.clear();
+        self.nav_pos = 0;
+        self.current_iri = None;
+        self.object_iri.clear();
+        self.prefix_manager.clean();
+    }
 }
 
 impl eframe::App for RdfGlanceApp {
@@ -591,9 +639,7 @@ impl eframe::App for RdfGlanceApp {
                     }
                      */
                     if ui.button("Clean Data").clicked() {
-                        self.node_data.clean();
-                        self.layout_data.visible_nodes.data.clear();
-                        self.display_type = DisplayType::Table;
+                        self.clean_data();
                         ui.close_menu();
                     }
                     if self.persistent_data.last_files.len() > 0 {

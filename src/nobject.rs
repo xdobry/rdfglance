@@ -217,6 +217,12 @@ impl Indexers {
     pub fn get_data_type_index(&mut self, data_type: &str) -> DataTypeIndex {
         self.datatype_indexer.to_index(data_type) as DataTypeIndex
     }
+    pub fn clean(&mut self) {
+        self.predicate_indexer.map.clear();
+        self.type_indexer.map.clear();
+        self.language_indexer.map.clear();
+        self.datatype_indexer.map.clear();
+    }
 }
 
 impl NodeCache {
@@ -351,6 +357,7 @@ impl NodeData {
     }
     pub fn clean(&mut self) {
         self.node_cache.cache.clear();
+        self.indexers.clean();
     }
     pub fn type_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
         let type_iri = self.indexers.type_indexer.from_index(type_index);
@@ -376,12 +383,12 @@ impl NodeData {
         }
         return None;
     }
-    pub fn type_display(&self, type_index: IriIndex, language_index: LangIndex, iri_display: IriDisplay, prefix_manager: &PrefixManager) -> LabelDisplayValue {
+    pub fn type_display(&self, type_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
         let type_iri = self.indexers.type_indexer.from_index(type_index);
         return if let Some(type_iri) = type_iri {
-            match iri_display {
+            match label_context.iri_display {
                 IriDisplay::Full => {
-                    let full_iri = prefix_manager.get_full_opt(type_iri);
+                    let full_iri = label_context.prefix_manager.get_full_opt(type_iri);
                     if let Some(full_iri) = full_iri {
                         return LabelDisplayValue::FullStr(full_iri);
                     } else {
@@ -392,7 +399,7 @@ impl NodeData {
                     return LabelDisplayValue::FullRef(type_iri);
                 }
                 IriDisplay::Label => {
-                    let type_label = self.type_label(type_index, language_index);
+                    let type_label = self.type_label(type_index, label_context.language_index);
                     if let Some(type_label) = type_label {
                         return LabelDisplayValue::ShortAndIri(type_label,type_iri);
                     } else {
@@ -403,7 +410,7 @@ impl NodeData {
                     return LabelDisplayValue::FullRef(short_iri(type_iri));
                 }
                 IriDisplay::LabelOrShorten => {
-                    let type_label = self.type_label(type_index, language_index);
+                    let type_label = self.type_label(type_index, label_context.language_index);
                     if let Some(type_label) = type_label {
                         return LabelDisplayValue::ShortAndIri(type_label,type_iri);
                     } else {
@@ -416,12 +423,12 @@ impl NodeData {
         }
     }
 
-    pub fn predicate_display(&self, predicate_index: IriIndex, language_index: LangIndex, iri_display: IriDisplay, prefix_manager: &PrefixManager) -> LabelDisplayValue {
+    pub fn predicate_display(&self, predicate_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
         let predicate_iri = self.indexers.predicate_indexer.from_index(predicate_index);
         return if let Some(predicate_iri) = predicate_iri {
-            match iri_display {
+            match label_context.iri_display {
                 IriDisplay::Full => {
-                    let full_iri = prefix_manager.get_full_opt(predicate_iri);
+                    let full_iri = label_context.prefix_manager.get_full_opt(predicate_iri);
                     if let Some(full_iri) = full_iri {
                         return LabelDisplayValue::FullStr(full_iri);
                     } else {
@@ -432,7 +439,7 @@ impl NodeData {
                     return LabelDisplayValue::FullRef(predicate_iri);
                 }
                 IriDisplay::Label => {
-                    let type_label = self.type_label(predicate_index, language_index);
+                    let type_label = self.type_label(predicate_index, label_context.language_index);
                     if let Some(type_label) = type_label {
                         return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
                     } else {
@@ -443,7 +450,7 @@ impl NodeData {
                     return LabelDisplayValue::FullRef(short_iri(predicate_iri));
                 }
                 IriDisplay::LabelOrShorten => {
-                    let type_label = self.type_label(predicate_index, language_index);
+                    let type_label = self.type_label(predicate_index, label_context.language_index);
                     if let Some(type_label) = type_label {
                         return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
                     } else {
@@ -560,5 +567,21 @@ impl StringIndexer {
 
     pub fn iter(&self) -> indexmap::map::Iter<String, usize> {
         self.map.iter()
+    }
+}
+
+pub struct LabelContext<'a> {
+    pub language_index: LangIndex,
+    pub iri_display: IriDisplay,
+    pub prefix_manager: &'a PrefixManager,
+}
+
+impl<'a> LabelContext<'a> {
+    pub fn new(language_index: LangIndex, iri_display: IriDisplay, prefix_manager: &'a PrefixManager) -> Self {
+        Self {
+            language_index,
+            iri_display,
+            prefix_manager,
+        }
     }
 }

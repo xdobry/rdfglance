@@ -1,9 +1,8 @@
 use const_format::concatcp;
-use egui::ScrollArea;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, ColorCache, LayoutData, NodeAction, RdfGlanceApp
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, ColorCache, LayoutData, NodeAction, RdfGlanceApp
 };
 
 impl RdfGlanceApp {
@@ -44,14 +43,13 @@ impl RdfGlanceApp {
                     action_type_index = NodeAction::ShowVisual(current_iri_index);
                 }
                 b_resp.on_hover_text("This will add the node to the visual graph and switch to visual graph view. The node will be selected.");
+                let label_context = LabelContext::new(self.layout_data.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
                 ui.horizontal(|ui|{
                     ui.strong("types:");
                     for type_index in &current_node.types {
                         let type_label = self.node_data.type_display(
                             *type_index,
-                            self.layout_data.display_language,
-                            self.persistent_data.config_data.iri_display,
-                            &self.prefix_manager,
+                            &label_context,
                         );
                         if ui.button(type_label.as_str()).clicked() {
                             action_type_index = NodeAction::ShowType(*type_index);
@@ -113,9 +111,7 @@ impl RdfGlanceApp {
                                     }
                                     let predicate_label = self.node_data.predicate_display(
                                         *predicate_index,
-                                        self.layout_data.display_language,
-                                        self.persistent_data.config_data.iri_display,
-                                        &self.prefix_manager,
+                                        &label_context,
                                     );
                                     ui.label(predicate_label.as_str());
                                     ui.label(prop_value.as_ref());

@@ -19,8 +19,8 @@ impl NodeLayout {
         Self {
             node_index,
             pos: Pos2::new(
-                rand::rng().random_range(0.0..100.0),
-                rand::rng().random_range(0.0..100.0),
+                rand::rng().random_range(-100.0..100.0),
+                rand::rng().random_range(-100.0..100.0),
             ),
             vel: Vec2::new(0.0, 0.0),
         }
@@ -36,15 +36,19 @@ impl SortedNodeLayout {
         Self { data: Vec::new() }
     }
 
-    pub fn add(&mut self, value: NodeLayout) {
+    fn add(&mut self, value: NodeLayout) -> bool {
         match self.data.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
-            Ok(_) => (),                              // Value already exists, do nothing
-            Err(pos) => self.data.insert(pos, value), // Insert at correct position
+            Ok(_) => false,                              // Value already exists, do nothing
+            Err(pos) => {
+                 // Insert at correct position
+                self.data.insert(pos, value);
+                true
+             }
         }
     }
 
-    pub fn add_by_index(&mut self, value: IriIndex) {
-        self.add(NodeLayout::new(value));
+    pub fn add_by_index(&mut self, value: IriIndex) -> bool {
+        self.add(NodeLayout::new(value))
     }
 
     pub fn contains(&self, value: IriIndex) -> bool {

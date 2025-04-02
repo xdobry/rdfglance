@@ -84,28 +84,11 @@ ToDo
    - show label/iri on hoover
 
 # Own Grid
-- V own scroolbar
-- V resezible columns
-- V columns with action
-- V cells with overflow
 - move with mouse
 - move columns
-- V cell with more info button
-- V clip text (constant hight)
-- V show cliped text [...]
 - show index of cell
 (DB Browser) 
-- V show preview for cell
-- search for row (search row)
 - paging/navigaition
-- V zeige wie viewl wurde ausgefilter
-- V filter verwerfen
-- V zeige inhalt (on click)
-- V zeige referenzen (on click - mit navigation)
-- V sortiere nach referenzen
-- V vertical scroll
-- V scroll with mouse wheel
-- V unhide columns
 
 
 # Functionality
@@ -131,7 +114,12 @@ Table
 
 - zoom for graph view
 - hint user how use graph view (double click and expand)
-- 
+- resize iri column
+- filter for types
+- expand nodes (add in circle to the existing expanding node to simplify layout)
+- windows icon
+- windows no cmd terminal window
+- serialization
 
 #####################################
 - sprachen
@@ -146,7 +134,7 @@ Table
 - labels nachladen kann man als eine Aktion (wenn sparql)
 
 ###########################
-DBPedia
+#DBPedia
 
 - Lade nich zu viel (Welche Props sollen geladen werden)
  (z.B nicht alle Typen)
@@ -156,7 +144,7 @@ DBPedia
 (Das alles Konfigurierbar)
 
 ###############################
-Zustand Abspeichern
+#Zustand Abspeichern
 
 - Serialisierung (Ist es schneller als RDF)
 - Auch zustand der Graphen

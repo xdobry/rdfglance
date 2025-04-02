@@ -5,7 +5,7 @@ use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, ColorCache, LayoutData, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, ColorCache, LayoutData, NodeAction
 };
 
 pub struct CacheStatistics {
@@ -680,7 +680,7 @@ impl CacheStatistics {
         }
     }
 
-    fn reset(&mut self) {
+    pub fn clean(&mut self) {
         self.nodes = 0;
         self.unique_predicates = 0;
         self.unique_types = 0;
@@ -693,10 +693,10 @@ impl CacheStatistics {
     }
 
     pub fn update(&mut self, node_data: &NodeData) {
-        self.reset();
+        self.clean();
         let start = Instant::now();
         let node_len = node_data.len();
-        for (node_index, (node_iri, node)) in node_data.iter().enumerate() {
+        for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
             if node.has_subject {
                 self.nodes += 1;
             } else {
@@ -831,18 +831,15 @@ impl CacheStatistics {
                         }
                         match type_table_action {
                             TypeTableAction::SortByLabel => {
+                                let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                                 self.types_order.sort_by(|a, b| {
                                     let label_a = node_data.type_display(
                                         *a,
-                                        layout_data.display_language,
-                                        iri_display,
-                                        prefix_manager,
+                                        &label_context,
                                     );
                                     let label_b = node_data.type_display(
                                         *b,
-                                        layout_data.display_language,
-                                        iri_display,
-                                        prefix_manager,
+                                        &label_context,
                                     );
                                     return label_a.as_str().cmp(label_b.as_str());
                                 });
@@ -891,13 +888,12 @@ impl CacheStatistics {
                                     ui.strong("Count");
                                     ui.strong("Max Len");
                                     ui.end_row();
+                                    let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                                     for (predicate_index, pcharecteristics) in &type_data.properties
                                     {
                                         let predicate_label = node_data.predicate_display(
                                             *predicate_index,
-                                            layout_data.display_language,
-                                            iri_display,
-                                            prefix_manager,
+                                            &label_context,
                                         );
                                         ui.label(predicate_label.as_str());
                                         ui.label(pcharecteristics.count.to_string());
@@ -914,12 +910,11 @@ impl CacheStatistics {
                                     ui.strong("Out Ref");
                                     ui.strong("Count");
                                     ui.end_row();
+                                    let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                                     for (predicate_index, count) in &type_data.references {
                                         let predicate_label = node_data.predicate_display(
                                             *predicate_index,
-                                            layout_data.display_language,
-                                            iri_display,
-                                            prefix_manager,
+                                            &label_context,
                                         );
                                         ui.label(predicate_label.as_str());
                                         ui.label(count.to_string());
@@ -937,12 +932,11 @@ impl CacheStatistics {
                                         ui.strong("In Ref");
                                         ui.strong("Count");
                                         ui.end_row();
+                                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                                         for (predicate_index, count) in &type_data.rev_references {
                                             let predicate_label = node_data.predicate_display(
                                                 *predicate_index,
-                                                layout_data.display_language,
-                                                iri_display,
-                                                prefix_manager,
+                                                &label_context,
                                             );
                                             ui.label(predicate_label.as_str());
                                             ui.label(count.to_string());
@@ -1250,15 +1244,14 @@ impl CacheStatistics {
                 });
             })
             .body(|body| {
+                let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                 body.rows(text_height, self.types_order.len(), |mut row| {
                     let type_index = self.types_order.get(row.index()).unwrap();
                     row.set_selected(self.selected_type == Some(*type_index));
                     let type_data = self.types.get(type_index).unwrap();
                     let type_label = node_data.type_display(
                         *type_index,
-                        layout_data.display_language,
-                        iri_display,
-                        prefix_manager,
+                        &label_context,
                     );
                     row.col(|ui| {
                         ui.add(egui::Label::new(type_label.as_str()).selectable(false));

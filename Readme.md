@@ -70,6 +70,8 @@ To compile RDFGlance, you need to have Rust installed on your system. Follow the
 
 3. The compiled binary will be located in the `target/release` directory.
 
+You may also pick the precompiled executable for windows from [github releases](https://github.com/xdobry/rdfglance/releases).
+
 ## Usage
 
 After compiling the application, you can run it using the following command:
@@ -84,7 +86,6 @@ For more information on how to use RDFGlance, refer to the documentation provide
 - Some RDF files can not be read. You will see the error messages in the std output. It seems that the used oxrdf parser is quite sensitive.
 - If loading big rdf files the gui may freeze for a while. There is no seperate worker thread for it
 - The is no limitations to shown size of elements in visual graph. If you have more than 10000 Elements the ui may be not very responsible
-- The application can not handle big number of classes (>5000)
 
 I still hope that the application can be useful for others.
 Maybe I will improve it later if I feel like it again.
@@ -103,11 +104,12 @@ It is learn and hobby project.
 
 ## Releases
 
-You can use ready to use binaries for windows see github releases 
+You can use ready to use binaries for windows see [github releases](https://github.com/xdobry/rdfglance/releases) 
 
 ## Contributing
 
 We welcome contributions from the community. If you would like to contribute to RDFGlance, please fork the repository and submit a pull request. Make sure to follow the contribution guidelines outlined in the repository.
+You can also create [github issue](https://github.com/xdobry/rdfglance/issues)
 
 ## License
 
