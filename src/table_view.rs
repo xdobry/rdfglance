@@ -43,7 +43,16 @@ pub struct InstanceView {
     pub instance_filter: String,
     context_menu: TableContextMenu,
     pub column_pos: u32,
-    pub column_resize: Option<(Pos2, IriIndex)>,
+    pub column_resize: InstanceColumnResize,
+    pub iri_width: f32,
+    pub ref_count_width: f32,
+}
+
+pub enum InstanceColumnResize {
+    None,
+    Predicate(Pos2, IriIndex),
+    Iri(Pos2),
+    Refs(Pos2),
 }
 
 enum TableContextMenu {
@@ -51,6 +60,7 @@ enum TableContextMenu {
     ColumnMenu(Pos2, IriIndex),
     CellMenu(Pos2, IriIndex, IriIndex),
     RefMenu(Pos2, IriIndex),
+    IriColomnMenu(Pos2),
     RefColumnMenu(Pos2),
 }
 
@@ -61,6 +71,7 @@ impl TableContextMenu {
             TableContextMenu::CellMenu(pos, _, _) => *pos,
             TableContextMenu::RefMenu(pos, _) => *pos,
             TableContextMenu::RefColumnMenu(pos) => *pos,
+            TableContextMenu::IriColomnMenu(pos) => *pos,
             TableContextMenu::None => Pos2::new(0.0, 0.0),
         }
     }
@@ -96,6 +107,8 @@ const ROW_HIGHT: f32 = 17.0;
 const CHAR_WIDTH: f32 = 8.0;
 const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
 const COLUMN_GAP: f32 = 2.0;
+const IRI_WIDTH: f32  = 300.0;
+const REF_COUNT_WIDTH: f32 = 80.0;
 
 impl TypeData {
     pub fn new(_type_index: IriIndex) -> Self {
@@ -112,7 +125,9 @@ impl TypeData {
                 display_properties: vec![],
                 instance_filter: String::new(),
                 context_menu: TableContextMenu::None,
-                column_resize: None,
+                column_resize: InstanceColumnResize::None,
+                iri_width: IRI_WIDTH,
+                ref_count_width: REF_COUNT_WIDTH,
             },
         }
     }
@@ -148,6 +163,7 @@ impl TypeData {
     pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
+        ctx: &egui::Context,
         table_action: &mut TableAction,
         instance_action: &mut NodeAction,
         node_data: &mut NodeData,
@@ -172,8 +188,6 @@ impl TypeData {
         let primary_clicked = response.clicked();
 
         let mut xpos = 0.0;
-        let iri_len = 300.0;
-        let ref_count_len = 80.0;
 
         let font_id = egui::FontId::default();
         let popup_id = ui.make_persistent_id("column_context_menu");
@@ -187,6 +201,40 @@ impl TypeData {
             Color32::GRAY,
         );
 
+        if response.drag_stopped() {
+            self.instance_view.column_resize = InstanceColumnResize::None;
+        }
+        if response.dragged() {
+            match self.instance_view.column_resize {
+                InstanceColumnResize::None => {}
+                InstanceColumnResize::Predicate(start_pos, predicate_index) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    for column_desc in self.instance_view.display_properties.iter_mut() {
+                        if column_desc.predicate_index == predicate_index {
+                            let width = mouse_pos.x - start_pos.x;
+                            if width > CHAR_WIDTH * 2.0 {
+                                column_desc.width = width;
+                            }
+                        }
+                    }
+                }
+                InstanceColumnResize::Iri(start_pos) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    let width = mouse_pos.x - start_pos.x;
+                    if width > CHAR_WIDTH * 3.0 {
+                        self.instance_view.iri_width = width;
+                    }
+                }
+                InstanceColumnResize::Refs(start_pos) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    let width = mouse_pos.x - start_pos.x;
+                    if width > CHAR_WIDTH * 5.0 {
+                        self.instance_view.ref_count_width = width;
+                    }
+                }
+            }
+        }
+
         painter.text(
             available_rect.left_top(),
             egui::Align2::LEFT_TOP,
@@ -195,49 +243,75 @@ impl TypeData {
             egui::Color32::BLACK,
         );
 
+        let iri_colums_drag_size_rect = egui::Rect::from_min_size(
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width - 3.0, 0.0),
+            Vec2::new(6.0, ROW_HIGHT),
+        );
+
+        let mut primary_down = false;
+        ctx.input(|input| {
+            if input.pointer.button_pressed(egui::PointerButton::Primary) {
+                primary_down = true;
+            }
+        });
+
+        let mut was_context_click = false;
+
+        if iri_colums_drag_size_rect.contains(mouse_pos) {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+            if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
+                self.instance_view.column_resize = InstanceColumnResize::Iri(
+                    mouse_pos - Vec2::new(self.instance_view.iri_width, 0.0),
+                );
+            }
+        }
+
+        let iri_column_rec = egui::Rect::from_min_size(
+            available_rect.left_top(),
+            Vec2::new(self.instance_view.iri_width, ROW_HIGHT),
+        );
+        if iri_column_rec.contains(mouse_pos) {
+            if secondary_clicked {
+                was_context_click = true;
+                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                self.instance_view.context_menu = TableContextMenu::IriColomnMenu(mouse_pos);
+            }
+        }
         painter.text(
-            available_rect.left_top() + Vec2::new(iri_len, 0.0),
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
             egui::Align2::LEFT_TOP,
             "out/in",
             font_id.clone(),
             egui::Color32::BLACK,
         );
         let ref_column_rec = egui::Rect::from_min_size(
-            available_rect.left_top() + Vec2::new(iri_len, 0.0),
-            Vec2::new(ref_count_len, ROW_HIGHT),
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
+            Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
         );
-        let mut was_context_click = false;
-
+        let refs_colums_drag_size_rect = egui::Rect::from_min_size(
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width + self.instance_view.ref_count_width - 3.0, 0.0),
+            Vec2::new(6.0, ROW_HIGHT),
+        );        
+        if refs_colums_drag_size_rect.contains(mouse_pos) {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+            if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
+                self.instance_view.column_resize = InstanceColumnResize::Refs(
+                    mouse_pos - Vec2::new(self.instance_view.ref_count_width, 0.0),
+                );
+            }
+        }
         if ref_column_rec.contains(mouse_pos) {
             if secondary_clicked {
                 was_context_click = true;
                 ui.memory_mut(|mem| mem.toggle_popup(popup_id));
                 self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
-            } else {
-                ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
             }
         }
 
-        xpos += iri_len + ref_count_len;
+        xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
 
-        if response.drag_stopped() {
-            self.instance_view.column_resize = None;
-        }
 
-        if let Some((start_pos, predicate_index)) = self.instance_view.column_resize {
-            if response.dragged() {
-                for column_desc in self.instance_view.display_properties.iter_mut() {
-                    if column_desc.predicate_index == predicate_index {
-                        let width = mouse_pos.x - start_pos.x;
-                        if width > CHAR_WIDTH * 2.0 {
-                            column_desc.width = width;
-                        }
-                    }
-                }
-            } else {
-                self.instance_view.column_resize = None;
-            }
-        }
+
 
         for column_desc in self
             .instance_view
@@ -272,13 +346,11 @@ impl TypeData {
             );
             if colums_drag_size_rect.contains(mouse_pos) {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
-                if response.is_pointer_button_down_on()
-                    && self.instance_view.column_resize.is_none()
-                {
-                    self.instance_view.column_resize = Some((
+                if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
+                    self.instance_view.column_resize = InstanceColumnResize::Predicate(
                         mouse_pos - Vec2::new(column_desc.width, 0.0),
                         column_desc.predicate_index,
-                    ));
+                    );
                 }
             }
         }
@@ -302,7 +374,7 @@ impl TypeData {
                     );
                 }
                 start_pos += 1;
-                let mut xpos = iri_len + ref_count_len;
+                let mut xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
 
                 let graph_button_width = 20.0;
                 let graph_pos = available_rect.left_top() + Vec2::new(0.0, ypos+1.0);
@@ -325,7 +397,7 @@ impl TypeData {
                 let iri_top_left = available_rect.left_top() + Vec2::new(graph_button_width, ypos);
 
                 let cell_rect =
-                    egui::Rect::from_min_size(iri_top_left, Vec2::new(iri_len-graph_button_width, ROW_HIGHT));
+                    egui::Rect::from_min_size(iri_top_left, Vec2::new(self.instance_view.iri_width-graph_button_width, ROW_HIGHT));
 
                 let mut cell_hovered = false;
                 if cell_rect.contains(mouse_pos) {
@@ -335,7 +407,7 @@ impl TypeData {
 
                 text_wrapped_link(
                     &prefix_manager.get_prefixed(&node_iri),
-                    iri_len-graph_button_width,
+                    self.instance_view.iri_width - graph_button_width,
                     painter,
                     iri_top_left,
                     cell_hovered,
@@ -352,8 +424,8 @@ impl TypeData {
                     node.reverse_references.len()
                 );
                 let ref_rect = egui::Rect::from_min_size(
-                    available_rect.left_top() + Vec2::new(iri_len, ypos),
-                    Vec2::new(ref_count_len, ROW_HIGHT),
+                    available_rect.left_top() + Vec2::new(self.instance_view.iri_width, ypos),
+                    Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
                 );
                 painter.text(
                     ref_rect.left_top(),
@@ -411,11 +483,11 @@ impl TypeData {
         painter.line(
             [
                 Pos2::new(
-                    available_rect.left() + iri_len - COLUMN_GAP,
+                    available_rect.left() + self.instance_view.iri_width - COLUMN_GAP,
                     available_rect.top(),
                 ),
                 Pos2::new(
-                    available_rect.left() + iri_len - COLUMN_GAP,
+                    available_rect.left() + self.instance_view.iri_width - COLUMN_GAP,
                     available_rect.top() + ypos,
                 ),
             ]
@@ -425,18 +497,18 @@ impl TypeData {
         painter.line(
             [
                 Pos2::new(
-                    available_rect.left() + iri_len + ref_count_len + -COLUMN_GAP,
+                    available_rect.left() + self.instance_view.iri_width + self.instance_view.ref_count_width + -COLUMN_GAP,
                     available_rect.top(),
                 ),
                 Pos2::new(
-                    available_rect.left() + ref_count_len + iri_len - COLUMN_GAP,
+                    available_rect.left() + self.instance_view.ref_count_width + self.instance_view.iri_width - COLUMN_GAP,
                     available_rect.top() + ypos,
                 ),
             ]
             .to_vec(),
             Stroke::new(1.0, Color32::DARK_GRAY),
         );
-        xpos = iri_len + ref_count_len;
+        xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
         for column_desc in self
             .instance_view
             .display_properties
@@ -470,6 +542,21 @@ impl TypeData {
             self.instance_view.context_menu.pos(),
             width,
             |ui| match self.instance_view.context_menu {
+                TableContextMenu::IriColomnMenu(_pos) => {
+                    let mut close_menu: bool = false;
+                    if ui.button("Sort Asc").clicked() {
+                        *table_action = TableAction::SortIriAsc();
+                        close_menu = true;
+                    }
+                    if ui.button("Sort Desc").clicked() {
+                        *table_action = TableAction::SortIriDesc();
+                        close_menu = true;
+                    }
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        ui.memory_mut(|mem| mem.close_popup());
+                    }
+                }
                 TableContextMenu::RefColumnMenu(_pos) => {
                     let mut close_menu: bool = false;
                     if ui.button("Sort Asc").clicked() {
@@ -772,7 +859,7 @@ impl CacheStatistics {
 
     pub fn display(
         &mut self,
-        _ctx: &egui::Context,
+        ctx: &egui::Context,
         ui: &mut egui::Ui,
         node_data: &mut NodeData,
         layout_data: &mut LayoutData,
@@ -999,6 +1086,7 @@ impl CacheStatistics {
                         strip.cell(|ui| {
                             type_data.instance_table(
                                 ui,
+                                ctx,
                                 &mut table_action,
                                 &mut instance_action,
                                 node_data,
@@ -1124,6 +1212,40 @@ impl CacheStatistics {
                                         let b_value = node_b.references.len()
                                             + node_b.reverse_references.len();
                                         a_value.cmp(&b_value)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                        }
+                    }
+                    TableAction::SortIriAsc() => {
+                        if let Some(type_data) = self.types.get_mut(&selected_type) {
+                            type_data.filtered_instances.sort_by(|a, b| {
+                                let node_a = node_data.get_node_by_index(*a);
+                                let node_b = node_data.get_node_by_index(*b);
+                                if let Some((iri_a, _)) = node_a {
+                                    if let Some((iri_b, _)) = node_b {
+                                        iri_a.cmp(&iri_b)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                        }
+                    }
+                    TableAction::SortIriDesc() => {
+                        if let Some(type_data) = self.types.get_mut(&selected_type) {
+                            type_data.filtered_instances.sort_by(|a, b| {
+                                let node_a = node_data.get_node_by_index(*a);
+                                let node_b = node_data.get_node_by_index(*b);
+                                if let Some((iri_a, _)) = node_a {
+                                    if let Some((iri_b, _)) = node_b {
+                                        iri_b.cmp(&iri_a)
                                     } else {
                                         std::cmp::Ordering::Greater
                                     }
@@ -1285,6 +1407,8 @@ pub enum TableAction {
     SortColumnDesc(IriIndex),
     SortRefAsc(),
     SortRefDesc(),
+    SortIriAsc(),
+    SortIriDesc(),
     Filter,
 }
 

@@ -7,7 +7,7 @@ use crate::{
 };
 use const_format::concatcp;
 use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
-use egui::{Rect, Slider};
+use egui::{Color32, Rect, Slider};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
@@ -34,7 +34,6 @@ impl RdfGlanceApp {
                     &self.persistent_data.config_data,
                 );
                 if max_move < 0.8 && !self.layout_data.force_compute_layout {
-                    // println!("turn off layout");
                     self.layout_data.compute_layout = false;
                 } 
                 if self.layout_data.compute_layout || self.layout_data.force_compute_layout {
@@ -62,10 +61,7 @@ impl RdfGlanceApp {
         });
         if self.show_properties {
             egui::SidePanel::right("right_panel")
-                .default_width(200.0)
-                .resizable(true)
-                .min_width(100.0)
-                .max_width(500.0)
+                .exact_width(500.0)
                 .show_inside(ui, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         node_to_click = self.display_node_details(ui);
@@ -356,9 +352,11 @@ impl RdfGlanceApp {
         let mut secondary_clicked = false;
         let mut single_clicked = false;
         let mut double_clicked = false;
+        let mut primary_down = false;
         let mut was_context_click = false;
         let mut node_to_click: Option<IriIndex> = None;
         let mut node_to_hover: Option<IriIndex> = None;
+        let mut was_action = false;
 
         let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
 
@@ -369,27 +367,38 @@ impl RdfGlanceApp {
             let available_height = ui.available_height();
             let size = Vec2::new(available_width, available_height);
 
-            let (rect, response) = ui.allocate_at_least(size, Sense::empty());
+            let (id, rect) = ui.allocate_space(size);
             let painter = ui.painter();
     
             let center = rect.center();
             let font = FontId::proportional(16.0);
             let radius = 10.0;
-            // let mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+
+            // The code is complicated because of event handling, especially for click and dragging
+            // If node is clicked/dragged the event sould not be probagated to scena layer
+            // so we need to handle events manuylly by input and if input are consumed
+            // after it create big interact area that consume all events
 
             
-            let transform = ctx.layer_transform_to_global(response.layer_id);
+            let transform = ctx.layer_transform_to_global(ui.layer_id());
             let mouse_pos = if let Some(transform) = transform {
                 let local_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
                 transform.inverse() * local_mouse_pos
             } else {
-                response.interact_pointer_pos().unwrap_or(Pos2::new(0.0,0.0))
+                Pos2::new(0.0,0.0)
             };
             ctx.input(|input| {
                 single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
                 secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
                 double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
+                if input.pointer.button_pressed(egui::PointerButton::Primary) {
+                    primary_down = true;
+                }
+                if input.pointer.button_released(egui::PointerButton::Primary) {
+                    self.layout_data.node_to_drag = None;
+                }
             });
+
     
             for node_layout in self.layout_data.visible_nodes.data.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
@@ -413,49 +422,39 @@ impl RdfGlanceApp {
                     }
                 }
             }
-            
-            let drag_started = response.drag_started();
-            if response.drag_stopped() {
-                self.layout_data.node_to_drag = None;
-            }
             if let Some(node_to_drag_index) = &self.layout_data.node_to_drag {
-                if let Some(pointer_pos) = response.interact_pointer_pos() {
-                    if let Some(node_to_drag) =
-                        self.layout_data.visible_nodes.get_mut(*node_to_drag_index)
-                    {
-                        node_to_drag.pos = (pointer_pos - center).to_pos2();
-                    }
+                if let Some(node_to_drag) = self.layout_data.visible_nodes.get_mut(*node_to_drag_index) {
+                    node_to_drag.pos = (mouse_pos - center).to_pos2();
                 }
             }
             for node_layout in self.layout_data.visible_nodes.data.iter() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
-                    let mut was_action = false;
-                    if single_clicked {
-                        if (pos - mouse_pos).length() < radius {
-                            self.layout_data.selected_node = Some(node_layout.node_index);
-                            was_action = true;
-                        }
-                    }
-                    if double_clicked {
-                        if (pos - mouse_pos).length() < radius {
-                            node_to_click = Some(node_layout.node_index);
-                            was_action = true;
-                        }
-                    }
-                    if secondary_clicked {
-                        if (pos - mouse_pos).length() < radius {
-                            was_context_click = true;
-                            self.layout_data.context_menu_pos = global_mouse_pos;
-                            self.layout_data.context_menu_node = Some(node_layout.node_index);
-                            was_action = true;
-                        }
-                    }
-                    if drag_started {
-                        if let Some(pointer_pos) = response.interact_pointer_pos() {
-                            if (pos - pointer_pos).length() < radius {
+                    if self.layout_data.context_menu_node.is_none() || was_action {
+                        if single_clicked {
+                            if (pos - mouse_pos).length() < radius {
+                                self.layout_data.selected_node = Some(node_layout.node_index);
                                 was_action = true;
+                            }
+                        }
+                        if primary_down {
+                            if (pos - mouse_pos).length() < radius {
                                 self.layout_data.node_to_drag = Some(node_layout.node_index);
+                                was_action = true;
+                            }
+                        }
+                        if double_clicked {
+                            if (pos - mouse_pos).length() < radius {
+                                node_to_click = Some(node_layout.node_index);
+                                was_action = true;
+                            }
+                        }
+                        if secondary_clicked {
+                            if (pos - mouse_pos).length() < radius {
+                                was_context_click = true;
+                                self.layout_data.context_menu_pos = global_mouse_pos;
+                                self.layout_data.context_menu_node = Some(node_layout.node_index);
+                                was_action = true;
                             }
                         }
                     }
@@ -482,12 +481,24 @@ impl RdfGlanceApp {
                     }
                 }
             }
+            let consume_events = was_action || self.layout_data.node_to_drag.is_some() || node_to_hover.is_some();
+            if consume_events {
+                // ui.max_rect does not give enough
+                // so create a very big rect that capture all ares in scene
+                let max_rect: Rect = Rect::from_min_max(
+                    Pos2::new(-5_000.0, -5_000.0),
+                    Pos2::new(10_000.0, 10_000.0),
+                );
+                let _response = ui.interact(max_rect, id, Sense::click_and_drag());
+            }
         });
 
+        
         let popup_id = ui.make_persistent_id("node_context_menu");
         if was_context_click {
             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
         }
+
 
         popup_at(ui, popup_id, self.layout_data.context_menu_pos, 200.0, |ui| {
             if let Some(node_index) = &self.layout_data.context_menu_node {
@@ -498,7 +509,6 @@ impl RdfGlanceApp {
                     // TODO need to clone the types to release the mutable borrow from current_node (node_data)
                     let types = current_node.types.clone();
                     if ui.button("Hide").clicked() {
-                        println!("Hide node");
                         self.layout_data.visible_nodes.remove(current_index);
                         self.layout_data.compute_layout = true;
                         close_menu = true;
