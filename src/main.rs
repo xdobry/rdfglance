@@ -85,6 +85,7 @@ struct RdfGlanceApp {
     cache_statistics: CacheStatistics,
     prefix_manager: PrefixManager,
     play: PlayData,
+    help_open: bool,
 }
 
 enum SystemMessage {
@@ -307,6 +308,7 @@ impl RdfGlanceApp {
                 position: 0.0,
                 drag_pos: None,
             },
+            help_open: false,
         }
     }
 }

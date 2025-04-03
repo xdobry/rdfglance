@@ -48,9 +48,11 @@ impl RdfGlanceApp {
                 self.layout_data.scene_rect = Rect::ZERO;
                 self.layout_data.visible_nodes.to_center();
             }
+            /*
             if ui.button("Show all").clicked() {
                 self.show_all();
             }
+             */
             ui.checkbox(&mut self.show_properties, "Show Properties");
             ui.label("nodes force");
             ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
@@ -58,6 +60,21 @@ impl RdfGlanceApp {
             ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.005..=0.2));
             ui.checkbox(&mut self.show_labels, "Show Labels");
             ui.checkbox(&mut self.short_iri, "Short Iri");
+            let help_but = ui.button("\u{2753}");
+            if help_but.clicked() {
+                self.help_open = true;
+            }
+            if self.help_open {
+                egui::Window::new("Quick Help")
+                    .collapsible(false)
+                    .resizable(false)
+                    .default_size([300.0, 100.0])
+                    .default_pos(help_but.rect.left_bottom())
+                    .open(&mut self.help_open) // Small window
+                    .show(ctx, |ui| {
+                        ui.label("Use right mouse click on node to open context Menu\n\nZoom use Ctrl + mouse wheel\n\nExpand Relations - double click on node");
+                    });
+            }
         });
         if self.show_properties {
             egui::SidePanel::right("right_panel")
@@ -196,7 +213,9 @@ impl RdfGlanceApp {
                                 ui.add(ColorBox::new(
                                     self.color_cache.get_predicate_color(*reference_index),
                                 ));
-                                if ui.button("➕").clicked() {
+                                let ext_button = ui.button("➕");
+                                // ext_button.show_tooltip_text("Extend this relation for all visible nodes");
+                                if ext_button.clicked() {
                                     self.layout_data.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
                                     for visible_index in self.layout_data.visible_nodes.data.iter() {
@@ -226,17 +245,17 @@ impl RdfGlanceApp {
                                     reference_state.count, reference_state.visible
                                 );
                                 ui.label(state);
-                                if self
-                                    .layout_data
-                                    .hidden_predicates
-                                    .contains(*reference_index)
-                                {
-                                    if ui.button("👁").clicked() {
+                                if self.layout_data.hidden_predicates.contains(*reference_index) {
+                                    let show_but = ui.button("👁");
+                                    // show_but.show_tooltip_text("Show all relations of this type");
+                                    if show_but.clicked() {
                                         self.layout_data.compute_layout = true;
                                         self.layout_data.hidden_predicates.remove(*reference_index);
                                     }
                                 } else {
-                                    if ui.button("❌").clicked() {
+                                    let hide_but = ui.button("❌");
+                                    // hide_but.show_tooltip_text("Hide all relations of this type");
+                                    if hide_but.clicked() {
                                         self.layout_data.compute_layout = true;
                                         self.layout_data.hidden_predicates.add(*reference_index);
                                     }
@@ -427,6 +446,7 @@ impl RdfGlanceApp {
                     node_to_drag.pos = (mouse_pos - center).to_pos2();
                 }
             }
+            let mut hover: Option<(Rect,Pos2,String)> = None;
             for node_layout in self.layout_data.visible_nodes.data.iter() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
@@ -458,8 +478,10 @@ impl RdfGlanceApp {
                             }
                         }
                     }
+                    let mut is_hoover = false;
                     if !was_action && (pos - mouse_pos).length() < radius {
                         node_to_hover = Some(node_layout.node_index);
+                        is_hoover = true;
                         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
                     }
                     if self.layout_data.selected_node.is_some()
@@ -471,16 +493,44 @@ impl RdfGlanceApp {
                     painter.circle_filled(pos, radius, type_color);
                     node_count += 1;
                     if self.show_labels {
-                        painter.text(
-                            pos,
-                            egui::Align2::CENTER_CENTER,
-                            object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language),
-                            font.clone(),
-                            egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
-                        );
+                        if !is_hoover {
+                            let node_label = object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language);
+                            painter.text(
+                                pos,
+                                egui::Align2::CENTER_CENTER,
+                                node_label,
+                                font.clone(),
+                                egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
+                            );
+                        }
                     }
                 }
             }
+            if let Some(node_to_hover) = node_to_hover {
+                let node_layout = self.layout_data.visible_nodes.get(node_to_hover);
+                if let Some(node_layout) = node_layout {
+                    if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_to_hover) {
+                        let node_label = object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language);
+                        let mut job = egui::text::LayoutJob::default();
+                        job.append(
+                            node_label,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: Color32::BLUE,
+                                ..Default::default()
+                            },
+                        );                       
+                        let galley = painter.layout_job(job);
+                        let pos = center + node_layout.pos.to_vec2();
+                        let text_pos = pos-Vec2::new(galley.rect.width()/2.0,galley.rect.height()/2.0);
+                        let hrec = galley.rect.translate(Vec2::new(text_pos.x,text_pos.y));
+                        painter.rect_filled(hrec, 3.0, Color32::from_rgba_unmultiplied(255, 255, 153, 200));
+                        painter.galley(text_pos, galley, Color32::BLACK);                            
+                    }
+                }
+            }
+
             let consume_events = was_action || self.layout_data.node_to_drag.is_some() || node_to_hover.is_some();
             if consume_events {
                 // ui.max_rect does not give enough
