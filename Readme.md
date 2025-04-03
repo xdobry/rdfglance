@@ -8,7 +8,7 @@ RDFGlance is an open-source application designed to provide a visual representat
 - No HTML
 - No Server needed
 - Programmed by real programmer with real programming language
-- The self-contained executable is only 8MB!
+- The self-contained executable is only 15MB!
 - Zero runtime needed
 
 ## Description
