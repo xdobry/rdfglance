@@ -18,7 +18,7 @@ pub struct CacheStatistics {
     pub unresolved_references: usize,
     pub types: HashMap<IriIndex, TypeData>,
     pub types_order: Vec<IriIndex>,
-    pub selected_type: Option<usize>,
+    pub selected_type: Option<IriIndex>,
 }
 
 pub struct DataPropCharacteristics {
@@ -797,7 +797,7 @@ impl CacheStatistics {
                     .types
                     .entry(*type_index)
                     .or_insert_with(|| TypeData::new(*type_index));
-                type_data.instances.push(node_index);
+                type_data.instances.push(node_index as IriIndex);
                 for (predicate_index, value) in &node.properties {
                     type_data.count_property(*predicate_index, 1);
                     type_data.max_len_property(*predicate_index, value.as_ref().len() as u32);

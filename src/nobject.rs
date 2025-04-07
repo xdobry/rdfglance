@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
-use oxrdf::vocab::{rdf, rdfs};
+use oxrdf::vocab::rdf;
 
 use crate::{config::IriDisplay, prefix_manager::PrefixManager};
 
+pub type IriIndex = u32;
 pub type LangIndex = u16;
 pub type DataTypeIndex = u16;
 
@@ -50,7 +51,6 @@ impl Ord for Literal {
 
 
 
-pub type IriIndex = usize;
 pub type ObjectType = Literal;
 pub type PredicateLiteral = (IriIndex, ObjectType);
 pub type PredicateReference = (IriIndex, IriIndex);
@@ -227,10 +227,10 @@ impl Indexers {
 
 impl NodeCache {
     pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String, &NObject)> {
-        self.cache.get_index(index)
+        self.cache.get_index(index as usize)
     }
     pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&String, &mut NObject)> {
-        self.cache.get_index_mut(index)
+        self.cache.get_index_mut(index as usize)
     }
     pub fn get_node(&self, iri: &str) -> Option<&NObject> {
         self.cache.get(iri)
@@ -239,7 +239,7 @@ impl NodeCache {
         self.cache.get_mut(iri)
     }
     pub fn get_node_index(&self, iri: &str) -> Option<IriIndex> {
-        self.cache.get_full(iri).map(|(index, _, _)| index)
+        self.cache.get_full(iri).map(|(index, _, _)| index as IriIndex)
     }
     pub fn get_node_index_or_insert(&mut self, iri: &str, is_blank_node: bool) -> IriIndex {
         if let Some(index) = self.get_node_index(iri) {
@@ -264,13 +264,13 @@ impl NodeCache {
     pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
         self.cache.iter_mut()
     }
-    pub fn put_node(&mut self, iri: &str, node: NObject) -> usize {
+    pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
         let new_index = self.cache.len();
         let option = self.cache.insert(iri.to_owned(), node);
         if !option.is_none() {
             panic!("Node already exists");
         }
-        return new_index;
+        return new_index as IriIndex;
     }
     pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
         let option = self.cache.insert(iri.to_owned(), node);
@@ -302,7 +302,7 @@ impl NodeData {
         self.node_cache.get_node_mut(iri)
     }
     pub fn get_node_index(&self, iri: &str) -> Option<IriIndex> {
-        self.node_cache.cache.get_full(iri).map(|(index, _, _)| index)
+        self.node_cache.cache.get_full(iri).map(|(index, _, _)| index as IriIndex)
     }
     pub fn get_node_index_or_insert(&mut self, iri: &str, is_blank_node: bool) -> IriIndex {
         self.node_cache.get_node_index_or_insert(iri, is_blank_node)
@@ -316,7 +316,7 @@ impl NodeData {
     pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
         self.node_cache.iter_mut()
     }
-    pub fn put_node(&mut self, iri: &str, node: NObject) -> usize {
+    pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
         self.node_cache.put_node(iri,node)
     }
     pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
@@ -338,7 +338,7 @@ impl NodeData {
         self.indexers.predicate_indexer.to_index(predicate_name)
     }
     pub fn get_language(&self, language_index: LangIndex) -> Option<&str> {
-        self.indexers.language_indexer.from_index(language_index as usize)
+        self.indexers.language_indexer.from_index(language_index as IriIndex)
     }
     pub fn get_language_index(&mut self, language: &str) -> LangIndex {
         self.indexers.language_indexer.to_index(language) as LangIndex
@@ -468,7 +468,7 @@ impl NodeData {
         let predicate_rest = self.indexers.predicate_indexer.to_index(&prefix_manager.get_prefixed(rdf::REST.as_str()));
         let node_nil = self.get_node_index(&prefix_manager.get_prefixed(rdf::NIL.as_str())).unwrap_or(0);
         let mut next_list : Vec<(IriIndex,IriIndex)> = Vec::new();
-        let mut node_index: usize = 0;
+        let mut node_index: IriIndex = 0;
         for (_,node) in self.iter() {
             for (predicate,ref_index) in &node.references {
                 if *predicate == predicate_rest {
@@ -541,7 +541,7 @@ impl NodeData {
 } 
 
 pub struct StringIndexer {
-    pub map: IndexMap<String, usize>,
+    pub map: IndexMap<String, IriIndex>,
 }
 
 impl StringIndexer {
@@ -550,22 +550,22 @@ impl StringIndexer {
     }
 
     /// Converts a string to an index, assigning a new index if it's unknown
-    fn to_index(&mut self, s: &str) -> usize {
+    fn to_index(&mut self, s: &str) -> IriIndex {
         if let Some(&idx) = self.map.get(s) {
-            idx
+            idx as IriIndex
         } else {
             let idx = self.map.len();
-            self.map.insert(s.to_string(), idx);
-            idx
+            self.map.insert(s.to_string(), idx as IriIndex);
+            idx as IriIndex
         }
     }
 
     /// Retrieves a string from an index
-    fn from_index(&self, index: usize) -> Option<&str> {
-        self.map.get_index(index).map(|(key, _)| key.as_str())
+    fn from_index(&self, index: IriIndex) -> Option<&str> {
+        self.map.get_index(index as usize).map(|(key, _)| key.as_str())
     }
 
-    pub fn iter(&self) -> indexmap::map::Iter<String, usize> {
+    pub fn iter(&self) -> indexmap::map::Iter<String, IriIndex> {
         self.map.iter()
     }
 }
@@ -583,5 +583,78 @@ impl<'a> LabelContext<'a> {
             iri_display,
             prefix_manager,
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use oxrdf::{Subject, Triple};
+
+    use crate::prefix_manager::PrefixManager;
+
+    use super::{NodeData, StringIndexer};
+
+    #[test]
+    fn test_sting_indexer() {
+        let mut string_indexer = StringIndexer::new();
+        let index1 = string_indexer.to_index("test");
+        let index2 = string_indexer.to_index("test");
+        assert_eq!(index1, index2);
+        let index3 = string_indexer.to_index("test2");
+        assert_ne!(index1, index3);
+        assert_eq!(index1+1, index3);
+        let s = string_indexer.from_index(index2);
+        assert!(s.is_some());
+        assert_eq!("test",s.unwrap());
+        assert!(string_indexer.from_index(100).is_none());  
+    }
+
+    #[test]
+    fn test_node_data() {
+        let mut node_data = NodeData::new();
+        let prefix_manager = PrefixManager::new();
+
+        let language_filter: Vec<String> = vec![];
+        let mut index_cache = crate::rdfwrap::IndexCache {
+            index: 0,
+            iri: String::with_capacity(100),
+        };
+        let subject = oxrdf::NamedNode::new("http://example.org#subject").unwrap();
+        let rdf_type = oxrdf::NamedNode::new("http://example.org#ClassFoo").unwrap();
+        let data_predicate = oxrdf::NamedNode::new("http://example.org#pred").unwrap();
+
+        let mut tcount = 0;
+        let triple = Triple::new(
+            subject.clone(),
+            oxrdf::vocab::rdf::TYPE,
+            rdf_type,
+        );
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            triple, &mut index_cache, &language_filter, &prefix_manager);
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            Triple::new(
+                subject.clone(),
+                data_predicate.clone(),
+                oxrdf::Literal::new_simple_literal("test"),
+            ), &mut index_cache, &language_filter, &prefix_manager);
+
+        let pred_index = node_data.indexers.predicate_indexer.to_index(data_predicate.as_str());
+        let node = node_data.get_node(subject.as_str());
+
+        assert!(node.is_some());
+        let node = node.unwrap();
+        assert_eq!(node.types.len(), 1);
+        assert!(node.has_subject);
+        assert!(!node.is_blank_node);
+        assert_eq!(0,node.references.len());
+        assert_eq!(0,node.references.len());
+        assert_eq!(1,node.properties.len());
+
+        let lit = node.get_property(pred_index, 0);
+        assert!(lit.is_some());
+        assert_eq!(lit.unwrap().as_ref(), "test");
+
     }
 }
