@@ -21,6 +21,7 @@ bimap = "0.6.3"
 const_format = "0.2.34"
 byteorder = "1.5.0"
 image = "0.25.6"
+leb128 = "0.2.5"
 
 [dev-dependencies]
 peak_alloc = "0.2.0"

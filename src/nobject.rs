@@ -71,7 +71,7 @@ pub struct NodeData {
 }
 
 pub struct NodeCache {
-    cache: IndexMap<String, NObject>,
+    pub cache: IndexMap<String, NObject>,
 }
 
 pub struct Indexers {

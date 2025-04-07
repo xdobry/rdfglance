@@ -4,8 +4,9 @@ use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::{Context, Result};
+use leb128;
 
-use crate::nobject::{IriIndex, NodeCache, StringIndexer};
+use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral, StringIndexer};
 use crate::RdfGlanceApp;
 
 // it is just ascii "rdfg"
@@ -46,11 +47,11 @@ impl RdfGlanceApp {
         // header size 
         file.write_u16::<LittleEndian>(10)?;
 
-        self.node_data.indexers.predicate_indexer.store(HeaderType::Predicates as u8, &mut file)?;
-        self.node_data.indexers.type_indexer.store(HeaderType::Types as u8, &mut file)?;
-        self.node_data.indexers.language_indexer.store(HeaderType::Languages as u8, &mut file)?;
-        self.node_data.indexers.datatype_indexer.store(HeaderType::DataTypes as u8, &mut file)?;
-
+        self.node_data.indexers.predicate_indexer.store(HeaderType::Predicates, &mut file)?;
+        self.node_data.indexers.type_indexer.store(HeaderType::Types, &mut file)?;
+        self.node_data.indexers.language_indexer.store(HeaderType::Languages, &mut file)?;
+        self.node_data.indexers.datatype_indexer.store(HeaderType::DataTypes, &mut file)?;
+        self.node_data.node_cache.store(&mut file)?;
 
         file.flush()?;
         Ok(())
@@ -107,14 +108,12 @@ impl RdfGlanceApp {
                 }
             }
         }
-
-
-        return Ok(app);
+        Ok(app)
     }
 }
 
-fn with_header_len(file: &mut BufWriter<File>, header_type: u8, f: &dyn Fn(&mut BufWriter<File>) -> std::io::Result<()>) -> std::io::Result<()> {
-    file.write_u8(header_type)?;
+fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn Fn(&mut BufWriter<File>) -> std::io::Result<()>) -> std::io::Result<()> {
+    file.write_u8(header_type as u8)?;
     let size_pos = file.seek(SeekFrom::Current(0))?;
     file.write_u32::<LittleEndian>(0)?; // Placeholder for size
     f(file)?;
@@ -127,7 +126,7 @@ fn with_header_len(file: &mut BufWriter<File>, header_type: u8, f: &dyn Fn(&mut 
 }
 
 impl StringIndexer {
-    pub fn store(&self, header_type: u8, file: &mut BufWriter<File>) -> std::io::Result<()> {
+    pub fn store(&self, header_type: HeaderType, file: &mut BufWriter<File>) -> std::io::Result<()> {
         let len = self.map.len();
         let reverse: HashMap<IriIndex, &String> = self.iter()
             .map(|(key, &value)| (value, key))
@@ -179,21 +178,150 @@ impl StringIndexer {
                 };
             }
         }
-        return Ok(index);
+        Ok(index)
     }
 }
 
 impl NodeCache {
-    pub fn store(&self, header_type: u8, file: &mut BufWriter<File>) -> std::io::Result<()> {
-        Ok(())
+    pub fn store(&self, file: &mut BufWriter<File>) -> std::io::Result<()> {
+        with_header_len(file, HeaderType::Nodes, &|file| {
+            leb128::write::unsigned(file, self.cache.len() as u64)?;
+            for (iri,node) in self.iter() {
+                write_len_string(iri, file)?;
+                let flags: u8 = if node.is_blank_node { 1 } else { 0 } | if node.has_subject { 2 } else { 0};
+                file.write_u8(flags)?;
+                leb128::write::unsigned(file, node.types.len() as u64)?;
+                for type_index in node.types.iter() {
+                    leb128::write::unsigned(file, *type_index as u64)?; 
+                }
+                leb128::write::unsigned(file, node.properties.len() as u64)?;
+                for (predicate_index, literal) in node.properties.iter() {
+                    leb128::write::unsigned(file, *predicate_index as u64)?; 
+                    literal.store(file)?;
+                }
+                leb128::write::unsigned(file, node.references.len() as u64)?; 
+                for (predicate_index, iri_index) in node.references.iter() {
+                    leb128::write::unsigned(file, *predicate_index as u64)?; 
+                    leb128::write::unsigned(file, *iri_index as u64)?; 
+                }
+                leb128::write::unsigned(file, node.reverse_references.len() as u64)?; 
+                for (predicate_index, iri_index) in node.reverse_references.iter() {
+                    leb128::write::unsigned(file, *predicate_index as u64)?; 
+                    leb128::write::unsigned(file, *iri_index as u64)?; 
+                }
+            }
+            Ok(())
+        })
     }
 
     pub fn restore(file: &mut File, size: u32) -> Result<Self> {
-        let cache = NodeCache::new();
-        return Ok(cache);
+        let mut cache = NodeCache::new();
+        let nodes_len = leb128::read::unsigned(file)?;
+        println!("read {} nodes",nodes_len);
+        for _ in 0..nodes_len {
+            let iri = read_len_string(file)?;
+            println!("read node with iri {}",iri);
+            let flags = file.read_u8()?;
+            let is_blank_node = (flags & 1)>0;
+            let has_subject = (flags & 2)>0;
+            let types_len = leb128::read::unsigned(file)?;
+            let mut types: Vec<IriIndex> = Vec::with_capacity(types_len as usize);
+            for _ in 0..types_len {
+                let type_index = leb128::read::unsigned(file)? as IriIndex;
+                types.push(type_index);
+            }
+            let properties_len = leb128::read::unsigned(file)?;
+            let mut properties: Vec<PredicateLiteral> = Vec::with_capacity(types_len as usize);
+            for _ in 0..properties_len {
+                let predicate_index = leb128::read::unsigned(file)? as IriIndex;
+                let literal = Literal::restore(file)?;
+                properties.push((predicate_index,literal));
+            }
+            let references_len =  leb128::read::unsigned(file)?;
+            let mut references: Vec<(IriIndex,IriIndex)> = Vec::with_capacity(types_len as usize);
+            for _ in 0..references_len {
+                let predicate_index = leb128::read::unsigned(file)? as IriIndex;
+                let iri_index = leb128::read::unsigned(file)? as IriIndex;
+                references.push((predicate_index,iri_index));
+            }
+            let reverse_references_len =  leb128::read::unsigned(file)?;
+            let mut reverse_references: Vec<(IriIndex,IriIndex)> = Vec::with_capacity(types_len as usize);
+            for _ in 0..reverse_references_len {
+                let predicate_index = leb128::read::unsigned(file)? as IriIndex;
+                let iri_index = leb128::read::unsigned(file)? as IriIndex;
+                reverse_references.push((predicate_index,iri_index));
+            }
+            let node = NObject {
+                types,
+                properties,
+                references,
+                reverse_references,
+                is_blank_node,
+                has_subject
+            };
+            cache.cache.insert(iri,node);
+        }
+        Ok(cache)
     }
 }
 
+fn read_len_string(file: &mut File) -> Result<String> {
+    let str_len = leb128::read::unsigned(file)?;
+    let mut buffer = vec![0; str_len as usize];
+    file.read_exact(&mut buffer)?;
+    let str = std::str::from_utf8(&buffer)?;
+    Ok(str.to_owned())
+}
+
+fn write_len_string(str: &str, file: &mut BufWriter<File>) -> std::io::Result<()> {
+    let iri_bytes = str.as_bytes();
+    leb128::write::unsigned(file, iri_bytes.len() as u64)?; 
+    file.write_all(iri_bytes)?;
+    Ok(())
+}
+
+impl Literal {
+    pub fn store(&self, file: &mut BufWriter<File>)  -> std::io::Result<()> {
+        match self {
+            Literal::String(str) => {
+                file.write_u8(1)?;
+                write_len_string(str, file)?;
+            },
+            Literal::LangString(lang_index, str) => {
+                file.write_u8(2)?;
+                leb128::write::unsigned(file, *lang_index as u64)?;
+                write_len_string(str, file)?;
+            },
+            Literal::TypedString(type_index, str) => {
+                file.write_u8(3)?;
+                leb128::write::unsigned(file, *type_index as u64)?;
+                write_len_string(str, file)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn restore(file: &mut File) -> Result<Self> {
+        let literal_type = file.read_u8()?;
+        match literal_type {
+            1 => {
+                Ok(Literal::String(read_len_string(file)?))
+            },
+            2 => {
+                let lang_index = leb128::read::unsigned(file)? as LangIndex;
+                Ok(Literal::LangString(lang_index,read_len_string(file)?))
+            },
+            3 => {
+                let data_type_index = leb128::read::unsigned(file)? as DataTypeIndex;
+                Ok(Literal::TypedString(data_type_index,read_len_string(file)?))
+            },
+            _ => {
+                Err(anyhow::anyhow!(
+                    "Unknown literal type {}",literal_type
+                ))
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -221,15 +349,17 @@ mod tests {
         assert!(store_path.exists(),"file does not exists");
         let mut restored = RdfGlanceApp::restore(&store_path).unwrap();
 
-        assert!(vs.node_data.indexers.datatype_indexer.map.len()==restored.node_data.indexers.datatype_indexer.map.len());
-        assert!(vs.node_data.indexers.language_indexer.map.len()==restored.node_data.indexers.language_indexer.map.len());
-        assert!(vs.node_data.indexers.predicate_indexer.map.len()==restored.node_data.indexers.predicate_indexer.map.len());
-        assert!(vs.node_data.indexers.type_indexer.map.len()==restored.node_data.indexers.type_indexer.map.len());
+        assert_eq!(vs.node_data.indexers.datatype_indexer.map.len(),restored.node_data.indexers.datatype_indexer.map.len());
+        assert_eq!(vs.node_data.indexers.language_indexer.map.len(),restored.node_data.indexers.language_indexer.map.len());
+        assert_eq!(vs.node_data.indexers.predicate_indexer.map.len(),restored.node_data.indexers.predicate_indexer.map.len());
+        assert_eq!(vs.node_data.indexers.type_indexer.map.len(),restored.node_data.indexers.type_indexer.map.len());
 
         let predicates : Vec<String> = vs.node_data.indexers.predicate_indexer.map.keys().cloned().collect();
         for pred_val in &predicates {
             assert!(vs.node_data.indexers.get_predicate_index(pred_val)==restored.node_data.indexers.get_predicate_index(pred_val))
         }
+
+        assert_eq!(vs.node_data.len(),restored.node_data.len());
 
         Ok(())
     }
