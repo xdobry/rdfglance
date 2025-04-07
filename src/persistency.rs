@@ -5,7 +5,7 @@ use std::path::Path;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::{Context, Result};
 
-use crate::nobject::{IriIndex, StringIndexer};
+use crate::nobject::{IriIndex, NodeCache, StringIndexer};
 use crate::RdfGlanceApp;
 
 // it is just ascii "rdfg"
@@ -19,6 +19,7 @@ pub enum HeaderType {
     Types = 0x02,
     Languages = 0x03,
     DataTypes = 0x04,
+    Nodes = 0x05,
 }
 
 impl HeaderType {
@@ -28,6 +29,7 @@ impl HeaderType {
             2 => Some(HeaderType::Types),
             3 => Some(HeaderType::Languages),
             4 => Some(HeaderType::DataTypes),
+            5 => Some(HeaderType::Nodes),
             _ => None,
         }
     }
@@ -90,6 +92,9 @@ impl RdfGlanceApp {
                             HeaderType::Types => {
                                 app.node_data.indexers.type_indexer = StringIndexer::restore(&mut file, block_size-5)?;
                             }
+                            HeaderType::Nodes => {
+                                app.node_data.node_cache = NodeCache::restore(&mut file, block_size-5)?;
+                            }
                         }
                     } else {
                         println!("unknown header type {} ignoring block",header_type_u8);
@@ -108,30 +113,35 @@ impl RdfGlanceApp {
     }
 }
 
+fn with_header_len(file: &mut BufWriter<File>, header_type: u8, f: &dyn Fn(&mut BufWriter<File>) -> std::io::Result<()>) -> std::io::Result<()> {
+    file.write_u8(header_type)?;
+    let size_pos = file.seek(SeekFrom::Current(0))?;
+    file.write_u32::<LittleEndian>(0)?; // Placeholder for size
+    f(file)?;
+    let end_pos = file.seek(SeekFrom::Current(0))?;
+    let size = end_pos - size_pos + 1;
+    file.seek(SeekFrom::Start(size_pos))?;
+    file.write_u32::<LittleEndian>(size as u32)?;
+    file.seek(SeekFrom::End(0))?;
+    Ok(())
+}
+
 impl StringIndexer {
     pub fn store(&self, header_type: u8, file: &mut BufWriter<File>) -> std::io::Result<()> {
-        file.write_u8(header_type)?;
-        let size_pos = file.seek(std::io::SeekFrom::Current(0))?;
-        file.write_u32::<LittleEndian>(0)?;
         let len = self.map.len();
         let reverse: HashMap<IriIndex, &String> = self.iter()
             .map(|(key, &value)| (value, key))
             .collect();
-        println!("storing headertype {:?} len {}",header_type, len);
-        for i in 0..len {
-            let elem = reverse.get(&i);
-            if let Some(elem) = elem {
-                file.write_all(elem.as_bytes())?;
-                file.write_u8(0x1F)?;
+        with_header_len(file, header_type, &|file| {
+            for i in 0..len {
+                let elem = reverse.get(&i);
+                if let Some(elem) = elem {
+                    file.write_all(elem.as_bytes())?;
+                    file.write_u8(0x1F)?;
+                }
             }
-        }
-        let end_pos = file.seek(SeekFrom::Current(0))?;
-        let size = end_pos-size_pos+1;
-        println!("size {}",size);
-        file.seek(std::io::SeekFrom::Start(size_pos))?;
-        file.write_u32::<LittleEndian>(size as u32)?;
-        file.seek(std::io::SeekFrom::End(0))?;
-        Ok(())
+            Ok(())
+        })
     }
 
     pub fn restore(file: &mut File, size: u32) -> Result<Self> {
@@ -169,6 +179,17 @@ impl StringIndexer {
             }
         }
         return Ok(index);
+    }
+}
+
+impl NodeCache {
+    pub fn store(&self, header_type: u8, file: &mut BufWriter<File>) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    pub fn restore(file: &mut File, size: u32) -> Result<Self> {
+        let cache = NodeCache::new();
+        return Ok(cache);
     }
 }
 

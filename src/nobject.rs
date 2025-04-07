@@ -226,6 +226,12 @@ impl Indexers {
 }
 
 impl NodeCache {
+    pub fn new() -> Self {
+        Self {
+            cache: IndexMap::new(),
+        }
+    }
+    
     pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String, &NObject)> {
         self.cache.get_index(index)
     }
@@ -283,9 +289,7 @@ impl NodeCache {
 impl NodeData {
     pub fn new() -> Self {
         Self {
-            node_cache: NodeCache {
-                cache: IndexMap::new(),
-            },
+            node_cache: NodeCache::new(),
             indexers : Indexers::new(),
         }
     }
