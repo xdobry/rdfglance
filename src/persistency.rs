@@ -134,6 +134,7 @@ impl StringIndexer {
             .collect();
         with_header_len(file, header_type, &|file| {
             for i in 0..len {
+                let i : IriIndex = i as IriIndex;
                 let elem = reverse.get(&i);
                 if let Some(elem) = elem {
                     file.write_all(elem.as_bytes())?;
@@ -148,7 +149,7 @@ impl StringIndexer {
         let mut index = Self::new();
         let mut idx_num: IriIndex = 0;
         let mut buffer: Vec<u8> = Vec::with_capacity(256);
-        for i in 0..size {
+        for _i in 0..size {
             let byte = file.read_u8()?;
             if byte == 0x1F {
                 let str = std::str::from_utf8(&buffer)?;

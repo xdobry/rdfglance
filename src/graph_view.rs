@@ -446,7 +446,6 @@ impl RdfGlanceApp {
                     node_to_drag.pos = (mouse_pos - center).to_pos2();
                 }
             }
-            let mut hover: Option<(Rect,Pos2,String)> = None;
             for node_layout in self.layout_data.visible_nodes.data.iter() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();

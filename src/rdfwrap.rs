@@ -22,9 +22,9 @@ pub struct RDFWrap {
     file_name: String,
 }
 
-struct IndexCache {
-    index: IriIndex,
-    iri: String,
+pub struct IndexCache {
+    pub index: IriIndex,
+    pub iri: String,
 }
 
 impl RDFWrap {
@@ -336,7 +336,7 @@ impl RDFWrap {
     }
 }
 
-fn add_triple(
+pub fn add_triple(
     triples_count: &mut u32,
     indexer: &mut crate::nobject::Indexers,
     cache: &mut crate::nobject::NodeCache,
@@ -397,7 +397,7 @@ fn add_predicate_object(
     triples_count: &mut u32,
     indexer: &mut crate::nobject::Indexers,
     cache: &mut crate::nobject::NodeCache,
-    node_index: usize,
+    node_index: IriIndex,
     predicate: NamedNode,
     object: Term,
     language_filter: &Vec<String>,

@@ -1,5 +1,4 @@
 use bimap::BiMap;
-use serde::de;
 
 use crate::{NodeAction, RdfGlanceApp};
 
@@ -151,5 +150,26 @@ impl RdfGlanceApp {
             });
         });
         return NodeAction::None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_prefix_manager()  {
+        let mut prefix_manager = super::PrefixManager::new();
+        assert_eq!(prefix_manager.get_prefixed("http://www.w3.org/2000/01/rdf-schema#Class"),"rdfs:Class");
+        assert_eq!(prefix_manager.get_prefixed("http://not_managed#Foo"),"http://not_managed#Foo");
+        assert_eq!(prefix_manager.get_prefixed_opt("http://not_managed#Foo"),None);
+        assert_eq!(prefix_manager.get_full_opt("rdfs:Class"),Some("http://www.w3.org/2000/01/rdf-schema#Class".to_owned()));
+        assert_eq!(prefix_manager.get_full_opt("unknown:Foo"),None);
+        assert_eq!(prefix_manager.has_known_prefix("rdfs:Class"),true);
+        assert_eq!(prefix_manager.has_known_prefix("unknown:Foo"),false);
+        prefix_manager.add_prefix("atk", "http://atk.com#");
+        assert_eq!(prefix_manager.get_prefixed("http://atk.com#Foo"),"atk:Foo");
+        assert_eq!(prefix_manager.get_full_opt("atk:Foo"),Some("http://atk.com#Foo".to_owned()));
+        prefix_manager.clean();
+        assert_eq!(prefix_manager.get_full_opt("atk:Foo"),None);
     }
 }
