@@ -31,7 +31,7 @@ impl RdfGlanceApp {
         if let Some(current_iri_index) = self.current_iri {
             let current_node = self.node_data.get_node_by_index(current_iri_index);
             if let Some((iri, current_node)) = current_node {
-                let full_iri = self.prefix_manager.get_full_opt(iri).unwrap_or(iri.to_owned());
+                let full_iri = self.prefix_manager.get_full_opt(iri).unwrap_or(iri.clone());
                 ui.horizontal(|ui|{
                     ui.strong("full iri:");
                     ui.label(full_iri);

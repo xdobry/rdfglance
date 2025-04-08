@@ -4,7 +4,7 @@ use crate::{NodeAction, RdfGlanceApp};
 
 pub struct PrefixManager {
     // key is the full iri and value is the prefix
-    prefixes: BiMap<String, String>,
+    prefixes: BiMap<Box<str>, Box<str>>,
 }
 
 impl Default for PrefixManager {
@@ -24,52 +24,52 @@ impl PrefixManager {
 
     fn add_defaults(&mut self) {
         self.prefixes.insert(
-            "http://www.w3.org/1999/02/22-rdf-syntax-ns#".to_string(),
-            "rdf".to_string(),
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+            "rdf".into(),
         );
         self.prefixes.insert(
-            "http://www.w3.org/2000/01/rdf-schema#".to_string(),
-            "rdfs".to_string(),
+            "http://www.w3.org/2000/01/rdf-schema#".into(),
+            "rdfs".into(),
         );
         self.prefixes.insert(
-            "http://www.w3.org/2002/07/owl#".to_string(),
-            "owl".to_string(),
+            "http://www.w3.org/2002/07/owl#".into(),
+            "owl".into(),
         );
         self.prefixes.insert(
-            "http://www.w3.org/2001/XMLSchema#".to_string(),
-            "xsd".to_string(),
+            "http://www.w3.org/2001/XMLSchema#".into(),
+            "xsd".into(),
         );
         self.prefixes.insert(
-            "http://www.w3.org/2004/02/skos/core#".to_string(),
-            "skos".to_string(),
+            "http://www.w3.org/2004/02/skos/core#".into(),
+            "skos".into(),
         );
         self
             .prefixes
-            .insert("http://purl.org/dc/terms/".to_string(), "dc".to_string());
+            .insert("http://purl.org/dc/terms/".into(), "dc".into());
         self
             .prefixes
-            .insert("http://xmlns.com/foaf/0.1/".to_string(), "foaf".to_string());
+            .insert("http://xmlns.com/foaf/0.1/".into(), "foaf".into());
         self
             .prefixes
-            .insert("https://schema.org/".to_string(), "schema".to_string());
+            .insert("https://schema.org/".into(), "schema".into());
         self
             .prefixes
-            .insert("http://www.w3.org/ns/prov#".to_string(), "prov".to_string());
+            .insert("http://www.w3.org/ns/prov#".into(), "prov".into());
         self.prefixes.insert(
-            "http://www.opengis.net/ont/geosparql#".to_string(),
-            "geo".to_string(),
+            "http://www.opengis.net/ont/geosparql#".into(),
+            "geo".into(),
         );
         self.prefixes.insert(
-            "http://dbpedia.org/ontology/".to_string(),
-            "dbo".to_string(),
+            "http://dbpedia.org/ontology/".into(),
+            "dbo".into(),
         );
         self.prefixes.insert(
-            "http://dbpedia.org/property/".to_string(),
-            "dbp".to_string(),
+            "http://dbpedia.org/property/".into(),
+            "dbp".into(),
         );
         self.prefixes.insert(
-            "http://dbpedia.org/resource/".to_string(),
-            "dbr".to_string(),
+            "http://dbpedia.org/resource/".into(),
+            "dbr".into(),
         );
     }
 
@@ -107,14 +107,14 @@ impl PrefixManager {
         None
     }
 
-    pub fn get_full_opt(&self, iri: &str) -> Option<String> {
+    pub fn get_full_opt(&self, iri: &str) -> Option<Box<str>> {
         let delimiter_pos = iri.find(':');
         if let Some(delimiter_pos) = delimiter_pos {
             let prefix = &iri[..delimiter_pos];
             let suffix = &iri[delimiter_pos + 1..];
             let base_iri = self.prefixes.get_by_right(prefix);
             if let Some(base_iri) = base_iri {
-                return Some(format!("{}{}", base_iri, suffix));
+                return Some(format!("{}{}", base_iri, suffix).into());
             }
         }
         None
@@ -131,7 +131,7 @@ impl PrefixManager {
     pub fn add_prefix(&mut self, prefix: &str, iri: &str) {
         let iri_exists = self.prefixes.get_by_right(prefix);
         if iri_exists.is_none() {
-            self.prefixes.insert(iri.to_string(), prefix.to_string());
+            self.prefixes.insert(iri.into(), prefix.into());
         }
     }
 
@@ -168,13 +168,13 @@ mod tests {
         assert_eq!(prefix_manager.get_prefixed("http://www.w3.org/2000/01/rdf-schema#Class"),"rdfs:Class");
         assert_eq!(prefix_manager.get_prefixed("http://not_managed#Foo"),"http://not_managed#Foo");
         assert_eq!(prefix_manager.get_prefixed_opt("http://not_managed#Foo"),None);
-        assert_eq!(prefix_manager.get_full_opt("rdfs:Class"),Some("http://www.w3.org/2000/01/rdf-schema#Class".to_owned()));
+        assert_eq!(prefix_manager.get_full_opt("rdfs:Class"),Some("http://www.w3.org/2000/01/rdf-schema#Class".into()));
         assert_eq!(prefix_manager.get_full_opt("unknown:Foo"),None);
         assert_eq!(prefix_manager.has_known_prefix("rdfs:Class"),true);
         assert_eq!(prefix_manager.has_known_prefix("unknown:Foo"),false);
         prefix_manager.add_prefix("atk", "http://atk.com#");
         assert_eq!(prefix_manager.get_prefixed("http://atk.com#Foo"),"atk:Foo");
-        assert_eq!(prefix_manager.get_full_opt("atk:Foo"),Some("http://atk.com#Foo".to_owned()));
+        assert_eq!(prefix_manager.get_full_opt("atk:Foo"),Some("http://atk.com#Foo".into()));
         prefix_manager.clean();
         assert_eq!(prefix_manager.get_full_opt("atk:Foo"),None);
     }

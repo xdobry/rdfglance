@@ -340,7 +340,7 @@ impl RdfGlanceApp {
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,_node)) = node {
             self.current_iri = Some(index);
-            self.object_iri = node_iri.clone();
+            self.object_iri = node_iri.to_string();
             if add_history {
                 self.nav_history.truncate(self.nav_pos + 1);
                 self.nav_history.push(self.current_iri.unwrap());

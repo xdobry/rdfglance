@@ -269,13 +269,13 @@ impl RDFWrap {
                         Term::Literal(literal) => {
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                Literal::String(literal.value().to_string()),
+                                Literal::String(literal.value().into()),
                             ));
                         }
                         _ => {
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                Literal::String(triple.object.to_string()),
+                                Literal::String(triple.object.to_string().into()),
                             ));
                         }
                     }
@@ -458,17 +458,17 @@ fn add_predicate_object(
                         let language_index = indexer.get_language_index(language);
                         node.properties.push((
                             predicate_index,
-                            Literal::LangString(language_index, value.to_string()),
+                            Literal::LangString(language_index, value.into()),
                         ));
                     } else if datatype == xsd::STRING {
                         node.properties
-                            .push((predicate_index, Literal::String(value.to_string())));
+                            .push((predicate_index, Literal::String(value.into())));
                     } else {
                         let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
                         let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
                         node.properties.push((
                             predicate_index,
-                            Literal::TypedString(data_type_index, value.to_string()),
+                            Literal::TypedString(data_type_index, value.into()),
                         ));
                     }
                     *triples_count += 1;

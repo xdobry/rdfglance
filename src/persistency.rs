@@ -128,7 +128,7 @@ fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn 
 impl StringIndexer {
     pub fn store(&self, header_type: HeaderType, file: &mut BufWriter<File>) -> std::io::Result<()> {
         let len = self.map.len();
-        let reverse: HashMap<IriIndex, &String> = self.iter()
+        let reverse: HashMap<IriIndex, &Box<str>> = self.iter()
             .map(|(key, &value)| (value, key))
             .collect();
         with_header_len(file, header_type, &|file| {
@@ -152,7 +152,7 @@ impl StringIndexer {
             let byte = file.read_u8()?;
             if byte == 0x1F {
                 let str = std::str::from_utf8(&buffer)?;
-                index.map.insert(str.to_owned(), idx_num);
+                index.map.insert(str.into(), idx_num);
                 buffer.clear();
                 idx_num += 1;
             } else {
@@ -259,18 +259,18 @@ impl NodeCache {
                 is_blank_node,
                 has_subject
             };
-            cache.cache.insert(iri,node);
+            cache.cache.insert(iri.into(),node);
         }
         Ok(cache)
     }
 }
 
-fn read_len_string(file: &mut File) -> Result<String> {
+fn read_len_string(file: &mut File) -> Result<Box<str>> {
     let str_len = leb128::read::unsigned(file)?;
     let mut buffer = vec![0; str_len as usize];
     file.read_exact(&mut buffer)?;
     let str = std::str::from_utf8(&buffer)?;
-    Ok(str.to_owned())
+    Ok(str.into())
 }
 
 fn write_len_string(str: &str, file: &mut BufWriter<File>) -> std::io::Result<()> {
@@ -354,7 +354,7 @@ mod tests {
         assert_eq!(vs.node_data.indexers.predicate_indexer.map.len(),restored.node_data.indexers.predicate_indexer.map.len());
         assert_eq!(vs.node_data.indexers.type_indexer.map.len(),restored.node_data.indexers.type_indexer.map.len());
 
-        let predicates : Vec<String> = vs.node_data.indexers.predicate_indexer.map.keys().cloned().collect();
+        let predicates : Vec<Box<str>> = vs.node_data.indexers.predicate_indexer.map.keys().cloned().collect();
         for pred_val in &predicates {
             assert!(vs.node_data.indexers.get_predicate_index(pred_val)==restored.node_data.indexers.get_predicate_index(pred_val))
         }

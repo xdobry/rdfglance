@@ -11,9 +11,9 @@ pub type DataTypeIndex = u16;
 
 #[derive(Clone,PartialEq, Eq)]
 pub enum Literal {
-    String(String),
-    LangString(LangIndex, String),
-    TypedString(DataTypeIndex, String),
+    String(Box<str>),
+    LangString(LangIndex, Box<str>),
+    TypedString(DataTypeIndex, Box<str>),
 }
 
 
@@ -61,7 +61,7 @@ pub struct NodeData {
 }
 
 pub struct NodeCache {
-    pub cache: IndexMap<String, NObject>,
+    pub cache: IndexMap<Box<str>, NObject>,
 }
 
 pub struct Indexers {
@@ -72,7 +72,7 @@ pub struct Indexers {
 }
 
 pub enum LabelDisplayValue<'a> {
-    FullStr(String),
+    FullStr(Box<str>),
     FullRef(&'a str),
     ShortAndIri(&'a str, &'a str)
 }
@@ -232,10 +232,10 @@ impl NodeCache {
         }
     }
     
-    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String, &NObject)> {
+    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&Box<str>, &NObject)> {
         self.cache.get_index(index as usize)
     }
-    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&String, &mut NObject)> {
+    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&Box<str>, &mut NObject)> {
         self.cache.get_index_mut(index as usize)
     }
     pub fn get_node(&self, iri: &str) -> Option<&NObject> {
@@ -267,22 +267,22 @@ impl NodeCache {
     pub fn is_empty(&self) -> bool {
         self.cache.is_empty()
     }
-    pub fn iter(&self) -> indexmap::map::Iter<String, NObject> {
+    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, NObject> {
         self.cache.iter()
     }
-    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
+    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<Box<str>, NObject> {
         self.cache.iter_mut()
     }
     pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
         let new_index = self.cache.len();
-        let option = self.cache.insert(iri.to_owned(), node);
+        let option = self.cache.insert(iri.into(), node);
         if option.is_some() {
             panic!("Node already exists");
         }
         new_index as IriIndex
     }
     pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
-        let option = self.cache.insert(iri.to_owned(), node);
+        let option = self.cache.insert(iri.into(), node);
         if option.is_none() {
             panic!("Node can not be replaced");
         }
@@ -302,10 +302,10 @@ impl NodeData {
             indexers : Indexers::new(),
         }
     }
-    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&String,&NObject)> {
+    pub fn get_node_by_index(&self, index: IriIndex) -> Option<(&Box<str>,&NObject)> {
         self.node_cache.get_node_by_index(index)
     }
-    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&String,&mut NObject)> {
+    pub fn get_node_by_index_mut(&mut self, index: IriIndex) -> Option<(&Box<str>,&mut NObject)> {
         self.node_cache.get_node_by_index_mut(index)
     }
     pub fn get_node(&self, iri: &str) -> Option<&NObject> {
@@ -326,10 +326,10 @@ impl NodeData {
     pub fn is_empty(&self) -> bool {
         self.node_cache.is_empty()
     }
-    pub fn iter(&self) -> indexmap::map::Iter<String, NObject> {
+    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, NObject> {
         self.node_cache.iter()
     }
-    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<String, NObject> {
+    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<Box<str>, NObject> {
         self.node_cache.iter_mut()
     }
     pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
@@ -555,7 +555,7 @@ impl NodeData {
 } 
 
 pub struct StringIndexer {
-    pub map: IndexMap<String, IriIndex>,
+    pub map: IndexMap<Box<str>, IriIndex>,
 }
 
 impl Default for StringIndexer {
@@ -575,17 +575,17 @@ impl StringIndexer {
             idx as IriIndex
         } else {
             let idx = self.map.len();
-            self.map.insert(s.to_string(), idx as IriIndex);
+            self.map.insert(s.into(), idx as IriIndex);
             idx as IriIndex
         }
     }
 
     /// Retrieves a string from an index
     fn index_to_str(&self, index: IriIndex) -> Option<&str> {
-        self.map.get_index(index as usize).map(|(key, _)| key.as_str())
+        self.map.get_index(index as usize).map(|(key, _)| key.as_ref())
     }
 
-    pub fn iter(&self) -> indexmap::map::Iter<String, IriIndex> {
+    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, IriIndex> {
         self.map.iter()
     }
 }
