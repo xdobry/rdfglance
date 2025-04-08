@@ -9,14 +9,13 @@ use eframe::{
     egui::{self, Pos2},
     Storage,
 };
-use egui::{Align, Layout, Rect};
+use egui::Rect;
 use egui_extras::StripBuilder;
 use graph_view::NeighbourPos;
 use nobject::{IriIndex, LangIndex, NodeData};
 use layout::SortedNodeLayout;
 use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
-use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use sparql_dialog::SparqlDialog;
 use style::*;
@@ -38,9 +37,7 @@ pub mod table_view;
 pub mod uitools;
 pub mod style;
 pub mod persistency;
-
-pub use uitools::load_icon;
-
+pub mod menu_bar;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -466,10 +463,6 @@ impl RdfGlanceApp {
                     self.persistent_data.last_files.push(file_name.to_string());
                 }
                 self.update_data_indexes();
-                let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
-                let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
-                self.color_cache
-                    .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
             }
         }
     }
@@ -498,7 +491,7 @@ impl RdfGlanceApp {
         self.status_message.clear();
         self.status_message.push_str(message);
     }
-    fn update_data_indexes(&mut self) {
+    pub fn update_data_indexes(&mut self) {
         self.layout_data.language_sort.clear();
         for (_lang,index) in self.node_data.indexers.language_indexer.iter() {
             self.layout_data.language_sort.push(*index as LangIndex);
@@ -510,6 +503,11 @@ impl RdfGlanceApp {
             self.node_data.resolve_rdf_lists(&self.prefix_manager);
         }
         self.cache_statistics.update(&self.node_data);
+
+        let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
+        let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
+        self.color_cache
+            .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
@@ -517,7 +515,7 @@ impl RdfGlanceApp {
         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
-            self.load_file_dialog(ui);
+            self.import_file_dialog(ui);
         }
         if !self.persistent_data.last_files.is_empty() {
             let mut last_file_clicked: Option<String> = None;
@@ -548,14 +546,7 @@ impl RdfGlanceApp {
     fn is_empty(&self) -> bool {
         self.node_data.len() == 0
     }
-    fn load_file_dialog(&mut self, _ui: &mut egui::Ui) {
-        if let Some(path) = FileDialog::new().pick_file() {
-            let selected_file = Some(path.display().to_string());
-            if let Some(selected_file) = &selected_file {
-                self.load_ttl(selected_file);
-            }
-        }
-    }
+
     fn clean_data(&mut self) {
         self.node_data.clean();
         self.layout_data.clean();
@@ -587,66 +578,7 @@ impl eframe::App for RdfGlanceApp {
                     });
                 ui.disable();
             }
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Load RDF File").clicked() {
-                        self.load_file_dialog(ui);
-                        ui.close_menu();
-                    }
-                    if ui.button("Load all from dir").clicked() {
-                        if let Some(path) = FileDialog::new().pick_folder() {
-                            let selected_dir = Some(path.display().to_string());
-                            if let Some(selected_dir) = &selected_dir {
-                                self.load_ttl_dir(selected_dir);
-                            }
-                        }
-                        ui.close_menu();
-                    }
-                    /*
-                    if ui.button("Sparql Endpoint").clicked() {
-                        self.sparql_dialog =
-                            Some(SparqlDialog::new(&self.persistent_data.last_endpoints));
-                        ui.close_menu();
-                    }
-                     */
-                    if ui.button("Clean Data").clicked() {
-                        self.clean_data();
-                        ui.close_menu();
-                    }
-                    if !self.persistent_data.last_files.is_empty() {
-                        ui.separator();
-                        let mut last_file_clicked: Option<String> = None;
-                        ui.menu_button("Last Files:", |ui| {
-                            for last_file in &self.persistent_data.last_files {
-                                if ui.button(last_file).clicked() {
-                                    last_file_clicked = Some(last_file.clone());
-                                }
-                            }
-                            if let Some(last_file_clicked) = last_file_clicked {
-                                ui.close_menu();
-                                self.load_ttl(&last_file_clicked);
-                            }
-                        });
-                    }
-                });
-                let selected_language = self.node_data.get_language(self.layout_data.display_language);
-                if let Some(selected_language) = selected_language {
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        egui::ComboBox::from_label(concatcp!(ICON_LANG," Data language"))
-                        .selected_text(selected_language)
-                        .show_ui(ui, |ui| {
-                            for language_index in self.layout_data.language_sort.iter() {
-                                let language_str = self.node_data.get_language(*language_index);
-                                if let Some(language_str) = language_str {
-                                    if ui.selectable_label(self.layout_data.display_language == *language_index, language_str).clicked() {
-                                        self.layout_data.display_language = *language_index;
-                                    }
-                                }
-                            }
-                        });
-                  });
-                }
-            });
+            self.menu_bar(ui);
             ui.separator();
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.display_type, DisplayType::Table, concatcp!(ICON_TABLE," Tables"));
