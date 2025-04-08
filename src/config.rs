@@ -44,11 +44,11 @@ impl Default for Config {
 }
 
 fn default_true() -> bool {
-    return true;
+    true
 }
 
 fn default_iri_display() -> IriDisplay {
-    return IriDisplay::Full;
+    IriDisplay::Full
 }
 
 impl Config {
@@ -71,6 +71,6 @@ impl RdfGlanceApp {
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Shorten, "IRI Shorten");
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Full, "Full IRI");
         ui.checkbox(&mut self.persistent_data.config_data.resolve_rdf_lists, "Resolve rdf lists");
-        return NodeAction::None;
+        NodeAction::None
     }
 }

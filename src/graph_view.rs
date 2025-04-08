@@ -90,7 +90,7 @@ impl RdfGlanceApp {
         } else {
             self.display_graph(ctx, ui);
         }
-        return node_to_click;
+        node_to_click
     }
 
     pub fn display_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -348,11 +348,9 @@ impl RdfGlanceApp {
                                         self.layout_data.compute_layout = true;
                                         self.layout_data.hidden_predicates.remove(*reference_index);
                                     }
-                                } else {
-                                    if ui.button("❌").clicked() {
-                                        self.layout_data.compute_layout = true;
-                                        self.layout_data.hidden_predicates.add(*reference_index);
-                                    }
+                                } else if ui.button("❌").clicked() {
+                                    self.layout_data.compute_layout = true;
+                                    self.layout_data.hidden_predicates.add(*reference_index);
                                 }
                             });
                         }
@@ -362,7 +360,7 @@ impl RdfGlanceApp {
         } else {
             ui.label("no node selected");
         }
-        return node_to_click;
+        node_to_click
     }
 
     pub fn display_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
@@ -422,20 +420,18 @@ impl RdfGlanceApp {
             for node_layout in self.layout_data.visible_nodes.data.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     for (pred_index, ref_iri) in &object.references {
-                        if !self.layout_data.hidden_predicates.contains(*pred_index) {
-                            if self.layout_data.visible_nodes.contains(*ref_iri) {
-                                if let Some(ref_object) = self.layout_data.visible_nodes.get(*ref_iri) {
-                                    let pos1 = center + node_layout.pos.to_vec2();
-                                    let pos2 = center + ref_object.pos.to_vec2();
-                                    drawing::draw_arrow_to_circle(
-                                        painter,
-                                        pos1,
-                                        pos2,
-                                        radius,
-                                        self.color_cache.get_predicate_color(*pred_index),
-                                    );
-                                    edge_count += 1;
-                                }
+                        if !self.layout_data.hidden_predicates.contains(*pred_index) && self.layout_data.visible_nodes.contains(*ref_iri) {
+                            if let Some(ref_object) = self.layout_data.visible_nodes.get(*ref_iri) {
+                                let pos1 = center + node_layout.pos.to_vec2();
+                                let pos2 = center + ref_object.pos.to_vec2();
+                                drawing::draw_arrow_to_circle(
+                                    painter,
+                                    pos1,
+                                    pos2,
+                                    radius,
+                                    self.color_cache.get_predicate_color(*pred_index),
+                                );
+                                edge_count += 1;
                             }
                         }
                     }
@@ -450,31 +446,23 @@ impl RdfGlanceApp {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
                     if self.layout_data.context_menu_node.is_none() || was_action {
-                        if single_clicked {
-                            if (pos - mouse_pos).length() < radius {
-                                self.layout_data.selected_node = Some(node_layout.node_index);
-                                was_action = true;
-                            }
+                        if single_clicked && (pos - mouse_pos).length() < radius {
+                            self.layout_data.selected_node = Some(node_layout.node_index);
+                            was_action = true;
                         }
-                        if primary_down {
-                            if (pos - mouse_pos).length() < radius {
-                                self.layout_data.node_to_drag = Some(node_layout.node_index);
-                                was_action = true;
-                            }
+                        if primary_down && (pos - mouse_pos).length() < radius {
+                            self.layout_data.node_to_drag = Some(node_layout.node_index);
+                            was_action = true;
                         }
-                        if double_clicked {
-                            if (pos - mouse_pos).length() < radius {
-                                node_to_click = Some(node_layout.node_index);
-                                was_action = true;
-                            }
+                        if double_clicked && (pos - mouse_pos).length() < radius {
+                            node_to_click = Some(node_layout.node_index);
+                            was_action = true;
                         }
-                        if secondary_clicked {
-                            if (pos - mouse_pos).length() < radius {
-                                was_context_click = true;
-                                self.layout_data.context_menu_pos = global_mouse_pos;
-                                self.layout_data.context_menu_node = Some(node_layout.node_index);
-                                was_action = true;
-                            }
+                        if secondary_clicked && (pos - mouse_pos).length() < radius {
+                            was_context_click = true;
+                            self.layout_data.context_menu_pos = global_mouse_pos;
+                            self.layout_data.context_menu_node = Some(node_layout.node_index);
+                            was_action = true;
                         }
                     }
                     let mut is_hoover = false;
@@ -491,17 +479,15 @@ impl RdfGlanceApp {
                     let type_color = self.color_cache.get_type_color(&object.types);
                     painter.circle_filled(pos, radius, type_color);
                     node_count += 1;
-                    if self.show_labels {
-                        if !is_hoover {
-                            let node_label = object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language);
-                            painter.text(
-                                pos,
-                                egui::Align2::CENTER_CENTER,
-                                node_label,
-                                font.clone(),
-                                egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
-                            );
-                        }
+                    if self.show_labels && !is_hoover {
+                        let node_label = object.node_label(object_iri, &self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language);
+                        painter.text(
+                            pos,
+                            egui::Align2::CENTER_CENTER,
+                            node_label,
+                            font.clone(),
+                            egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
+                        );
                     }
                 }
             }
@@ -629,25 +615,29 @@ impl RdfGlanceApp {
                 self.status_message.clear();
                 self.status_message.push_str(hover_node.node_label(hover_node_iri,&self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language));
             }
-        } else {
-            if let Some(selected_node) = &self.layout_data.selected_node {
-                self.status_message.clear();
-                if let Some((selected_node_iri,selected_node)) = self.node_data.get_node_by_index(*selected_node) {
-                    self.status_message.push_str(format!(
-                        "Nodes: {}, Edges: {} Selected: {}",
-                        node_count, edge_count, selected_node.node_label(selected_node_iri,&self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language)
-                    ).as_str());
-                }
-            } else {
-                self.status_message.clear();
-                self.status_message.push_str(format!("Nodes: {}, Edges: {}", node_count, edge_count).as_str());
+        } else if let Some(selected_node) = &self.layout_data.selected_node {
+            self.status_message.clear();
+            if let Some((selected_node_iri,selected_node)) = self.node_data.get_node_by_index(*selected_node) {
+                self.status_message.push_str(format!(
+                    "Nodes: {}, Edges: {} Selected: {}",
+                    node_count, edge_count, selected_node.node_label(selected_node_iri,&self.color_cache.label_predicate, self.short_iri, self.layout_data.display_language)
+                ).as_str());
             }
+        } else {
+            self.status_message.clear();
+            self.status_message.push_str(format!("Nodes: {}, Edges: {}", node_count, edge_count).as_str());
         }
     }
 }
 
 pub struct NeighbourPos {
     nodes: HashMap<IriIndex,Vec<IriIndex>>,
+}
+
+impl Default for NeighbourPos {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NeighbourPos {

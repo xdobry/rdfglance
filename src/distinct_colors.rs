@@ -29,4 +29,4 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
 }
 
 // Golden Ratio constant for best color distribution
-const PHI: f32 = 1.61803398875; 
+const PHI: f32 = 1.618_034; 

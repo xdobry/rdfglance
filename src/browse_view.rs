@@ -130,7 +130,7 @@ impl RdfGlanceApp {
         if let Some(node_to_click) = node_to_click {
             self.show_object_by_index(node_to_click, true);
         }
-        return action_type_index;
+        action_type_index
     }
 
 }
@@ -146,13 +146,13 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
     .horizontal(|mut strip| {
         strip.cell(|ui| {
             if let Some(node_index) = show_references(
-                &node_data,
+                node_data,
                 rdfwrap,
-                &color_cache,
+                color_cache,
                 ui,
                 "References",
                 &current_node.references,
-                &layout_data,
+                layout_data,
                 h,
                 "ref",
             ) {
@@ -162,13 +162,13 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
         strip.cell(|ui| {
             ui.push_id("ref2", |ui| {
                 if let Some(node_index) = show_references(
-                    &node_data,
+                    node_data,
                     rdfwrap,
-                    &color_cache,
+                    color_cache,
                     ui,
                     "Referenced by",
                     &current_node.reverse_references,
-                    &layout_data,
+                    layout_data,
                     h,
                     "ref_by",
                 ) {
@@ -177,7 +177,7 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
             });
         });
     });
-    return node_to_click;
+    node_to_click
 }
 
 pub fn show_references(
@@ -186,7 +186,7 @@ pub fn show_references(
     color_cache: &ColorCache,
     ui: &mut egui::Ui,
     label: &str,
-    references: &Vec<(IriIndex, IriIndex)>,
+    references: &[(IriIndex, IriIndex)],
     layout_data: &LayoutData,
     height: f32,
     id_salt: &str,
@@ -236,37 +236,35 @@ pub fn show_references(
                             rdfwrap.iri2label(node_data.get_predicate(*predicate_index).unwrap()),
                         );
                     });
-                    node_data
-                        .get_node_by_index(*ref_index)
-                        .map(|(ref_iri, ref_node)| {
-                            row.col(|ui| {
-                                if ui.link(ref_iri).clicked() {
-                                    node_to_click = Some(*ref_index);
-                                }
-                            });
-                            row.col(|ui| {
-                                let types_label = ref_node
-                                    .types
-                                    .iter()
-                                    .map(|type_index| {
-                                        rdfwrap.iri2label(node_data.get_type(*type_index).unwrap())
-                                    })
-                                    .collect::<Vec<&str>>()
-                                    .join(", ");
-                                ui.label(types_label);
-                            });
-                            row.col(|ui| {
-                                let label = ref_node.node_label_opt(
-                                    &color_cache.label_predicate,
-                                    layout_data.display_language,
-                                );
-                                if let Some(label) = label {
-                                    ui.label(label);
-                                }
-                            });
+                    if let Some((ref_iri, ref_node)) = node_data.get_node_by_index(*ref_index) {
+                        row.col(|ui| {
+                            if ui.link(ref_iri).clicked() {
+                                node_to_click = Some(*ref_index);
+                            }
                         });
+                        row.col(|ui| {
+                            let types_label = ref_node
+                                .types
+                                .iter()
+                                .map(|type_index| {
+                                    rdfwrap.iri2label(node_data.get_type(*type_index).unwrap())
+                                })
+                                .collect::<Vec<&str>>()
+                                .join(", ");
+                            ui.label(types_label);
+                        });
+                        row.col(|ui| {
+                            let label = ref_node.node_label_opt(
+                                &color_cache.label_predicate,
+                                layout_data.display_language,
+                            );
+                            if let Some(label) = label {
+                                ui.label(label);
+                            }
+                        });
+                    }
                 });
             });
     }
-    return node_to_click;
+    node_to_click
 }

@@ -1,4 +1,4 @@
-use std::{cell, cmp::min, collections::HashMap, time::Instant, vec};
+use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
@@ -79,12 +79,7 @@ impl TableContextMenu {
 
 impl InstanceView {
     pub fn get_column(&self, predicate_index: IriIndex) -> Option<&ColumnDesc> {
-        for column_desc in &self.display_properties {
-            if column_desc.predicate_index == predicate_index {
-                return Some(column_desc);
-            }
-        }
-        return None;
+        self.display_properties.iter().find(|column_desc| column_desc.predicate_index == predicate_index)
     }
     pub fn visible_columns(&self) -> u32 {
         let mut count = 0;
@@ -93,7 +88,7 @@ impl InstanceView {
                 count += 1;
             }
         }
-        return count;
+        count
     }
 }
 
@@ -270,12 +265,10 @@ impl TypeData {
             available_rect.left_top(),
             Vec2::new(self.instance_view.iri_width, ROW_HIGHT),
         );
-        if iri_column_rec.contains(mouse_pos) {
-            if secondary_clicked {
-                was_context_click = true;
-                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                self.instance_view.context_menu = TableContextMenu::IriColomnMenu(mouse_pos);
-            }
+        if secondary_clicked && iri_column_rec.contains(mouse_pos) {
+            was_context_click = true;
+            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+            self.instance_view.context_menu = TableContextMenu::IriColomnMenu(mouse_pos);
         }
         painter.text(
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
@@ -300,18 +293,12 @@ impl TypeData {
                 );
             }
         }
-        if ref_column_rec.contains(mouse_pos) {
-            if secondary_clicked {
-                was_context_click = true;
-                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
-            }
+        if ref_column_rec.contains(mouse_pos) && secondary_clicked {
+            was_context_click = true;
+            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+            self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
         }
-
         xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
-
-
-
 
         for column_desc in self
             .instance_view
@@ -406,7 +393,7 @@ impl TypeData {
                 }
 
                 text_wrapped_link(
-                    &prefix_manager.get_prefixed(&node_iri),
+                    &prefix_manager.get_prefixed(node_iri),
                     self.instance_view.iri_width - graph_button_width,
                     painter,
                     iri_top_left,
@@ -574,11 +561,9 @@ impl TypeData {
                 }
                 TableContextMenu::ColumnMenu(_pos, _column_predictate) => {
                     let mut close_menu = false;
-                    if self.instance_view.visible_columns() > 0 {
-                        if ui.button("Hide column").clicked() {
-                            *table_action = TableAction::HideColumn(_column_predictate);
-                            close_menu = true;
-                        }
+                    if self.instance_view.visible_columns() > 0 && ui.button("Hide column").clicked() {
+                        *table_action = TableAction::HideColumn(_column_predictate);
+                        close_menu = true;
                     }
                     if ui.button("Sort Asc").clicked() {
                         *table_action = TableAction::SortColumnAsc(_column_predictate);
@@ -594,7 +579,7 @@ impl TypeData {
                         .iter()
                         .filter(|p| !p.visible)
                         .collect();
-                    if hidden_columns.len() > 0 {
+                    if !hidden_columns.is_empty() {
                         ui.separator();
                         ui.menu_button("Unhide Columns", |ui| {
                             for column_desc in hidden_columns {
@@ -928,7 +913,7 @@ impl CacheStatistics {
                                         *b,
                                         &label_context,
                                     );
-                                    return label_a.as_str().cmp(label_b.as_str());
+                                    label_a.as_str().cmp(label_b.as_str())
                                 });
                             },
                             TypeTableAction::SortByInstances => {
@@ -1186,8 +1171,8 @@ impl CacheStatistics {
                                 let node_b = node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = &node_a.references.len()
-                                            + &node_a.reverse_references.len();
+                                        let a_value = node_a.references.len()
+                                            + node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
                                             + node_b.reverse_references.len();
                                         b_value.cmp(&a_value)
@@ -1207,8 +1192,8 @@ impl CacheStatistics {
                                 let node_b = node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = &node_a.references.len()
-                                            + &node_a.reverse_references.len();
+                                        let a_value = node_a.references.len()
+                                            + node_a.reverse_references.len();
                                         let b_value = node_b.references.len()
                                             + node_b.reverse_references.len();
                                         a_value.cmp(&b_value)
@@ -1228,7 +1213,7 @@ impl CacheStatistics {
                                 let node_b = node_data.get_node_by_index(*b);
                                 if let Some((iri_a, _)) = node_a {
                                     if let Some((iri_b, _)) = node_b {
-                                        iri_a.cmp(&iri_b)
+                                        iri_a.cmp(iri_b)
                                     } else {
                                         std::cmp::Ordering::Greater
                                     }
@@ -1245,7 +1230,7 @@ impl CacheStatistics {
                                 let node_b = node_data.get_node_by_index(*b);
                                 if let Some((iri_a, _)) = node_a {
                                     if let Some((iri_b, _)) = node_b {
-                                        iri_b.cmp(&iri_a)
+                                        iri_b.cmp(iri_a)
                                     } else {
                                         std::cmp::Ordering::Greater
                                     }
@@ -1263,14 +1248,11 @@ impl CacheStatistics {
                             .filter(|&instance_index| {
                                 let node = node_data.get_node_by_index(instance_index);
                                 if let Some((node_iri, node)) = node {
-                                    if node.apply_filter(
-                                        &type_data.instance_view.instance_filter,
-                                        &node_iri,
-                                    ) {
+                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri) {
                                         return true;
                                     }
                                 }
-                                return false;
+                                false
                             })
                             .collect();
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize
@@ -1285,7 +1267,7 @@ impl CacheStatistics {
         } else {
             ui.label("Select a type to display its instances");
         }
-        return instance_action;
+        instance_action
     }
 
     fn show_types(
@@ -1395,7 +1377,13 @@ impl CacheStatistics {
                     }
                 });
             });
-        return (selected_type, type_table_action);
+        (selected_type, type_table_action)
+    }
+}
+
+impl Default for CacheStatistics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

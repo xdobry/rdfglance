@@ -29,9 +29,9 @@ pub struct IndexCache {
 
 impl RDFWrap {
     pub fn empty() -> Self {
-        return RDFWrap {
+        RDFWrap {
             file_name: "empty".to_string(),
-        };
+        }
     }
 
     pub fn load_from_dir(
@@ -95,7 +95,7 @@ impl RDFWrap {
     pub fn load_file(
         file_name: &str,
         node_data: &mut NodeData,
-        language_filter: &Vec<String>,
+        language_filter: &[String],
         prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
         let file =
@@ -228,7 +228,7 @@ impl RDFWrap {
             "Triples read per second: {}",
             triples_count as f64 / duration.as_secs_f64()
         );
-        return Ok(triples_count);
+        Ok(triples_count)
     }
 
     pub fn load_from_triples(
@@ -255,7 +255,7 @@ impl RDFWrap {
                         }
                         _ => {
                             // types.push(triple.object.to_string());
-                            println!("type is not named node {}", triple.object.to_string());
+                            println!("type is not named node {}", triple.object);
                         }
                     }
                 } else {
@@ -290,10 +290,7 @@ impl RDFWrap {
                     }
                     _ => {
                         // reverse_references.push((node_data.get_predicate_index(triple.predicate.as_str()), triple.subject.to_string()));
-                        println!(
-                            "reverse reference is not named node {}",
-                            triple.subject.to_string()
-                        );
+                        println!("reverse reference is not named node {}",triple.subject);
                     }
                 }
             }
@@ -302,16 +299,16 @@ impl RDFWrap {
             println!("Object not found: {}", iri);
             return None;
         }
-        return Some(NObject {
+        Some(NObject {
             properties,
             references,
             reverse_references,
             types,
             has_subject: true,
             is_blank_node: false,
-        });
+        })
     }
-    pub fn iri2label_fallback<'a>(iri: &'a str) -> &'a str {
+    pub fn iri2label_fallback(iri: &str) -> &str {
         let last_index_slash = iri.rfind('/');
         let last_index_hash = iri.rfind('#');
         let last_index = if last_index_slash.is_none() && last_index_hash.is_none() {
@@ -326,12 +323,12 @@ impl RDFWrap {
         if last_index == 0 {
             let first_colon = iri.find(':');
             if let Some(first_colon) = first_colon {
-                return &iri[first_colon + 1..];
+                &iri[first_colon + 1..]
             } else {
-                return &iri;
+                iri
             }
         } else {
-            return &iri[last_index + 1..];
+            &iri[last_index + 1..]
         }
     }
 }
@@ -342,7 +339,7 @@ pub fn add_triple(
     cache: &mut crate::nobject::NodeCache,
     triple: Triple,
     index_cache: &mut IndexCache,
-    language_filter: &Vec<String>,
+    language_filter: &[String],
     prefix_manager: &PrefixManager,
 ) {
     match &triple.subject {
@@ -384,12 +381,6 @@ pub fn add_triple(
                 prefix_manager,
             );
         }
-        _ => {
-            println!(
-                "Subject is not named or blank node {} and will be ignored",
-                triple.subject.to_string()
-            );
-        }
     }
 }
 
@@ -400,7 +391,7 @@ fn add_predicate_object(
     node_index: IriIndex,
     predicate: NamedNode,
     object: Term,
-    language_filter: &Vec<String>,
+    language_filter: &[String],
     prefix_manager: &PrefixManager,
 ) {
     if predicate == rdf::TYPE {
@@ -416,7 +407,7 @@ fn add_predicate_object(
                 }
             }
             _ => {
-                println!("type is not named node {}", object.to_string());
+                println!("type is not named node {}", object);
             }
         }
     } else {
@@ -469,27 +460,19 @@ fn add_predicate_object(
                             predicate_index,
                             Literal::LangString(language_index, value.to_string()),
                         ));
+                    } else if datatype == xsd::STRING {
+                        node.properties
+                            .push((predicate_index, Literal::String(value.to_string())));
                     } else {
-                        if datatype == xsd::STRING {
-                            node.properties
-                                .push((predicate_index, Literal::String(value.to_string())));
-                        } else {
-                            let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
-                            let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
-                            node.properties.push((
-                                predicate_index,
-                                Literal::TypedString(data_type_index, value.to_string()),
-                            ));
-                        }
+                        let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
+                        let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
+                        node.properties.push((
+                            predicate_index,
+                            Literal::TypedString(data_type_index, value.to_string()),
+                        ));
                     }
                     *triples_count += 1;
                 }
-            }
-            _ => {
-                print!(
-                    "object is not named node {} nor literal",
-                    object.to_string()
-                );
             }
         }
     }
@@ -497,7 +480,7 @@ fn add_predicate_object(
 
 impl RDFAdapter for RDFWrap {
     fn iri2label<'a>(&mut self, iri: &'a str) -> &'a str {
-        return RDFWrap::iri2label_fallback(iri);
+        RDFWrap::iri2label_fallback(iri)
     }
     fn load_object(&mut self, _iri: &str, _node_data: &mut NodeData) -> Option<NObject> {
         None

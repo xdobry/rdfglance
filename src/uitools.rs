@@ -65,7 +65,7 @@ impl ColorBox {
     }
 }
 
-impl<'a> Widget for ColorBox {
+impl Widget for ColorBox {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let desired_size = Vec2::new(20.0, 17.0); // Box size
         let (rect, response) = ui.allocate_at_least(desired_size, Sense::empty());

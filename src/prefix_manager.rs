@@ -7,13 +7,19 @@ pub struct PrefixManager {
     prefixes: BiMap<String, String>,
 }
 
+impl Default for PrefixManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrefixManager {
     pub fn new() -> Self {
         let mut prefix_manager = PrefixManager {
             prefixes: BiMap::new(),
         };
         prefix_manager.add_defaults();
-        return prefix_manager;
+        prefix_manager
     }
 
     fn add_defaults(&mut self) {
@@ -88,7 +94,7 @@ impl PrefixManager {
                 }
             }
         }
-        return iri.to_string();
+        iri.to_string()
     }
 
     pub fn get_prefixed_opt(&self, iri: &str) -> Option<String> {
@@ -98,7 +104,7 @@ impl PrefixManager {
         if let Some(prefix) = prefix {
             return Some(format!("{}:{}", prefix, &iri[delimiter_pos..]));
         }
-        return None;
+        None
     }
 
     pub fn get_full_opt(&self, iri: &str) -> Option<String> {
@@ -111,7 +117,7 @@ impl PrefixManager {
                 return Some(format!("{}{}", base_iri, suffix));
             }
         }
-        return None;
+        None
     }
     pub fn has_known_prefix(&self, iri: &str) -> bool {
         let delimiter_pos = iri.find(':');
@@ -119,7 +125,7 @@ impl PrefixManager {
             let prefix = &iri[..delimiter_pos];
             return self.prefixes.get_by_right(prefix).is_some();
         }
-        return false;
+        false
     }
 
     pub fn add_prefix(&mut self, prefix: &str, iri: &str) {
@@ -149,7 +155,7 @@ impl RdfGlanceApp {
                 }
             });
         });
-        return NodeAction::None;
+        NodeAction::None
     }
 }
 

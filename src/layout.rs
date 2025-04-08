@@ -31,6 +31,12 @@ pub struct SortedNodeLayout {
     pub data: Vec<NodeLayout>,
 }
 
+impl Default for SortedNodeLayout {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SortedNodeLayout {
     pub fn new() -> Self {
         Self { data: Vec::new() }
@@ -65,14 +71,14 @@ impl SortedNodeLayout {
         if let Ok(pos) = self.data.binary_search_by(|e| e.node_index.cmp(&value)) {
             return Some(&self.data[pos]);
         }
-        return None;
+        None
     }
 
     pub fn get_mut(&mut self, value: IriIndex) -> Option<&mut NodeLayout> {
         if let Ok(pos) = self.data.binary_search_by(|e| e.node_index.cmp(&value)) {
             return Some(&mut self.data[pos]);
         }
-        return None;
+        None
     }
 
     pub fn to_center(&mut self) {
@@ -160,6 +166,6 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
         }
         node_layout.pos += node_layout.vel;
     }
-    return max_move;
+    max_move
 }
 

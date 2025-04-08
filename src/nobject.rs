@@ -9,7 +9,7 @@ pub type IriIndex = u32;
 pub type LangIndex = u16;
 pub type DataTypeIndex = u16;
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq, Eq)]
 pub enum Literal {
     String(String),
     LangString(LangIndex, String),
@@ -27,20 +27,10 @@ impl AsRef<str> for Literal {
     }
 }
 
-impl PartialEq for Literal {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
-    }
-}
-
 impl PartialOrd for Literal {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
+        Some(self.cmp(other))
     }
-}
-
-impl Eq for Literal {
-    
 }
 
 impl Ord for Literal {
@@ -87,7 +77,7 @@ pub enum LabelDisplayValue<'a> {
     ShortAndIri(&'a str, &'a str)
 }
 
-impl<'a> LabelDisplayValue<'a> {
+impl LabelDisplayValue<'_> {
     pub fn as_str(&self) -> &str {
         match self {
             LabelDisplayValue::FullStr(str) => str,
@@ -97,7 +87,7 @@ impl<'a> LabelDisplayValue<'a> {
     }
 }
 
-pub fn short_iri<'a>(iri: &'a str) -> &'a str {
+pub fn short_iri(iri: &str) -> &str {
     let last_hash = iri.rfind('#');
     if let Some(last_hash) = last_hash {
         return &iri[last_hash+1..];
@@ -111,7 +101,7 @@ pub fn short_iri<'a>(iri: &'a str) -> &'a str {
     if let Some(first_colon) = first_colon {
         return &iri[first_colon+1..];
     }
-    return iri
+    iri
 }
 
 
@@ -122,7 +112,7 @@ impl NObject {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     pub fn node_label<'a>(&'a self, iri: &'a str, label_predicate: &HashMap<IriIndex,IriIndex>, should_short_iri: bool, language_index: LangIndex) -> &'a str {
@@ -133,7 +123,7 @@ impl NObject {
         if should_short_iri {
             return short_iri(iri);
         }
-        return iri
+        iri
     }
 
     pub fn node_label_opt(&self, label_predicate: &HashMap<IriIndex,IriIndex>, language_index: LangIndex) -> Option<&str> {
@@ -145,7 +135,7 @@ impl NObject {
                 }
             }
         }
-        return None;
+        None
     }
 
     pub fn get_property(&self, predicate_index: IriIndex, language_index: LangIndex) -> Option<&ObjectType> {
@@ -186,11 +176,15 @@ impl NObject {
                 return true;
             }
         }
-        return false;
+        false
     }
 }
 
-
+impl Default for Indexers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Indexers {
     pub fn new() -> Self {
@@ -200,28 +194,34 @@ impl Indexers {
             language_indexer: StringIndexer::new(),
             datatype_indexer: StringIndexer::new(),
         };
-        indexer.language_indexer.to_index("en");
-        indexer.predicate_indexer.to_index("rdfs:label");
-        return indexer;
+        indexer.language_indexer.get_index("en");
+        indexer.predicate_indexer.get_index("rdfs:label");
+        indexer
     }
     
     pub fn get_type_index(&mut self, type_name: &str) -> IriIndex {
-        self.type_indexer.to_index(type_name)
+        self.type_indexer.get_index(type_name)
     }
     pub fn get_predicate_index(&mut self, predicate_name: &str) -> IriIndex {
-        self.predicate_indexer.to_index(predicate_name)
+        self.predicate_indexer.get_index(predicate_name)
     }
     pub fn get_language_index(&mut self, language: &str) -> LangIndex {
-        self.language_indexer.to_index(language) as LangIndex
+        self.language_indexer.get_index(language) as LangIndex
     }
     pub fn get_data_type_index(&mut self, data_type: &str) -> DataTypeIndex {
-        self.datatype_indexer.to_index(data_type) as DataTypeIndex
+        self.datatype_indexer.get_index(data_type) as DataTypeIndex
     }
     pub fn clean(&mut self) {
         self.predicate_indexer.map.clear();
         self.type_indexer.map.clear();
         self.language_indexer.map.clear();
         self.datatype_indexer.map.clear();
+    }
+}
+
+impl Default for NodeCache {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -264,6 +264,9 @@ impl NodeCache {
     pub fn len(&self) -> usize {
         self.cache.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
     pub fn iter(&self) -> indexmap::map::Iter<String, NObject> {
         self.cache.iter()
     }
@@ -273,16 +276,22 @@ impl NodeCache {
     pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
         let new_index = self.cache.len();
         let option = self.cache.insert(iri.to_owned(), node);
-        if !option.is_none() {
+        if option.is_some() {
             panic!("Node already exists");
         }
-        return new_index as IriIndex;
+        new_index as IriIndex
     }
     pub fn put_node_replace(&mut self, iri: &str, node: NObject) {
         let option = self.cache.insert(iri.to_owned(), node);
         if option.is_none() {
             panic!("Node can not be replaced");
         }
+    }
+}
+
+impl Default for NodeData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -314,6 +323,9 @@ impl NodeData {
     pub fn len(&self) -> usize {
         self.node_cache.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.node_cache.is_empty()
+    }
     pub fn iter(&self) -> indexmap::map::Iter<String, NObject> {
         self.node_cache.iter()
     }
@@ -330,22 +342,22 @@ impl NodeData {
         (&mut self.indexers, &mut self.node_cache)
     }
     pub fn get_type(&self, type_index: IriIndex) -> Option<&str> {
-        self.indexers.type_indexer.from_index(type_index)
+        self.indexers.type_indexer.index_to_str(type_index)
     }
     pub fn get_predicate(&self, predicate_index: IriIndex) -> Option<&str> {
-        self.indexers.predicate_indexer.from_index(predicate_index)
+        self.indexers.predicate_indexer.index_to_str(predicate_index)
     }
     pub fn get_type_index(&mut self, type_name: &str) -> IriIndex {
-        self.indexers.type_indexer.to_index(type_name)
+        self.indexers.type_indexer.get_index(type_name)
     }
     pub fn get_predicate_index(&mut self, predicate_name: &str) -> IriIndex {
-        self.indexers.predicate_indexer.to_index(predicate_name)
+        self.indexers.predicate_indexer.get_index(predicate_name)
     }
     pub fn get_language(&self, language_index: LangIndex) -> Option<&str> {
-        self.indexers.language_indexer.from_index(language_index as IriIndex)
+        self.indexers.language_indexer.index_to_str(language_index as IriIndex)
     }
     pub fn get_language_index(&mut self, language: &str) -> LangIndex {
-        self.indexers.language_indexer.to_index(language) as LangIndex
+        self.indexers.language_indexer.get_index(language) as LangIndex
     }
     pub fn unique_predicates(&self) -> usize {
         self.indexers.predicate_indexer.map.len()
@@ -364,7 +376,7 @@ impl NodeData {
         self.indexers.clean();
     }
     pub fn type_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
-        let type_iri = self.indexers.type_indexer.from_index(type_index);
+        let type_iri = self.indexers.type_indexer.index_to_str(type_index);
         if let Some(type_iri) = type_iri {
             if let Some(node) = self.get_node(type_iri) {
                 let prop = node.get_property(0, language_index);
@@ -373,10 +385,10 @@ impl NodeData {
                 }
             }
         }
-        return None;
+        None
     }
     pub fn predicate_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
-        let predicate_iri = self.indexers.predicate_indexer.from_index(type_index);
+        let predicate_iri = self.indexers.predicate_indexer.index_to_str(type_index);
         if let Some(predicate_iri) = predicate_iri {
             if let Some(node) = self.get_node(predicate_iri) {
                 let prop = node.get_property(0, language_index);
@@ -385,40 +397,40 @@ impl NodeData {
                 }
             }
         }
-        return None;
+        None
     }
     pub fn type_display(&self, type_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
-        let type_iri = self.indexers.type_indexer.from_index(type_index);
-        return if let Some(type_iri) = type_iri {
+        let type_iri = self.indexers.type_indexer.index_to_str(type_index);
+        if let Some(type_iri) = type_iri {
             match label_context.iri_display {
                 IriDisplay::Full => {
                     let full_iri = label_context.prefix_manager.get_full_opt(type_iri);
                     if let Some(full_iri) = full_iri {
-                        return LabelDisplayValue::FullStr(full_iri);
+                        LabelDisplayValue::FullStr(full_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(type_iri);
+                        LabelDisplayValue::FullRef(type_iri)
                     }
                 }
                 IriDisplay::Prefixed => {
-                    return LabelDisplayValue::FullRef(type_iri);
+                    LabelDisplayValue::FullRef(type_iri)
                 }
                 IriDisplay::Label => {
                     let type_label = self.type_label(type_index, label_context.language_index);
                     if let Some(type_label) = type_label {
-                        return LabelDisplayValue::ShortAndIri(type_label,type_iri);
+                        LabelDisplayValue::ShortAndIri(type_label,type_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(type_iri);
+                        LabelDisplayValue::FullRef(type_iri)
                     } 
                 }
                 IriDisplay::Shorten => {
-                    return LabelDisplayValue::FullRef(short_iri(type_iri));
+                    LabelDisplayValue::FullRef(short_iri(type_iri))
                 }
                 IriDisplay::LabelOrShorten => {
                     let type_label = self.type_label(type_index, label_context.language_index);
                     if let Some(type_label) = type_label {
-                        return LabelDisplayValue::ShortAndIri(type_label,type_iri);
+                        LabelDisplayValue::ShortAndIri(type_label,type_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(short_iri(type_iri));
+                        LabelDisplayValue::FullRef(short_iri(type_iri))
                     } 
                 }
             }
@@ -428,37 +440,37 @@ impl NodeData {
     }
 
     pub fn predicate_display(&self, predicate_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
-        let predicate_iri = self.indexers.predicate_indexer.from_index(predicate_index);
-        return if let Some(predicate_iri) = predicate_iri {
+        let predicate_iri = self.indexers.predicate_indexer.index_to_str(predicate_index);
+        if let Some(predicate_iri) = predicate_iri {
             match label_context.iri_display {
                 IriDisplay::Full => {
                     let full_iri = label_context.prefix_manager.get_full_opt(predicate_iri);
                     if let Some(full_iri) = full_iri {
-                        return LabelDisplayValue::FullStr(full_iri);
+                        LabelDisplayValue::FullStr(full_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(predicate_iri);
+                        LabelDisplayValue::FullRef(predicate_iri)
                     }
                 }
                 IriDisplay::Prefixed => {
-                    return LabelDisplayValue::FullRef(predicate_iri);
+                    LabelDisplayValue::FullRef(predicate_iri)
                 }
                 IriDisplay::Label => {
                     let type_label = self.type_label(predicate_index, label_context.language_index);
                     if let Some(type_label) = type_label {
-                        return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
+                        LabelDisplayValue::ShortAndIri(type_label,predicate_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(predicate_iri);
+                        LabelDisplayValue::FullRef(predicate_iri)
                     } 
                 }
                 IriDisplay::Shorten => {
-                    return LabelDisplayValue::FullRef(short_iri(predicate_iri));
+                    LabelDisplayValue::FullRef(short_iri(predicate_iri))
                 }
                 IriDisplay::LabelOrShorten => {
                     let type_label = self.type_label(predicate_index, label_context.language_index);
                     if let Some(type_label) = type_label {
-                        return LabelDisplayValue::ShortAndIri(type_label,predicate_iri);
+                        LabelDisplayValue::ShortAndIri(type_label,predicate_iri)
                     } else {
-                        return LabelDisplayValue::FullRef(short_iri(predicate_iri));
+                        LabelDisplayValue::FullRef(short_iri(predicate_iri))
                     } 
                 }
             }
@@ -468,18 +480,16 @@ impl NodeData {
     }
 
     pub fn resolve_rdf_lists(&mut self, prefix_manager: &PrefixManager) {
-        let predicate_first = self.indexers.predicate_indexer.to_index(&prefix_manager.get_prefixed(rdf::FIRST.as_str()));
-        let predicate_rest = self.indexers.predicate_indexer.to_index(&prefix_manager.get_prefixed(rdf::REST.as_str()));
+        let predicate_first = self.indexers.predicate_indexer.get_index(&prefix_manager.get_prefixed(rdf::FIRST.as_str()));
+        let predicate_rest = self.indexers.predicate_indexer.get_index(&prefix_manager.get_prefixed(rdf::REST.as_str()));
         let node_nil = self.get_node_index(&prefix_manager.get_prefixed(rdf::NIL.as_str())).unwrap_or(0);
         let mut next_list : Vec<(IriIndex,IriIndex)> = Vec::new();
-        let mut node_index: IriIndex = 0;
-        for (_,node) in self.iter() {
+        for (node_index, (_,node)) in self.iter().enumerate() {
             for (predicate,ref_index) in &node.references {
                 if *predicate == predicate_rest {
-                    next_list.push((node_index,*ref_index));
+                    next_list.push((node_index as IriIndex,*ref_index));
                 }
             }
-            node_index += 1;
         }
         let mut head_nodes: Vec<IriIndex> = Vec::new();
         for &(first, _) in &next_list {
@@ -520,9 +530,9 @@ impl NodeData {
                         }
                     }
                 }
-                if list_holders.len()==0 {
+                if list_holders.is_empty() {
                    list_holders = node.reverse_references.clone();
-                   if list_holders.len() == 0 {
+                   if list_holders.is_empty() {
                         continue;
                    }
                 }
@@ -548,13 +558,19 @@ pub struct StringIndexer {
     pub map: IndexMap<String, IriIndex>,
 }
 
+impl Default for StringIndexer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StringIndexer {
     pub fn new() -> Self {
         Self { map: IndexMap::new() }
     }
 
     /// Converts a string to an index, assigning a new index if it's unknown
-    fn to_index(&mut self, s: &str) -> IriIndex {
+    fn get_index(&mut self, s: &str) -> IriIndex {
         if let Some(&idx) = self.map.get(s) {
             idx as IriIndex
         } else {
@@ -565,7 +581,7 @@ impl StringIndexer {
     }
 
     /// Retrieves a string from an index
-    fn from_index(&self, index: IriIndex) -> Option<&str> {
+    fn index_to_str(&self, index: IriIndex) -> Option<&str> {
         self.map.get_index(index as usize).map(|(key, _)| key.as_str())
     }
 
@@ -593,25 +609,23 @@ impl<'a> LabelContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use oxrdf::{Subject, Triple};
-
+    use oxrdf::Triple;
     use crate::prefix_manager::PrefixManager;
-
     use super::{NodeData, StringIndexer};
 
     #[test]
     fn test_sting_indexer() {
         let mut string_indexer = StringIndexer::new();
-        let index1 = string_indexer.to_index("test");
-        let index2 = string_indexer.to_index("test");
+        let index1 = string_indexer.get_index("test");
+        let index2 = string_indexer.get_index("test");
         assert_eq!(index1, index2);
-        let index3 = string_indexer.to_index("test2");
+        let index3 = string_indexer.get_index("test2");
         assert_ne!(index1, index3);
         assert_eq!(index1+1, index3);
-        let s = string_indexer.from_index(index2);
+        let s = string_indexer.index_to_str(index2);
         assert!(s.is_some());
         assert_eq!("test",s.unwrap());
-        assert!(string_indexer.from_index(100).is_none());  
+        assert!(string_indexer.index_to_str(100).is_none());  
     }
 
     #[test]
@@ -644,7 +658,7 @@ mod tests {
                 oxrdf::Literal::new_simple_literal("test"),
             ), &mut index_cache, &language_filter, &prefix_manager);
 
-        let pred_index = node_data.indexers.predicate_indexer.to_index(data_predicate.as_str());
+        let pred_index = node_data.indexers.predicate_indexer.get_index(data_predicate.as_str());
         let node = node_data.get_node(subject.as_str());
 
         assert!(node.is_some());

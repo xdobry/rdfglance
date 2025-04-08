@@ -4,10 +4,10 @@ pub struct SparqlDialog {
 }
 
 impl SparqlDialog {
-    pub fn new(last_endpoints: &Vec<String>) -> Self {
+    pub fn new(last_endpoints: &[String]) -> Self {
         Self {
             current_combo: 0,
-            endpoint: if last_endpoints.len() > 0 {
+            endpoint: if !last_endpoints.is_empty() {
                 last_endpoints[0].clone()
             } else {
                 String::new()
@@ -18,7 +18,7 @@ impl SparqlDialog {
     pub fn show(
         &mut self,
         ctx: &egui::Context,
-        last_endpoints: &Vec<String>,
+        last_endpoints: &[String],
     ) -> (bool, Option<String>) {
         let mut close_dialog = false;
         let mut is_cancelled = false;
@@ -29,7 +29,7 @@ impl SparqlDialog {
             .show(ctx, |ui| {
                 ui.label("SPARQL Endpoint:");
                 ui.text_edit_singleline(&mut self.endpoint);
-                if last_endpoints.len() > 0 {
+                if !last_endpoints.is_empty() {
                     ui.label("last used endpoints:");
                     egui::ComboBox::from_id_salt("editable_combo")
                         .selected_text(&last_endpoints[self.current_combo])
@@ -42,7 +42,7 @@ impl SparqlDialog {
                         });
                 }
                 ui.horizontal(|ui| {
-                    ui.add_enabled_ui(self.endpoint.len() > 0, |ui| {
+                    ui.add_enabled_ui(!self.endpoint.is_empty(), |ui| {
                         if ui.button("Connect").clicked() {
                             close_dialog = true; // Mark dialog for closing
                         }
@@ -56,12 +56,12 @@ impl SparqlDialog {
 
         if close_dialog {
             if is_cancelled {
-                return (close_dialog, None);
+                (close_dialog, None)
             } else {
-                return (close_dialog, Some(self.endpoint.clone()));
+                (close_dialog, Some(self.endpoint.clone()))
             }
         } else {
-            return (close_dialog, None);
+            (close_dialog, None)
         }
     }
 }

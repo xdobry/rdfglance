@@ -18,7 +18,6 @@ use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use sparql_dialog::SparqlDialog;
 use style::*;
 use table_view::CacheStatistics;
@@ -80,22 +79,17 @@ pub struct RdfGlanceApp {
 enum SystemMessage {
     None,
     Info(String),
-    Warning(String),
     Error(String),
 }
 
 impl SystemMessage {
     fn has_message(&self) -> bool {
-        match self {
-            SystemMessage::None => false,
-            _ => true,
-        }
+        !matches!(self, SystemMessage::None)
     }
     fn get_message(&self) -> &str {
         match self {
             SystemMessage::None => "",
             SystemMessage::Info(msg) => msg,
-            SystemMessage::Warning(msg) => msg,
             SystemMessage::Error(msg) => msg,
         }
     }
@@ -128,7 +122,7 @@ pub struct LayoutData {
     scene_rect: Rect,
 }
 
-struct SortedVec {
+pub struct SortedVec {
     pub data: Vec<IriIndex>,
 }
 
@@ -170,20 +164,19 @@ impl ColorCache {
         let len = self.type_colors.len();
         let color = self.type_colors.get(types);
         if let Some(color) = color {
-            return color.clone();
+            *color
         } else {
             let new_color = distinct_colors::next_distinct_color(len, 0.8, 0.8);
             self.type_colors.insert(types.clone(), new_color);
-            return new_color;
+            new_color
         }
     }
 
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
         let len = self.predicate_colors.len();
-        self.predicate_colors
+        *self.predicate_colors
             .entry(iri)
             .or_insert_with(|| distinct_colors::next_distinct_color(len, 0.5, 0.3))
-            .clone()
     }
 
     pub fn clean(&mut self) {
@@ -223,10 +216,8 @@ impl ColorCache {
         label_predicate: IriIndex,
     ) {
         for (type_index, type_desc) in cache_statistics.types.iter() {
-            if !self.label_predicate.contains_key(type_index) {
-                if type_desc.properties.contains_key(&label_predicate) {
-                    self.label_predicate.insert(*type_index, label_predicate);
-                }
+            if !self.label_predicate.contains_key(type_index) && type_desc.properties.contains_key(&label_predicate) {
+                self.label_predicate.insert(*type_index, label_predicate);
             }
         }
     }
@@ -338,7 +329,7 @@ impl RdfGlanceApp {
                 return false;
             }
         }
-        return true;
+        true
     }
     fn show_object_by_index(&mut self, index: IriIndex, add_history: bool) {
         if let Some(current_iri) = self.current_iri {
@@ -347,7 +338,7 @@ impl RdfGlanceApp {
             }
         }
         let node = self.node_data.get_node_by_index_mut(index);
-        if let Some((node_iri,node)) = node {
+        if let Some((node_iri,_node)) = node {
             self.current_iri = Some(index);
             self.object_iri = node_iri.clone();
             if add_history {
@@ -370,7 +361,7 @@ impl RdfGlanceApp {
                 return false;
             }
         }
-        return true;
+        true
     }
     fn load_object_by_index(&mut self, index: IriIndex) -> bool {
         self.layout_data.compute_layout = true;
@@ -386,7 +377,7 @@ impl RdfGlanceApp {
                 }
             }
         }
-        return false;
+        false
     }
     fn show_object(&mut self) {
         if self.show_current() {
@@ -403,7 +394,7 @@ impl RdfGlanceApp {
                 match expand_type {
                     ExpandType::References | ExpandType::Both => {
                         for (_, ref_iri) in &nnode.references {
-                            refs_to_expand.push(ref_iri.clone());
+                            refs_to_expand.push(*ref_iri);
                         }
                     }
                     _ => {}
@@ -411,7 +402,7 @@ impl RdfGlanceApp {
                 match expand_type {
                     ExpandType::ReverseReferences | ExpandType::Both => {
                         for (_, ref_iri) in &nnode.reverse_references {
-                            refs_to_expand.push(ref_iri.clone());
+                            refs_to_expand.push(*ref_iri);
                         }
                     }
                     _ => {}
@@ -448,22 +439,11 @@ impl RdfGlanceApp {
         }
         let mut npos = NeighbourPos::new();
         for (parent_index,ref_index) in parent_ref {
-            if !self.layout_data.visible_nodes.contains(ref_index) {
-                if self.load_object_by_index(ref_index) {
-                    npos.insert(parent_index, ref_index);
-                }
+            if !self.layout_data.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
+                npos.insert(parent_index, ref_index);
             }
         }
         npos.position(&mut self.layout_data.visible_nodes);
-    }
-    fn show_all(&mut self) {
-        for iri_index in 0..self.node_data.len() {
-            self.node_data.get_node_by_index(iri_index as IriIndex).map(|(_,node)| {
-                if node.has_subject {
-                    self.layout_data.visible_nodes.add_by_index(iri_index as IriIndex);
-                }
-            });
-        }
     }
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
@@ -539,7 +519,7 @@ impl RdfGlanceApp {
         if b_resp.clicked() {
             self.load_file_dialog(ui);
         }
-        if self.persistent_data.last_files.len() > 0 {
+        if !self.persistent_data.last_files.is_empty() {
             let mut last_file_clicked: Option<String> = None;
             let mut last_file_foget: Option<String> = None;
             ui.spacing();
@@ -568,11 +548,11 @@ impl RdfGlanceApp {
     fn is_empty(&self) -> bool {
         self.node_data.len() == 0
     }
-    fn load_file_dialog(&mut self, ui: &mut egui::Ui) {
+    fn load_file_dialog(&mut self, _ui: &mut egui::Ui) {
         if let Some(path) = FileDialog::new().pick_file() {
             let selected_file = Some(path.display().to_string());
             if let Some(selected_file) = &selected_file {
-                self.load_ttl(&selected_file);
+                self.load_ttl(selected_file);
             }
         }
     }
@@ -617,7 +597,7 @@ impl eframe::App for RdfGlanceApp {
                         if let Some(path) = FileDialog::new().pick_folder() {
                             let selected_dir = Some(path.display().to_string());
                             if let Some(selected_dir) = &selected_dir {
-                                self.load_ttl_dir(&selected_dir);
+                                self.load_ttl_dir(selected_dir);
                             }
                         }
                         ui.close_menu();
@@ -633,7 +613,7 @@ impl eframe::App for RdfGlanceApp {
                         self.clean_data();
                         ui.close_menu();
                     }
-                    if self.persistent_data.last_files.len() > 0 {
+                    if !self.persistent_data.last_files.is_empty() {
                         ui.separator();
                         let mut last_file_clicked: Option<String> = None;
                         ui.menu_button("Last Files:", |ui| {
@@ -693,14 +673,14 @@ impl eframe::App for RdfGlanceApp {
                     strip.cell(|ui| {
                         node_action = match self.display_type {
                             DisplayType::Browse => self.show_table(ui),
-                            DisplayType::Graph => self.show_graph(&ctx, ui),
+                            DisplayType::Graph => self.show_graph(ctx, ui),
                             DisplayType::Table => {
                                 if self.is_empty() {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
                                 } else {
                                     self.cache_statistics.display(
-                                        &ctx,
+                                        ctx,
                                         ui,
                                         &mut self.node_data,
                                         &mut self.layout_data,
@@ -711,9 +691,9 @@ impl eframe::App for RdfGlanceApp {
                                     )
                                 }
                             },
-                            DisplayType::PlayGround => self.show_play(&ctx, ui),
-                            DisplayType::Configuration => self.show_config(&ctx, ui),
-                            DisplayType::Prefixes => self.show_prefixes(&ctx, ui)
+                            DisplayType::PlayGround => self.show_play(ctx, ui),
+                            DisplayType::Configuration => self.show_config(ctx, ui),
+                            DisplayType::Prefixes => self.show_prefixes(ctx, ui)
                         };
                     });
                     strip.cell(|ui| {
@@ -740,16 +720,13 @@ impl eframe::App for RdfGlanceApp {
             if let Some(dialog) = &mut self.sparql_dialog {
                 let (close_dialog, result) = dialog.show(ctx, &self.persistent_data.last_endpoints);
                 if close_dialog {
-                    match result {
-                        Some(endpoint) => {
-                            self.rdfwrap = Box::new(sparql::SparqlAdapter::new(&endpoint));
-                            if !self.persistent_data.last_endpoints.contains(&endpoint)
-                                && endpoint.len() > 0
-                            {
-                                self.persistent_data.last_endpoints.push(endpoint);
-                            }
+                    if let Some(endpoint) = result {
+                        self.rdfwrap = Box::new(sparql::SparqlAdapter::new(&endpoint));
+                        if !self.persistent_data.last_endpoints.contains(&endpoint)
+                            && !endpoint.is_empty()
+                        {
+                            self.persistent_data.last_endpoints.push(endpoint);
                         }
-                        None => {}
                     }
                     self.sparql_dialog = None;
                 }

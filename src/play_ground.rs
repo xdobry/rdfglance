@@ -29,7 +29,7 @@ impl<'a> ScrollBar<'a> {
     }
 }
 
-impl<'a> Widget for ScrollBar<'a> {
+impl Widget for ScrollBar<'_> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let h = ui.available_height();
         let desired_size = Vec2::new(20.0, h); // Box size
@@ -103,8 +103,8 @@ impl<'a> Widget for ScrollBar<'a> {
 }
 
 impl RdfGlanceApp {
-    pub fn show_play(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
-        let mut node_to_click: NodeAction = NodeAction::None;
+    pub fn show_play(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+        let node_to_click: NodeAction = NodeAction::None;
 
         /*
         CentralPanel::default().show(ctx, |ui| {
@@ -181,7 +181,6 @@ impl RdfGlanceApp {
                     ui.add(ScrollBar::new(&mut self.play.position,&mut self.play.drag_pos, needed_len,a_height));
                 });
             });
-
-        return node_to_click;
+        node_to_click
     }
 }

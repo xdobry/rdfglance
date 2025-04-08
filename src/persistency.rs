@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
-use anyhow::{Context, Result};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use anyhow::Result;
 use leb128;
 
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral, StringIndexer};
@@ -114,10 +114,10 @@ impl RdfGlanceApp {
 
 fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn Fn(&mut BufWriter<File>) -> std::io::Result<()>) -> std::io::Result<()> {
     file.write_u8(header_type as u8)?;
-    let size_pos = file.seek(SeekFrom::Current(0))?;
+    let size_pos = file.stream_position()?;
     file.write_u32::<LittleEndian>(0)?; // Placeholder for size
     f(file)?;
-    let end_pos = file.seek(SeekFrom::Current(0))?;
+    let end_pos = file.stream_position()?;
     let size = end_pos - size_pos + 1;
     file.seek(SeekFrom::Start(size_pos))?;
     file.write_u32::<LittleEndian>(size as u32)?;
@@ -214,7 +214,7 @@ impl NodeCache {
         })
     }
 
-    pub fn restore(file: &mut File, size: u32) -> Result<Self> {
+    pub fn restore(file: &mut File, _size: u32) -> Result<Self> {
         let mut cache = NodeCache::new();
         let nodes_len = leb128::read::unsigned(file)?;
         println!("read {} nodes",nodes_len);
