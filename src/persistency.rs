@@ -145,7 +145,7 @@ impl StringIndexer {
         })
     }
 
-    pub fn restore<R: Read>(mut reader: R, size: u32) -> Result<Self> {
+    pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
         let mut index = Self::new();
         let mut idx_num: IriIndex = 0;
         let mut buffer: Vec<u8> = Vec::with_capacity(256);
@@ -215,41 +215,41 @@ impl NodeCache {
         })
     }
 
-    pub fn restore<R: Read>(mut reader: R, _size: u32) -> Result<Self> {
+    pub fn restore<R: Read>(reader: &mut R, _size: u32) -> Result<Self> {
         let mut cache = NodeCache::new();
-        let nodes_len = leb128::read::unsigned(&mut reader)?;
+        let nodes_len = leb128::read::unsigned(reader)?;
         // println!("read {} nodes",nodes_len);
         for _ in 0..nodes_len {
-            let iri = read_len_string(&mut reader)?;
+            let iri = read_len_string(reader)?;
             // println!("read node with iri {}",iri);
             let flags = reader.read_u8()?;
             let is_blank_node = (flags & 1)>0;
             let has_subject = (flags & 2)>0;
-            let types_len = leb128::read::unsigned(&mut reader)?;
+            let types_len = leb128::read::unsigned(reader)?;
             let mut types: Vec<IriIndex> = Vec::with_capacity(types_len as usize);
             for _ in 0..types_len {
-                let type_index = leb128::read::unsigned(&mut reader)? as IriIndex;
+                let type_index = leb128::read::unsigned(reader)? as IriIndex;
                 types.push(type_index);
             }
-            let properties_len = leb128::read::unsigned(&mut reader)?;
+            let properties_len = leb128::read::unsigned(reader)?;
             let mut properties: Vec<PredicateLiteral> = Vec::with_capacity(types_len as usize);
             for _ in 0..properties_len {
-                let predicate_index = leb128::read::unsigned(&mut reader)? as IriIndex;
-                let literal = Literal::restore(&mut reader)?;
+                let predicate_index = leb128::read::unsigned(reader)? as IriIndex;
+                let literal = Literal::restore(reader)?;
                 properties.push((predicate_index,literal));
             }
-            let references_len =  leb128::read::unsigned(&mut reader)?;
+            let references_len =  leb128::read::unsigned(reader)?;
             let mut references: Vec<(IriIndex,IriIndex)> = Vec::with_capacity(types_len as usize);
             for _ in 0..references_len {
-                let predicate_index = leb128::read::unsigned(&mut reader)? as IriIndex;
-                let iri_index = leb128::read::unsigned(&mut reader)? as IriIndex;
+                let predicate_index = leb128::read::unsigned(reader)? as IriIndex;
+                let iri_index = leb128::read::unsigned(reader)? as IriIndex;
                 references.push((predicate_index,iri_index));
             }
-            let reverse_references_len =  leb128::read::unsigned(&mut reader)?;
+            let reverse_references_len =  leb128::read::unsigned(reader)?;
             let mut reverse_references: Vec<(IriIndex,IriIndex)> = Vec::with_capacity(types_len as usize);
             for _ in 0..reverse_references_len {
-                let predicate_index = leb128::read::unsigned(&mut reader)? as IriIndex;
-                let iri_index = leb128::read::unsigned(&mut reader)? as IriIndex;
+                let predicate_index = leb128::read::unsigned(reader)? as IriIndex;
+                let iri_index = leb128::read::unsigned(reader)? as IriIndex;
                 reverse_references.push((predicate_index,iri_index));
             }
             let node = NObject {
@@ -266,8 +266,8 @@ impl NodeCache {
     }
 }
 
-fn read_len_string<R: Read>(mut reader: R) -> Result<Box<str>> {
-    let str_len = leb128::read::unsigned(&mut reader)?;
+fn read_len_string<R: Read>(reader: &mut R) -> Result<Box<str>> {
+    let str_len = leb128::read::unsigned(reader)?;
     let mut buffer = vec![0; str_len as usize];
     reader.read_exact(&mut buffer)?;
     let str = std::str::from_utf8(&buffer)?;
@@ -301,18 +301,18 @@ impl Literal {
         }
         Ok(())
     }
-    pub fn restore<R: Read>(mut reader: R) -> Result<Self> {
+    pub fn restore<R: Read>(reader: &mut R) -> Result<Self> {
         let literal_type = reader.read_u8()?;
         match literal_type {
             1 => {
                 Ok(Literal::String(read_len_string(reader)?))
             },
             2 => {
-                let lang_index = leb128::read::unsigned(&mut reader)? as LangIndex;
+                let lang_index = leb128::read::unsigned(reader)? as LangIndex;
                 Ok(Literal::LangString(lang_index,read_len_string(reader)?))
             },
             3 => {
-                let data_type_index = leb128::read::unsigned(&mut reader)? as DataTypeIndex;
+                let data_type_index = leb128::read::unsigned(reader)? as DataTypeIndex;
                 Ok(Literal::TypedString(data_type_index,read_len_string(reader)?))
             },
             _ => {
