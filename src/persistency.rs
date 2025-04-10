@@ -59,7 +59,7 @@ impl RdfGlanceApp {
 
     pub fn restore(path: &Path) -> Result<Self> {
         let mut app = RdfGlanceApp::new(None);
-        let mut file = File::open(path)?;
+        let file = File::open(path)?;
         let mut reader = BufReader::new(&file);
         let magic_number = reader.read_u32::<LittleEndian>()?;
         if magic_number != MAGIC_NUMBER {

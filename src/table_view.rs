@@ -5,10 +5,10 @@ use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, ColorCache, LayoutData, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, GVisualisationStyle, UIState, NodeAction
 };
 
-pub struct CacheStatistics {
+pub struct TypeInstanceIndex {
     pub nodes: usize,
     pub unique_predicates: usize,
     pub unique_types: usize,
@@ -162,10 +162,10 @@ impl TypeData {
         table_action: &mut TableAction,
         instance_action: &mut NodeAction,
         node_data: &mut NodeData,
-        color_cache: &ColorCache,
+        color_cache: &GVisualisationStyle,
         rdfwrap: &mut dyn rdfwrap::RDFAdapter,
         prefix_manager: &PrefixManager,
-        layout_data: &LayoutData,
+        layout_data: &UIState,
     ) {
         let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
@@ -736,7 +736,7 @@ fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: 
     painter.galley(top_left, galley, Color32::BLACK);
 }
 
-impl CacheStatistics {
+impl TypeInstanceIndex {
     pub fn new() -> Self {
         Self {
             nodes: 0,
@@ -847,9 +847,9 @@ impl CacheStatistics {
         ctx: &egui::Context,
         ui: &mut egui::Ui,
         node_data: &mut NodeData,
-        layout_data: &mut LayoutData,
+        layout_data: &mut UIState,
         prefix_manager: &PrefixManager,
-        color_cache: &ColorCache,
+        color_cache: &GVisualisationStyle,
         rdfwrap: &mut dyn rdfwrap::RDFAdapter,
         iri_display: IriDisplay,
     ) -> NodeAction {
@@ -1038,10 +1038,10 @@ impl CacheStatistics {
                     if text_edit_response.lost_focus() {
                         table_action = TableAction::Filter;
                     }
-                    if ui.button("Filter").clicked() {
+                    if ui.button(ICON_FILTER).clicked() {
                         table_action = TableAction::Filter;
                     }
-                    if ui.button("Reset filter").clicked() {
+                    if ui.button(ICON_CLOSE).clicked() {
                         type_data.instance_view.instance_filter.clear();
                         type_data.filtered_instances = type_data.instances.clone();
                         type_data.instance_view.instance_filter.clear();
@@ -1275,7 +1275,7 @@ impl CacheStatistics {
         ui: &mut egui::Ui,
         node_data: &mut NodeData,
         prefix_manager: &PrefixManager,
-        layout_data: &LayoutData,
+        layout_data: &UIState,
         iri_display: IriDisplay,
         height: f32,
     ) -> (Option<IriIndex>,TypeTableAction) {
@@ -1381,7 +1381,7 @@ impl CacheStatistics {
     }
 }
 
-impl Default for CacheStatistics {
+impl Default for TypeInstanceIndex {
     fn default() -> Self {
         Self::new()
     }

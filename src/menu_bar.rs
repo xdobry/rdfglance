@@ -19,6 +19,21 @@ impl RdfGlanceApp {
                     self.save_project_dialog();
                     ui.close_menu();
                 }
+                if !self.persistent_data.last_projects.is_empty() {
+                    let mut last_project_clicked: Option<Box<str>> = None;
+                    ui.menu_button("Last Visited Projects:", |ui| {
+                        for last_file in &self.persistent_data.last_projects {
+                            if ui.button(last_file).clicked() {
+                                last_project_clicked = Some(last_file.clone());
+                            }
+                        }
+                        if let Some(last_project_clicked) = last_project_clicked {
+                            ui.close_menu();
+                            let last_project_path = Path::new(&*last_project_clicked);
+                            self.load_project(&last_project_path);
+                        }
+                    });
+                }
                 ui.separator();
                 if ui.button("Import RDF File").clicked() {
                     self.import_file_dialog(ui);
@@ -41,8 +56,7 @@ impl RdfGlanceApp {
                 }
                  */
                 if !self.persistent_data.last_files.is_empty() {
-                    ui.separator();
-                    let mut last_file_clicked: Option<String> = None;
+                    let mut last_file_clicked: Option<Box<str>> = None;
                     ui.menu_button("Last Imported Files:", |ui| {
                         for last_file in &self.persistent_data.last_files {
                             if ui.button(last_file).clicked() {
@@ -61,17 +75,17 @@ impl RdfGlanceApp {
                     ui.close_menu();
                 }
             });
-            let selected_language = self.node_data.get_language(self.layout_data.display_language);
+            let selected_language = self.node_data.get_language(self.ui_state.display_language);
             if let Some(selected_language) = selected_language {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     egui::ComboBox::from_label(concatcp!(ICON_LANG," Data language"))
                     .selected_text(selected_language)
                     .show_ui(ui, |ui| {
-                        for language_index in self.layout_data.language_sort.iter() {
+                        for language_index in self.ui_state.language_sort.iter() {
                             let language_str = self.node_data.get_language(*language_index);
                             if let Some(language_str) = language_str {
-                                if ui.selectable_label(self.layout_data.display_language == *language_index, language_str).clicked() {
-                                    self.layout_data.display_language = *language_index;
+                                if ui.selectable_label(self.ui_state.display_language == *language_index, language_str).clicked() {
+                                    self.ui_state.display_language = *language_index;
                                 }
                             }
                         }
@@ -92,13 +106,10 @@ impl RdfGlanceApp {
     pub fn load_project_dialog(&mut self) {
         if let Some(path) = FileDialog::new()
             .add_filter("RDF Glance project", &vec!["rdfglance"]).pick_file() {
-            let selected_file = Some(path.display().to_string());
-            if let Some(selected_file) = &selected_file {
-                self.load_project(selected_file);
-            }
+            self.load_project(path.as_path());
         }
     }
-    pub fn load_project(&mut self, path: &str) {
+    pub fn load_project(&mut self, path: &Path) {
         let restore = Self::restore(Path::new(path));
         match restore {
             Err(e) => {
@@ -108,6 +119,14 @@ impl RdfGlanceApp {
                 self.clean_data();
                 self.node_data = app_data.node_data;
                 self.update_data_indexes();
+                let file_name: Box<str> = Box::from(path.display().to_string());
+                if !self
+                    .persistent_data
+                    .last_projects
+                    .iter().any(|f | *f == file_name)
+                {
+                    self.persistent_data.last_projects.push(file_name);
+                }
             }
         }
     }

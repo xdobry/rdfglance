@@ -2,14 +2,14 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, path::Path};
 use const_format::concatcp;
 
 use eframe::{
     egui::{self, Pos2},
     Storage,
 };
-use egui::Rect;
+use egui::{Rangef, Rect};
 use egui_extras::StripBuilder;
 use graph_view::NeighbourPos;
 use nobject::{IriIndex, LangIndex, NodeData};
@@ -19,7 +19,7 @@ use prefix_manager::PrefixManager;
 use serde::{Deserialize, Serialize};
 use sparql_dialog::SparqlDialog;
 use style::*;
-use table_view::CacheStatistics;
+use table_view::TypeInstanceIndex;
 
 pub mod browse_view;
 pub mod config;
@@ -61,13 +61,13 @@ pub struct RdfGlanceApp {
     show_labels: bool,
     short_iri: bool,
     pub node_data: NodeData,
-    layout_data: LayoutData,
-    color_cache: ColorCache,
+    ui_state: UIState,
+    visualisation_style: GVisualisationStyle,
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
     system_message: SystemMessage,
-    persistent_data: PersistentData,
-    cache_statistics: CacheStatistics,
+    persistent_data: AppPersistentData,
+    type_index: TypeInstanceIndex,
     prefix_manager: PrefixManager,
     play: PlayData,
     help_open: bool,
@@ -99,13 +99,21 @@ pub struct PlayData {
     drag_pos: Option<f32>
 }
 
-pub struct ColorCache {
-    type_colors: HashMap<Vec<IriIndex>, egui::Color32>,
-    predicate_colors: HashMap<IriIndex, egui::Color32>,
+pub struct TypeStyle {
+    pub color: egui::Color32,
+}
+
+pub struct ReferenceStyle {
+    pub color: egui::Color32,
+}
+
+pub struct GVisualisationStyle {
+    type_styles: HashMap<Vec<IriIndex>, TypeStyle>,
+    reference_styles: HashMap<IriIndex, ReferenceStyle>,
     label_predicate: HashMap<IriIndex, IriIndex>,
 }
 
-pub struct LayoutData {
+pub struct UIState {
     selected_node: Option<IriIndex>,
     context_menu_node: Option<IriIndex>,
     context_menu_pos: Pos2,
@@ -125,15 +133,21 @@ pub struct SortedVec {
 
 
 #[derive(Serialize, Deserialize)]
-struct PersistentData {
-    last_files: Vec<String>,
-    last_endpoints: Vec<String>,
+struct AppPersistentData {
+    last_files: Vec<Box<str>>,
+    last_endpoints: Vec<Box<str>>,
+    #[serde(default = "default_last_projects")]
+    last_projects: Vec<Box<str>>,
     #[serde(default = "default_config_data")]
     config_data: config::Config,
 }
 
 fn default_config_data() -> config::Config {
     config::Config::default()
+}
+
+fn default_last_projects() -> Vec<Box<str>> {
+    Vec::new()
 }
 
 pub enum NodeAction {
@@ -143,7 +157,7 @@ pub enum NodeAction {
     ShowVisual(IriIndex),
 }
 
-impl LayoutData {
+impl UIState {
     pub fn clean(&mut self) {
         self.selected_node = None;
         self.context_menu_node = None;
@@ -156,29 +170,30 @@ impl LayoutData {
     }
 }
 
-impl ColorCache {
+impl GVisualisationStyle {
     fn get_type_color(&mut self, types: &Vec<IriIndex>) -> egui::Color32 {
-        let len = self.type_colors.len();
-        let color = self.type_colors.get(types);
-        if let Some(color) = color {
-            *color
+        let len = self.type_styles.len();
+        let type_style = self.type_styles.get(types);
+        if let Some(type_style) = type_style {
+            type_style.color
         } else {
             let new_color = distinct_colors::next_distinct_color(len, 0.8, 0.8);
-            self.type_colors.insert(types.clone(), new_color);
+            self.type_styles.insert(types.clone(), TypeStyle { color: new_color });
             new_color
         }
     }
 
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
-        let len = self.predicate_colors.len();
-        *self.predicate_colors
+        let len = self.reference_styles.len();
+        self.reference_styles
             .entry(iri)
-            .or_insert_with(|| distinct_colors::next_distinct_color(len, 0.5, 0.3))
+            .or_insert_with(|| ReferenceStyle { 
+                color: distinct_colors::next_distinct_color(len, 0.5, 0.3)}).color
     }
 
     pub fn clean(&mut self) {
-        self.type_colors.clear();
-        self.predicate_colors.clear();
+        self.type_styles.clear();
+        self.reference_styles.clear();
         self.label_predicate.clear();
     }
 }
@@ -206,10 +221,10 @@ impl SortedVec {
     }
 }
 
-impl ColorCache {
+impl GVisualisationStyle {
     pub fn preset_label_predicates(
         &mut self,
-        cache_statistics: &CacheStatistics,
+        cache_statistics: &TypeInstanceIndex,
         label_predicate: IriIndex,
     ) {
         for (type_index, type_desc) in cache_statistics.types.iter() {
@@ -223,11 +238,11 @@ impl ColorCache {
 // Implement default values for MyApp
 impl RdfGlanceApp {
     pub fn new(storage: Option<&dyn Storage>) -> Self {
-        let presistentdata: Option<PersistentData> = match storage {
+        let presistentdata: Option<AppPersistentData> = match storage {
             Some(storage) => {
                 let persistent_data_string = storage.get_string("persistent_data");
                 if let Some(persistent_data_string) = persistent_data_string {
-                    let mut persistent_data: PersistentData =
+                    let mut persistent_data: AppPersistentData =
                         serde_json::from_str(&persistent_data_string)
                             .expect("Failed to parse persistent data");
                     persistent_data
@@ -253,20 +268,21 @@ impl RdfGlanceApp {
             sparql_dialog: None,
             status_message: String::new(),
             node_data: NodeData::new(),
-            cache_statistics: CacheStatistics::new(),
+            type_index: TypeInstanceIndex::new(),
             prefix_manager: PrefixManager::new(),
             system_message: SystemMessage::None,
-            persistent_data: presistentdata.unwrap_or(PersistentData {
+            persistent_data: presistentdata.unwrap_or(AppPersistentData {
                 last_files: vec![],
                 last_endpoints: vec![],
+                last_projects: vec![],
                 config_data: config::Config::default(),
             }),
-            color_cache: ColorCache {
-                type_colors: HashMap::new(),
-                predicate_colors: HashMap::new(),
+            visualisation_style: GVisualisationStyle {
+                type_styles: HashMap::new(),
+                reference_styles: HashMap::new(),
                 label_predicate: HashMap::new(),
             },
-            layout_data: LayoutData {
+            ui_state: UIState {
                 selected_node: None,
                 node_to_drag: None,
                 context_menu_node: None,
@@ -349,7 +365,7 @@ impl RdfGlanceApp {
     fn load_object(&mut self, iri: &str) -> bool {
         let iri_index = self.node_data.get_node_index(iri);
         if let Some(iri_index) = iri_index {
-            self.layout_data.visible_nodes.add_by_index(iri_index);
+            self.ui_state.visible_nodes.add_by_index(iri_index);
         } else {
             let new_object = self.rdfwrap.load_object(iri, &mut self.node_data);
             if let Some(new_object) = new_object {
@@ -361,11 +377,11 @@ impl RdfGlanceApp {
         true
     }
     fn load_object_by_index(&mut self, index: IriIndex) -> bool {
-        self.layout_data.compute_layout = true;
+        self.ui_state.compute_layout = true;
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,node)) = node {
             if node.has_subject {
-                return self.layout_data.visible_nodes.add_by_index(index);
+                return self.ui_state.visible_nodes.add_by_index(index);
             } else {
                 let node_iri = node_iri.clone();
                 let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
@@ -415,12 +431,12 @@ impl RdfGlanceApp {
                 npos.insert(iri_index, ref_index);
             }
         }
-        npos.position(&mut self.layout_data.visible_nodes);
+        npos.position(&mut self.ui_state.visible_nodes);
     }
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in &self.layout_data.visible_nodes.data {
+        for visible_index in &self.ui_state.visible_nodes.data {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if refs_to_expand.insert(*ref_iri) {
@@ -436,11 +452,11 @@ impl RdfGlanceApp {
         }
         let mut npos = NeighbourPos::new();
         for (parent_index,ref_index) in parent_ref {
-            if !self.layout_data.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
+            if !self.ui_state.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
                 npos.insert(parent_index, ref_index);
             }
         }
-        npos.position(&mut self.layout_data.visible_nodes);
+        npos.position(&mut self.ui_state.visible_nodes);
     }
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
@@ -458,9 +474,9 @@ impl RdfGlanceApp {
                 if !self
                     .persistent_data
                     .last_files
-                    .contains(&file_name.to_string())
+                    .iter().any(|f | *f == file_name.into())
                 {
-                    self.persistent_data.last_files.push(file_name.to_string());
+                    self.persistent_data.last_files.push(file_name.into());
                 }
                 self.update_data_indexes();
             }
@@ -481,8 +497,8 @@ impl RdfGlanceApp {
                 self.update_data_indexes();
                 let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
                 let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
-                self.color_cache
-                    .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
+                self.visualisation_style
+                    .preset_label_predicates(&self.type_index, rdfs_label_index);
             }
         }
     }
@@ -492,22 +508,22 @@ impl RdfGlanceApp {
         self.status_message.push_str(message);
     }
     pub fn update_data_indexes(&mut self) {
-        self.layout_data.language_sort.clear();
+        self.ui_state.language_sort.clear();
         for (_lang,index) in self.node_data.indexers.language_indexer.iter() {
-            self.layout_data.language_sort.push(*index as LangIndex);
+            self.ui_state.language_sort.push(*index as LangIndex);
         }
-        self.layout_data.language_sort.sort_by(|a,b| {
+        self.ui_state.language_sort.sort_by(|a,b| {
             self.node_data.get_language(*a).cmp(&self.node_data.get_language(*b))
         });
         if self.persistent_data.config_data.resolve_rdf_lists {
             self.node_data.resolve_rdf_lists(&self.prefix_manager);
         }
-        self.cache_statistics.update(&self.node_data);
+        self.type_index.update(&self.node_data);
 
         let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
         let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
-        self.color_cache
-            .preset_label_predicates(&self.cache_statistics, rdfs_label_index);
+        self.visualisation_style
+            .preset_label_predicates(&self.type_index, rdfs_label_index);
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
@@ -517,31 +533,66 @@ impl RdfGlanceApp {
         if b_resp.clicked() {
             self.import_file_dialog(ui);
         }
-        if !self.persistent_data.last_files.is_empty() {
-            let mut last_file_clicked: Option<String> = None;
-            let mut last_file_foget: Option<String> = None;
-            ui.spacing();
-            ui.heading("Last visited files:");
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                egui::Grid::new("lfiles").striped(true).show(ui, |ui| {
-                    for last_file in &self.persistent_data.last_files {
-                        if ui.button(last_file).clicked() {
-                            last_file_clicked = Some(last_file.clone());
+        StripBuilder::new(ui)
+            .size(egui_extras::Size::Relative { fraction: 0.5, range: Rangef::EVERYTHING })
+            .size(egui_extras::Size::Relative { fraction: 0.5, range: Rangef::EVERYTHING })
+            .horizontal(|mut strip| {
+                strip.cell(|ui| {
+                    if !self.persistent_data.last_files.is_empty() {
+                        let mut last_file_clicked: Option<String> = None;
+                        let mut last_file_forget: Option<String> = None;
+                        ui.spacing();
+                        ui.heading("Last imported files:");
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            egui::Grid::new("lfiles").striped(true).show(ui, |ui| {
+                                for last_file in &self.persistent_data.last_files {
+                                    if ui.button(last_file).clicked() {
+                                        last_file_clicked = Some(last_file.to_string());
+                                    }
+                                    if ui.button(ICON_DELETE).clicked() {
+                                        last_file_forget = Some(last_file.to_string());
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                       });
+                        if let Some(last_file_clicked) = last_file_clicked {
+                            self.load_ttl(&last_file_clicked);
                         }
-                        if ui.button(ICON_DELETE).clicked() {
-                            last_file_foget = Some(last_file.clone());
+                        if let Some(last_file_forget) = last_file_forget {
+                            self.persistent_data.last_files.retain(|file| *file != last_file_forget.as_str().into());
                         }
-                        ui.end_row();
                     }
                 });
-           });
-            if let Some(last_file_clicked) = last_file_clicked {
-                self.load_ttl(&last_file_clicked);
-            }
-            if let Some(last_file_forget) = last_file_foget {
-                self.persistent_data.last_files.retain(|file| file != &last_file_forget);
-            }
-        }
+                strip.cell(|ui| {
+                    if !self.persistent_data.last_files.is_empty() {
+                        let mut last_file_clicked: Option<String> = None;
+                        let mut last_file_forget: Option<String> = None;
+                        ui.spacing();
+                        ui.heading("Last visited projects:");
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            egui::Grid::new("lprojects").striped(true).show(ui, |ui| {
+                                for last_file in &self.persistent_data.last_projects {
+                                    if ui.button(last_file).clicked() {
+                                        last_file_clicked = Some(last_file.to_string());
+                                    }
+                                    if ui.button(ICON_DELETE).clicked() {
+                                        last_file_forget = Some(last_file.to_string());
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                       });
+                        if let Some(last_file_clicked) = last_file_clicked {
+                            let last_project_path = Path::new(&*last_file_clicked);
+                            self.load_project(&last_project_path);
+                        }
+                        if let Some(last_file_forget) = last_file_forget {
+                            self.persistent_data.last_projects.retain(|file| *file != last_file_forget.as_str().into());
+                        }
+                    }
+                });
+            });
     }
     fn is_empty(&self) -> bool {
         self.node_data.len() == 0
@@ -549,9 +600,9 @@ impl RdfGlanceApp {
 
     fn clean_data(&mut self) {
         self.node_data.clean();
-        self.layout_data.clean();
-        self.cache_statistics.clean();
-        self.color_cache.clean();
+        self.ui_state.clean();
+        self.type_index.clean();
+        self.visualisation_style.clean();
         self.display_type = DisplayType::Table; 
         self.nav_history.clear();
         self.nav_pos = 0;
@@ -611,13 +662,13 @@ impl eframe::App for RdfGlanceApp {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
                                 } else {
-                                    self.cache_statistics.display(
+                                    self.type_index.display(
                                         ctx,
                                         ui,
                                         &mut self.node_data,
-                                        &mut self.layout_data,
+                                        &mut self.ui_state,
                                         &self.prefix_manager,
-                                        &self.color_cache,
+                                        &self.visualisation_style,
                                         &mut *self.rdfwrap,
                                         self.persistent_data.config_data.iri_display,
                                     )
@@ -636,7 +687,7 @@ impl eframe::App for RdfGlanceApp {
             match node_action {
                 NodeAction::ShowType(type_index) => {
                     self.display_type = DisplayType::Table;
-                    self.cache_statistics.selected_type = Some(type_index);
+                    self.type_index.selected_type = Some(type_index);
                 }
                 NodeAction::BrowseNode(node_index) => {
                     self.display_type = DisplayType::Browse;
@@ -644,8 +695,8 @@ impl eframe::App for RdfGlanceApp {
                 }
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
-                    self.layout_data.visible_nodes.add_by_index(node_index);
-                    self.layout_data.selected_node = Some(node_index);
+                    self.ui_state.visible_nodes.add_by_index(node_index);
+                    self.ui_state.selected_node = Some(node_index);
                 }
                 NodeAction::None => {}
             }
@@ -654,10 +705,9 @@ impl eframe::App for RdfGlanceApp {
                 if close_dialog {
                     if let Some(endpoint) = result {
                         self.rdfwrap = Box::new(sparql::SparqlAdapter::new(&endpoint));
-                        if !self.persistent_data.last_endpoints.contains(&endpoint)
-                            && !endpoint.is_empty()
+                        if !endpoint.is_empty() && !self.persistent_data.last_endpoints.iter().any(|e| *e == endpoint.as_str().into())
                         {
-                            self.persistent_data.last_endpoints.push(endpoint);
+                            self.persistent_data.last_endpoints.push(endpoint.into());
                         }
                     }
                     self.sparql_dialog = None;

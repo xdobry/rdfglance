@@ -9,6 +9,7 @@ use crate::prefix_manager::PrefixManager;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::BufReader;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use std::time::Instant;
@@ -92,16 +93,17 @@ impl RDFWrap {
         Ok(total_triples)
     }
 
-    pub fn load_file(
-        file_name: &str,
+    pub fn load_file<P: AsRef<Path>>(
+        file_name: P,
         node_data: &mut NodeData,
         language_filter: &[String],
         prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
+        let file_name = file_name.as_ref();
         let file =
-            File::open(file_name).with_context(|| format!("Can not open file {}", file_name))?;
+            File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
         let reader = BufReader::new(file);
-        let file_extension = file_name.split('.').last().unwrap();
+        let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
         let mut triples_count = 0;
         let (indexer, cache) = node_data.split_mut();
         let start = Instant::now();
@@ -222,7 +224,7 @@ impl RDFWrap {
         let duration = start.elapsed();
         println!(
             "Time taken to read the file '{}': {:?}",
-            file_name, duration
+            file_name.display(), duration
         );
         println!(
             "Triples read per second: {}",

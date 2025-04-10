@@ -18,7 +18,7 @@ impl SparqlDialog {
     pub fn show(
         &mut self,
         ctx: &egui::Context,
-        last_endpoints: &[String],
+        last_endpoints: &[Box<str>],
     ) -> (bool, Option<String>) {
         let mut close_dialog = false;
         let mut is_cancelled = false;
@@ -36,7 +36,7 @@ impl SparqlDialog {
                         .show_ui(ui, |ui| {
                             for (index, last_endpoint) in last_endpoints.iter().enumerate() {
                                 if ui.selectable_value(&mut self.current_combo, index, last_endpoint).clicked() {
-                                    self.endpoint = last_endpoint.clone();
+                                    self.endpoint = last_endpoint.to_string();
                                 }
                             }
                         });

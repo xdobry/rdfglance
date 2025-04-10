@@ -2,7 +2,7 @@ use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, ColorCache, LayoutData, NodeAction, RdfGlanceApp
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, GVisualisationStyle, UIState, NodeAction, RdfGlanceApp
 };
 
 impl RdfGlanceApp {
@@ -43,7 +43,7 @@ impl RdfGlanceApp {
                     action_type_index = NodeAction::ShowVisual(current_iri_index);
                 }
                 b_resp.on_hover_text("This will add the node to the visual graph and switch to visual graph view. The node will be selected.");
-                let label_context = LabelContext::new(self.layout_data.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
+                let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
                 ui.horizontal(|ui|{
                     ui.strong("types:");
                     for type_index in &current_node.types {
@@ -59,7 +59,7 @@ impl RdfGlanceApp {
                 if current_node.properties.is_empty() {
                     let h = (ui.available_height()-40.0).max(300.0);
                     node_to_click = show_refs_table(ui, current_node, &self.node_data, 
-                        &mut *self.rdfwrap, &self.color_cache, &self.layout_data, h);
+                        &mut *self.rdfwrap, &self.visualisation_style, &self.ui_state, h);
                 } else {
                     egui::ScrollArea::vertical()
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -74,9 +74,9 @@ impl RdfGlanceApp {
                                     if self.persistent_data.config_data.supress_other_language_data
                                     {
                                         if let Literal::LangString(lang, _) = prop_value {
-                                            if *lang != self.layout_data.display_language {
+                                            if *lang != self.ui_state.display_language {
                                                 if *lang == 0
-                                                    && self.layout_data.display_language != 0
+                                                    && self.ui_state.display_language != 0
                                                 {
                                                     // it is fallback language so display if reall language could not be found
                                                     let mut found = false;
@@ -91,7 +91,7 @@ impl RdfGlanceApp {
                                                             {
                                                                 if *lang
                                                                     == self
-                                                                        .layout_data
+                                                                        .ui_state
                                                                         .display_language
                                                                 {
                                                                     found = true;
@@ -120,7 +120,7 @@ impl RdfGlanceApp {
                             });
                         let h = (ui.available_height()-40.0).max(300.0);
                         node_to_click = show_refs_table(ui, current_node, &self.node_data, 
-                            &mut *self.rdfwrap, &self.color_cache, &self.layout_data, h);
+                            &mut *self.rdfwrap, &self.visualisation_style, &self.ui_state, h);
                     });
                 }
             }
@@ -137,8 +137,8 @@ impl RdfGlanceApp {
 
 pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject, 
     node_data: &NodeData, rdfwrap: &mut dyn rdfwrap::RDFAdapter, 
-    color_cache: &ColorCache, 
-    layout_data: &LayoutData, h: f32) -> Option<IriIndex> {
+    color_cache: &GVisualisationStyle, 
+    layout_data: &UIState, h: f32) -> Option<IriIndex> {
     let mut node_to_click: Option<IriIndex> = None;        
     StripBuilder::new(ui)
     .size(egui_extras::Size::exact(600.0))
@@ -183,11 +183,11 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
 pub fn show_references(
     node_data: &NodeData,
     rdfwrap: &mut dyn rdfwrap::RDFAdapter,
-    color_cache: &ColorCache,
+    color_cache: &GVisualisationStyle,
     ui: &mut egui::Ui,
     label: &str,
     references: &[(IriIndex, IriIndex)],
-    layout_data: &LayoutData,
+    layout_data: &UIState,
     height: f32,
     id_salt: &str,
 ) -> Option<IriIndex> {
