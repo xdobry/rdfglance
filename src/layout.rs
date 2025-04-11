@@ -28,7 +28,7 @@ impl NodeLayout {
 }
 
 pub struct SortedNodeLayout {
-    pub data: Vec<NodeLayout>,
+    pub nodes: Vec<NodeLayout>,
 }
 
 impl Default for SortedNodeLayout {
@@ -39,15 +39,15 @@ impl Default for SortedNodeLayout {
 
 impl SortedNodeLayout {
     pub fn new() -> Self {
-        Self { data: Vec::new() }
+        Self { nodes: Vec::new() }
     }
 
     fn add(&mut self, value: NodeLayout) -> bool {
-        match self.data.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
+        match self.nodes.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
             Ok(_) => false,                              // Value already exists, do nothing
             Err(pos) => {
                  // Insert at correct position
-                self.data.insert(pos, value);
+                self.nodes.insert(pos, value);
                 true
              }
         }
@@ -58,25 +58,25 @@ impl SortedNodeLayout {
     }
 
     pub fn contains(&self, value: IriIndex) -> bool {
-        self.data.binary_search_by(|e| e.node_index.cmp(&value)).is_ok()
+        self.nodes.binary_search_by(|e| e.node_index.cmp(&value)).is_ok()
     }
 
     pub fn remove(&mut self, value: IriIndex) {
-        if let Ok(pos) = self.data.binary_search_by(|e| e.node_index.cmp(&value)) {
-            self.data.remove(pos);
+        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+            self.nodes.remove(pos);
         }
     }
 
     pub fn get(&self, value: IriIndex) -> Option<&NodeLayout> {
-        if let Ok(pos) = self.data.binary_search_by(|e| e.node_index.cmp(&value)) {
-            return Some(&self.data[pos]);
+        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+            return Some(&self.nodes[pos]);
         }
         None
     }
 
     pub fn get_mut(&mut self, value: IriIndex) -> Option<&mut NodeLayout> {
-        if let Ok(pos) = self.data.binary_search_by(|e| e.node_index.cmp(&value)) {
-            return Some(&mut self.data[pos]);
+        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+            return Some(&mut self.nodes[pos]);
         }
         None
     }
@@ -85,14 +85,14 @@ impl SortedNodeLayout {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut count = 0;
-        for node_layout in self.data.iter() {
+        for node_layout in self.nodes.iter() {
             x += node_layout.pos.x;
             y += node_layout.pos.y;
             count += 1;
         }
         x /= count as f32;
         y /= count as f32;
-        for node in self.data.iter_mut() {
+        for node in self.nodes.iter_mut() {
             node.pos.x -= x;
             node.pos.y -= y;
         }
@@ -103,16 +103,16 @@ impl SortedNodeLayout {
 
 pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout, hidden_predicates: &SortedVec, config: &Config) -> f32 {
     let mut max_move = 0.0;
-    if visible_nodes.data.is_empty() {
+    if visible_nodes.nodes.is_empty() {
         return max_move;
     }
-    let mut moves: HashMap<IriIndex, Vec2> = HashMap::with_capacity(visible_nodes.data.len());
-    let repulsion_factor: f32 = config.repulsion_constant * ((500.0*500.0) / (visible_nodes.data.len() as f32));
-    for node_layout in visible_nodes.data.iter() {
+    let mut moves: HashMap<IriIndex, Vec2> = HashMap::with_capacity(visible_nodes.nodes.len());
+    let repulsion_factor: f32 = config.repulsion_constant * ((500.0*500.0) / (visible_nodes.nodes.len() as f32));
+    for node_layout in visible_nodes.nodes.iter() {
         let object = objects.get_node_by_index(node_layout.node_index);
         if let Some((_,object)) = object {
             let mut f = Vec2::new(0.0, 0.0);
-            for nnode_layout in visible_nodes.data.iter() {
+            for nnode_layout in visible_nodes.nodes.iter() {
                 if nnode_layout.node_index != node_layout.node_index {
                     let nobject = objects.get_node_by_index(nnode_layout.node_index);
                     if let Some((_,nobject)) = nobject {
@@ -156,7 +156,7 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
             moves.insert(node_layout.node_index, f);
         }
     }
-    for node_layout in visible_nodes.data.iter_mut() {
+    for node_layout in visible_nodes.nodes.iter_mut() {
         let f = moves.get(&node_layout.node_index).unwrap();
         node_layout.vel *= 0.8;
         node_layout.vel += *f;

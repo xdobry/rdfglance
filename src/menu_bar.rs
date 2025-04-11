@@ -113,11 +113,13 @@ impl RdfGlanceApp {
         let restore = Self::restore(Path::new(path));
         match restore {
             Err(e) => {
-                self.system_message = SystemMessage::Error(format!("Can not load porject: {}", e));
+                self.system_message = SystemMessage::Error(format!("Can not load project: {}", e));
             }
             Ok(app_data) => {
                 self.clean_data();
                 self.node_data = app_data.node_data;
+                self.prefix_manager = app_data.prefix_manager;
+                self.ui_state = app_data.ui_state;
                 self.update_data_indexes();
                 let file_name: Box<str> = Box::from(path.display().to_string());
                 if !self

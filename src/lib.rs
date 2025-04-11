@@ -162,7 +162,7 @@ impl UIState {
         self.selected_node = None;
         self.context_menu_node = None;
         self.node_to_drag = None;
-        self.visible_nodes.data.clear();
+        self.visible_nodes.nodes.clear();
         self.hidden_predicates.data.clear();
         self.compute_layout = true;
         self.force_compute_layout = false;
@@ -436,7 +436,7 @@ impl RdfGlanceApp {
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in &self.ui_state.visible_nodes.data {
+        for visible_index in &self.ui_state.visible_nodes.nodes {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if refs_to_expand.insert(*ref_iri) {

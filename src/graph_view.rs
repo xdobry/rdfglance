@@ -20,7 +20,7 @@ struct ReferencesState {
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
-        if self.ui_state.visible_nodes.data.is_empty() {
+        if self.ui_state.visible_nodes.nodes.is_empty() {
             ui.heading(concatcp!("No nodes to display. Go to tables or browser and add a node to graph using button with ",ICON_GRAPH));
             return NodeAction::None;
         }
@@ -218,7 +218,7 @@ impl RdfGlanceApp {
                                 if ext_button.clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
-                                    for visible_index in self.ui_state.visible_nodes.data.iter() {
+                                    for visible_index in self.ui_state.visible_nodes.nodes.iter() {
                                         let visible_node =
                                             self.node_data.get_node_by_index(visible_index.node_index);
                                         if let Some((_v_node_iri,visible_node)) = visible_node {
@@ -312,7 +312,7 @@ impl RdfGlanceApp {
                                 if ui.button("➕").clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
-                                    for node_layout in &self.ui_state.visible_nodes.data {
+                                    for node_layout in &self.ui_state.visible_nodes.nodes {
                                         let visible_node =
                                             self.node_data.get_node_by_index(node_layout.node_index);
                                         if let Some((_,visible_node)) = visible_node {
@@ -417,7 +417,7 @@ impl RdfGlanceApp {
             });
 
     
-            for node_layout in self.ui_state.visible_nodes.data.iter() {
+            for node_layout in self.ui_state.visible_nodes.nodes.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     for (pred_index, ref_iri) in &object.references {
                         if !self.ui_state.hidden_predicates.contains(*pred_index) && self.ui_state.visible_nodes.contains(*ref_iri) {
@@ -442,7 +442,7 @@ impl RdfGlanceApp {
                     node_to_drag.pos = (mouse_pos - center).to_pos2();
                 }
             }
-            for node_layout in self.ui_state.visible_nodes.data.iter() {
+            for node_layout in self.ui_state.visible_nodes.nodes.iter() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
                     if self.ui_state.context_menu_node.is_none() || was_action {
@@ -551,7 +551,7 @@ impl RdfGlanceApp {
                     if ui.button("Hide this Type").clicked() {
                         self.ui_state.compute_layout = true;
                         self.ui_state.visible_nodes.remove(current_index);
-                        self.ui_state.visible_nodes.data.retain(|x| {
+                        self.ui_state.visible_nodes.nodes.retain(|x| {
                             let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 !node.has_same_type(&types)
@@ -563,13 +563,13 @@ impl RdfGlanceApp {
                     }
                     if ui.button("Hide other").clicked() {
                         self.ui_state.compute_layout = true;
-                        self.ui_state.visible_nodes.data.clear();
+                        self.ui_state.visible_nodes.nodes.clear();
                         self.ui_state.visible_nodes.add_by_index(current_index);
                         close_menu = true;
                     }
                     if ui.button("Hide other Types").clicked() {
                         self.ui_state.compute_layout = true;
-                        self.ui_state.visible_nodes.data.retain(|x| {
+                        self.ui_state.visible_nodes.nodes.retain(|x| {
                             let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 node.has_same_type(&types)

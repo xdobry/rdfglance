@@ -4,15 +4,23 @@ use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::Result;
+use egui::Vec2;
+use flate2::read::ZlibDecoder;
 use leb128;
+use flate2::Compression;
+use flate2::write::ZlibEncoder;
 
+use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral, StringIndexer};
+use crate::prefix_manager::PrefixManager;
 use crate::RdfGlanceApp;
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
 const FORMAT_VERSION: u16 = 0;
 const FORMAT_FLAGS: u16 = 0;
+
+const BLOCK_PRELUDE_SIZE: u32 = 5;
 
 #[repr(u8)]
 pub enum HeaderType {
@@ -21,6 +29,8 @@ pub enum HeaderType {
     Languages = 0x03,
     DataTypes = 0x04,
     Nodes = 0x05,
+    Prefixes = 0x06,
+    VisualNodes = 0x07,
 }
 
 impl HeaderType {
@@ -31,6 +41,8 @@ impl HeaderType {
             3 => Some(HeaderType::Languages),
             4 => Some(HeaderType::DataTypes),
             5 => Some(HeaderType::Nodes),
+            6 => Some(HeaderType::Prefixes),
+            7 => Some(HeaderType::VisualNodes),
             _ => None,
         }
     }
@@ -52,6 +64,8 @@ impl RdfGlanceApp {
         self.node_data.indexers.language_indexer.store(HeaderType::Languages, &mut file)?;
         self.node_data.indexers.datatype_indexer.store(HeaderType::DataTypes, &mut file)?;
         self.node_data.node_cache.store(&mut file)?;
+        self.prefix_manager.store(&mut file)?;
+        self.ui_state.visible_nodes.store(&mut file)?;
 
         file.flush()?;
         Ok(())
@@ -83,19 +97,25 @@ impl RdfGlanceApp {
                     if let Some(header_type) = header_type {
                         match header_type {
                             HeaderType::DataTypes => {
-                                app.node_data.indexers.datatype_indexer = StringIndexer::restore(&mut reader, block_size-5)?;
+                                app.node_data.indexers.datatype_indexer = StringIndexer::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Languages => {
-                                app.node_data.indexers.language_indexer = StringIndexer::restore(&mut reader, block_size-5)?;
+                                app.node_data.indexers.language_indexer = StringIndexer::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Predicates => {
-                                app.node_data.indexers.predicate_indexer = StringIndexer::restore(&mut reader, block_size-5)?;
+                                app.node_data.indexers.predicate_indexer = StringIndexer::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Types => {
-                                app.node_data.indexers.type_indexer = StringIndexer::restore(&mut reader, block_size-5)?;
+                                app.node_data.indexers.type_indexer = StringIndexer::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Nodes => {
-                                app.node_data.node_cache = NodeCache::restore(&mut reader, block_size-5)?;
+                                app.node_data.node_cache = NodeCache::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                            }
+                            HeaderType::Prefixes => {
+                                app.prefix_manager = PrefixManager::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                            }
+                            HeaderType::VisualNodes => {
+                                app.ui_state.visible_nodes = SortedNodeLayout::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                         }
                     } else {
@@ -127,20 +147,22 @@ fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn 
 }
 
 impl StringIndexer {
-    pub fn store(&self, header_type: HeaderType, file: &mut BufWriter<File>) -> std::io::Result<()> {
+    pub fn store(&self, header_type: HeaderType, writer: &mut BufWriter<File>) -> std::io::Result<()> {
         let len = self.map.len();
         let reverse: HashMap<IriIndex, &Box<str>> = self.iter()
             .map(|(key, &value)| (value, key))
             .collect();
-        with_header_len(file, header_type, &|file| {
+        with_header_len(writer, header_type, &|file| {
+            let mut compressor = ZlibEncoder::new( file, Compression::default());
             for i in 0..len {
                 let i : IriIndex = i as IriIndex;
                 let elem = reverse.get(&i);
                 if let Some(elem) = elem {
-                    file.write_all(elem.as_bytes())?;
-                    file.write_u8(0x1F)?;
+                    compressor.write_all(elem.as_bytes())?;
+                    compressor.write_u8(0x1F)?;
                 }
             }
+            compressor.finish()?;
             Ok(())
         })
     }
@@ -149,32 +171,52 @@ impl StringIndexer {
         let mut index = Self::new();
         let mut idx_num: IriIndex = 0;
         let mut buffer: Vec<u8> = Vec::with_capacity(256);
-        for _i in 0..size {
-            let byte = reader.read_u8()?;
-            if byte == 0x1F {
+        let limited_reader = reader.by_ref().take(size as u64);
+        let mut decoder = ZlibDecoder::new(limited_reader);
+        let mut byte = [0u8; 1];
+        loop {
+            let read = decoder.read(&mut byte)?;
+            if read == 0 {
+                break;
+            }
+            if byte[0] == 0x1F {
                 let str = std::str::from_utf8(&buffer)?;
                 index.map.insert(str.into(), idx_num);
                 buffer.clear();
                 idx_num += 1;
             } else {
-                buffer.push(byte);
-                match byte {
+                buffer.push(byte[0]);
+                match byte[0] {
                     0x00..=0x7F => {
                     }
                     0xC0..=0xDF => {
-                        buffer.push(reader.read_u8()?);
+                        let read = decoder.read(&mut byte)?;
+                        if read == 0 {
+                            println!("Expect 1 addtional byte for utf8");
+                            break;
+                        }
+                        buffer.push(byte[0]);
                     }
                     0xE0..=0xEF => {
-                        buffer.push(reader.read_u8()?);
-                        buffer.push(reader.read_u8()?);
+                        let mut byte2 = [0u8; 2];
+                        let read = decoder.read(&mut byte2)?;
+                        if read != 2 {
+                            println!("Expect 2 addtional bytes for utf8");
+                            break;
+                        }
+                        buffer.extend_from_slice(&byte2[0..2]);
                     }
                     0xF0..=0xF7 => {
-                        buffer.push(reader.read_u8()?);
-                        buffer.push(reader.read_u8()?);
-                        buffer.push(reader.read_u8()?);   
+                        let mut byte3 = [0u8; 3];
+                        let read = decoder.read(&mut byte3)?;
+                        if read != 3 {
+                            println!("Expect 3 addtional bytes for utf8");
+                            break;
+                        }
+                        buffer.extend_from_slice(&byte3[0..3]);
                     }
                     _ => {
-                        println!("Invalid UTF-8 byte detected: 0x{:X}", byte);
+                        println!("Invalid UTF-8 byte detected: 0x{:X}", byte[0]);
                     }
                 };
             }
@@ -274,10 +316,10 @@ fn read_len_string<R: Read>(reader: &mut R) -> Result<Box<str>> {
     Ok(str.into())
 }
 
-fn write_len_string(str: &str, file: &mut BufWriter<File>) -> std::io::Result<()> {
+fn write_len_string<W: Write>(str: &str, writer: &mut W) -> std::io::Result<()> {
     let iri_bytes = str.as_bytes();
-    leb128::write::unsigned(file, iri_bytes.len() as u64)?; 
-    file.write_all(iri_bytes)?;
+    leb128::write::unsigned(writer, iri_bytes.len() as u64)?; 
+    writer.write_all(iri_bytes)?;
     Ok(())
 }
 
@@ -321,6 +363,69 @@ impl Literal {
                 ))
             }
         }
+    }
+}
+
+impl PrefixManager {
+    pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
+        let len = self.prefixes.len();
+        with_header_len(writer, HeaderType::Prefixes, &|file| {
+            file.write_u32::<LittleEndian>(len as u32)?;
+            {
+                let mut compressor = ZlibEncoder::new( file, Compression::default());
+                for (iri, prefix) in self.prefixes.iter() {
+                    write_len_string(&prefix, &mut compressor)?;
+                    write_len_string(&iri, &mut compressor)?;
+                }
+                compressor.finish()?;
+            }
+            Ok(())
+        })
+    }
+
+    pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
+        let mut index = Self::new();
+        let len = reader.read_u32::<LittleEndian>()?;
+        println!("read {} prefixes",len);
+        let limited_reader = reader.by_ref().take((size-4) as u64);
+        let mut decoder = ZlibDecoder::new(limited_reader);
+        for _ in 0..len {
+            let prefix = read_len_string(&mut decoder)?;
+            let iri = read_len_string(&mut decoder)?;
+            println!("read prefix {} with iri {}",prefix,iri);
+            index.prefixes.insert(iri.into(), prefix.into());
+        }
+        Ok(index)
+    }    
+}
+
+impl SortedNodeLayout {
+    pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
+        with_header_len(writer, HeaderType::VisualNodes, &|writer| {
+            leb128::write::unsigned(writer, self.nodes.len() as u64)?;
+            for node_layout in self.nodes.iter() {
+                leb128::write::unsigned(writer, node_layout.node_index as u64)?;
+                writer.write_f32::<LittleEndian>(node_layout.pos.x)?;
+                writer.write_f32::<LittleEndian>(node_layout.pos.y)?;   
+            }
+            Ok(())
+        })
+    }
+
+    pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
+        let len = leb128::read::unsigned(reader)?;
+        let mut index = SortedNodeLayout { nodes: Vec::with_capacity(len as usize) };
+        for _ in 0..len {
+            let node_index = leb128::read::unsigned(reader)? as IriIndex;
+            let x = reader.read_f32::<LittleEndian>()?;
+            let y = reader.read_f32::<LittleEndian>()?;
+            index.nodes.push(NodeLayout {
+                node_index,
+                pos: egui::Pos2::new(x, y),
+                vel: Vec2::new(0.0, 0.0),
+            });            
+        }
+        Ok(index)
     }
 }
 
@@ -368,6 +473,7 @@ mod tests {
         }
 
         assert_eq!(vs.node_data.len(),restored.node_data.len());
+        assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
 
         Ok(())
     }

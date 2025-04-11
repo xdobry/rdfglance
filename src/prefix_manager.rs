@@ -4,7 +4,7 @@ use crate::{NodeAction, RdfGlanceApp};
 
 pub struct PrefixManager {
     // key is the full iri and value is the prefix
-    prefixes: BiMap<Box<str>, Box<str>>,
+    pub prefixes: BiMap<Box<str>, Box<str>>,
 }
 
 impl Default for PrefixManager {
