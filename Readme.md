@@ -13,9 +13,11 @@ RDFGlance is an open-source application designed to provide a visual representat
 
 ## Description
 
-RDFGlance allows users to easily visualize and interact with RDF data. It provides a user-friendly interface to explore the relationships and properties within RDF datasets. The application is suitable for developers, researchers, and anyone interested in working with semantic web technologies.
+RDFGlance allows users to easily visualize and interact with RDF data. 
+It is RDF Visualization tool.
+It provides a user-friendly interface to explore the relationships and properties within RDF datasets in different ways: as visual interactive graph, table or data sheet.
+The application is suitable for developers, researchers, and anyone interested in working with semantic web technologies.
 
-I am not a UI designer, so the user experience and usability may not be optimal, and the interface may not be visually appealing.
 My primary goal was to ensure the program runs as fast as possible and maintains high performance even when handling large datasets.
 Therefore, the program has been optimized to efficiently process and manage large amount of triples and records.
 

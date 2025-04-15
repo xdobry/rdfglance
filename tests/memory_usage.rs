@@ -22,5 +22,7 @@ fn test_memory_usage() {
     // IriIndex u32
     //  !! Data strucures use 584.77246 kB of RAM.
     // String -> Box<str>
-    //  !! Data strucures use 538.6865 kB of RAM.
+    //  !! Data strucures use 538.6553 kB of RAM.
+    // StringInterner
+    //  !! Data strucures use 537.81934 kB of RAM.
 }

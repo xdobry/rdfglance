@@ -3316,6 +3316,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "string-interner",
 ]
 
 [[package]]
@@ -3808,6 +3809,16 @@ name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
+
+[[package]]
+name = "string-interner"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23de088478b31c349c9ba67816fa55d9355232d63c3afea8bf513e31f0f1d2c0"
+dependencies = [
+ "hashbrown",
+ "serde",
+]
 
 [[package]]
 name = "strum"

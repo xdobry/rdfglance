@@ -14,10 +14,10 @@ use egui_extras::StripBuilder;
 use graph_view::NeighbourPos;
 use nobject::{IriIndex, LangIndex, NodeData};
 use layout::SortedNodeLayout;
-use oxrdf::vocab::rdfs;
 use prefix_manager::PrefixManager;
 use serde::{Deserialize, Serialize};
 use sparql_dialog::SparqlDialog;
+use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
@@ -101,6 +101,8 @@ pub struct PlayData {
 
 pub struct TypeStyle {
     pub color: egui::Color32,
+    pub priority: u32,
+    pub label_index: IriIndex
 }
 
 pub struct ReferenceStyle {
@@ -108,9 +110,8 @@ pub struct ReferenceStyle {
 }
 
 pub struct GVisualisationStyle {
-    type_styles: HashMap<Vec<IriIndex>, TypeStyle>,
+    type_styles: HashMap<IriIndex, TypeStyle>,
     reference_styles: HashMap<IriIndex, ReferenceStyle>,
-    label_predicate: HashMap<IriIndex, IriIndex>,
 }
 
 pub struct UIState {
@@ -171,16 +172,33 @@ impl UIState {
 }
 
 impl GVisualisationStyle {
-    fn get_type_color(&mut self, types: &Vec<IriIndex>) -> egui::Color32 {
-        let len = self.type_styles.len();
-        let type_style = self.type_styles.get(types);
-        if let Some(type_style) = type_style {
-            type_style.color
-        } else {
-            let new_color = distinct_colors::next_distinct_color(len, 0.8, 0.8);
-            self.type_styles.insert(types.clone(), TypeStyle { color: new_color });
-            new_color
+    pub fn preset_styles(
+        &mut self,
+        cache_statistics: &TypeInstanceIndex,
+    ) {
+        for (type_index, _type_desc) in cache_statistics.types.iter() {
+            let _color = self.get_predicate_color(*type_index);
         }
+    }
+
+    fn get_type_color(&mut self, types: &Vec<IriIndex>) -> egui::Color32 {
+        if types.is_empty() {
+            return egui::Color32::LIGHT_GRAY;
+        }
+        for type_iri in types {
+            if let Some(type_style) = self.type_styles.get(type_iri) {
+                return type_style.color;
+            }
+        }
+        let first_type = types.first().unwrap();
+        let len = self.type_styles.len();
+        let new_color = distinct_colors::next_distinct_color(len, 0.8, 0.8);
+        self.type_styles.insert(*first_type, TypeStyle { 
+            color: new_color,
+            priority: 0,
+            label_index: 0,
+        });
+        new_color
     }
 
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
@@ -191,10 +209,15 @@ impl GVisualisationStyle {
                 color: distinct_colors::next_distinct_color(len, 0.5, 0.3)}).color
     }
 
+    fn update_label(&mut self, iri: IriIndex, label_index: IriIndex) {
+        if let Some(type_style) = self.type_styles.get_mut(&iri) {
+            type_style.label_index = label_index;
+        }
+    }
+
     pub fn clean(&mut self) {
         self.type_styles.clear();
         self.reference_styles.clear();
-        self.label_predicate.clear();
     }
 }
 
@@ -217,20 +240,6 @@ impl SortedVec {
     pub fn remove(&mut self, value: IriIndex) {
         if let Ok(pos) = self.data.binary_search(&value) {
             self.data.remove(pos);
-        }
-    }
-}
-
-impl GVisualisationStyle {
-    pub fn preset_label_predicates(
-        &mut self,
-        cache_statistics: &TypeInstanceIndex,
-        label_predicate: IriIndex,
-    ) {
-        for (type_index, type_desc) in cache_statistics.types.iter() {
-            if !self.label_predicate.contains_key(type_index) && type_desc.properties.contains_key(&label_predicate) {
-                self.label_predicate.insert(*type_index, label_predicate);
-            }
         }
     }
 }
@@ -280,7 +289,6 @@ impl RdfGlanceApp {
             visualisation_style: GVisualisationStyle {
                 type_styles: HashMap::new(),
                 reference_styles: HashMap::new(),
-                label_predicate: HashMap::new(),
             },
             ui_state: UIState {
                 selected_node: None,
@@ -495,10 +503,7 @@ impl RdfGlanceApp {
                     dir_name, triples_count
                 ));
                 self.update_data_indexes();
-                let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
-                let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
-                self.visualisation_style
-                    .preset_label_predicates(&self.type_index, rdfs_label_index);
+                self.visualisation_style.preset_styles(&self.type_index);
             }
         }
     }
@@ -509,8 +514,8 @@ impl RdfGlanceApp {
     }
     pub fn update_data_indexes(&mut self) {
         self.ui_state.language_sort.clear();
-        for (_lang,index) in self.node_data.indexers.language_indexer.iter() {
-            self.ui_state.language_sort.push(*index as LangIndex);
+        for (index, _lang) in self.node_data.indexers.language_indexer.map.iter() {
+            self.ui_state.language_sort.push(index.to_usize() as LangIndex);
         }
         self.ui_state.language_sort.sort_by(|a,b| {
             self.node_data.get_language(*a).cmp(&self.node_data.get_language(*b))
@@ -520,10 +525,11 @@ impl RdfGlanceApp {
         }
         self.type_index.update(&self.node_data);
 
-        let prefixed_iri = self.prefix_manager.get_prefixed(rdfs::LABEL.as_str());
-        let rdfs_label_index = self.node_data.get_predicate_index(prefixed_iri.as_str());
-        self.visualisation_style
-            .preset_label_predicates(&self.type_index, rdfs_label_index);
+        self.visualisation_style.preset_styles(&self.type_index);
+        self.node_data.indexers.predicate_indexer.map.shrink_to_fit();
+        self.node_data.indexers.type_indexer.map.shrink_to_fit();
+        self.node_data.indexers.language_indexer.map.shrink_to_fit();
+        self.node_data.indexers.datatype_indexer.map.shrink_to_fit();
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");

@@ -121,6 +121,9 @@ impl RdfGlanceApp {
                 self.prefix_manager = app_data.prefix_manager;
                 self.ui_state = app_data.ui_state;
                 self.update_data_indexes();
+                if app_data.visualisation_style.type_styles.len()>0 {
+                    self.visualisation_style = app_data.visualisation_style;
+                }
                 let file_name: Box<str> = Box::from(path.display().to_string());
                 if !self
                     .persistent_data

@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
+use string_interner::{backend::StringBackend, symbol::SymbolU32, StringInterner, Symbol};
 
-use crate::{config::IriDisplay, prefix_manager::PrefixManager};
+use crate::{config::IriDisplay, prefix_manager::PrefixManager, GVisualisationStyle};
 
 pub type IriIndex = u32;
 pub type LangIndex = u16;
@@ -115,8 +114,8 @@ impl NObject {
         false
     }
 
-    pub fn node_label<'a>(&'a self, iri: &'a str, label_predicate: &HashMap<IriIndex,IriIndex>, should_short_iri: bool, language_index: LangIndex) -> &'a str {
-        let label_opt = self.node_label_opt(label_predicate, language_index);
+    pub fn node_label<'a>(&'a self, iri: &'a str, styles: &GVisualisationStyle, should_short_iri: bool, language_index: LangIndex) -> &'a str {
+        let label_opt = self.node_label_opt(styles, language_index);
         if let Some(label) = label_opt {
             return label;
         }
@@ -126,10 +125,10 @@ impl NObject {
         iri
     }
 
-    pub fn node_label_opt(&self, label_predicate: &HashMap<IriIndex,IriIndex>, language_index: LangIndex) -> Option<&str> {
+    pub fn node_label_opt(&self, styles: &GVisualisationStyle, language_index: LangIndex) -> Option<&str> {
         for type_index in self.types.iter() {
-            if let Some(label_predicate) = label_predicate.get(type_index) {
-                let prop = self.get_property(*label_predicate, language_index);
+            if let Some(type_style) = styles.type_styles.get(type_index) {
+                let prop = self.get_property(type_style.label_index, language_index);
                 if let Some(prop) = prop {
                     return Some(prop.as_ref());
                 }
@@ -212,10 +211,10 @@ impl Indexers {
         self.datatype_indexer.get_index(data_type) as DataTypeIndex
     }
     pub fn clean(&mut self) {
-        self.predicate_indexer.map.clear();
-        self.type_indexer.map.clear();
-        self.language_indexer.map.clear();
-        self.datatype_indexer.map.clear();
+        self.predicate_indexer = StringIndexer::new();
+        self.type_indexer = StringIndexer::new();
+        self.language_indexer = StringIndexer::new();
+        self.datatype_indexer = StringIndexer::new();
     }
 }
 
@@ -555,7 +554,7 @@ impl NodeData {
 } 
 
 pub struct StringIndexer {
-    pub map: IndexMap<Box<str>, IriIndex>,
+    pub map: StringInterner<StringBackend>,
 }
 
 impl Default for StringIndexer {
@@ -566,28 +565,20 @@ impl Default for StringIndexer {
 
 impl StringIndexer {
     pub fn new() -> Self {
-        Self { map: IndexMap::new() }
+        Self { map: StringInterner::default() }
     }
 
     /// Converts a string to an index, assigning a new index if it's unknown
-    fn get_index(&mut self, s: &str) -> IriIndex {
-        if let Some(&idx) = self.map.get(s) {
-            idx as IriIndex
-        } else {
-            let idx = self.map.len();
-            self.map.insert(s.into(), idx as IriIndex);
-            idx as IriIndex
-        }
+    pub fn get_index(&mut self, s: &str) -> IriIndex {
+        let index = self.map.get_or_intern(s);
+        index.to_usize() as IriIndex
     }
 
     /// Retrieves a string from an index
-    fn index_to_str(&self, index: IriIndex) -> Option<&str> {
-        self.map.get_index(index as usize).map(|(key, _)| key.as_ref())
+    pub fn index_to_str(&self, index: IriIndex) -> Option<&str> {
+        self.map.resolve(SymbolU32::try_from_usize(index as usize).unwrap())
     }
-
-    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, IriIndex> {
-        self.map.iter()
-    }
+    
 }
 
 pub struct LabelContext<'a> {
@@ -618,6 +609,7 @@ mod tests {
         let mut string_indexer = StringIndexer::new();
         let index1 = string_indexer.get_index("test");
         let index2 = string_indexer.get_index("test");
+        assert_eq!(0, index1);
         assert_eq!(index1, index2);
         let index3 = string_indexer.get_index("test2");
         assert_ne!(index1, index3);

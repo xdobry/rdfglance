@@ -158,9 +158,7 @@ impl RdfGlanceApp {
                                 let lab_button_response = ui.add(lab_button);
                                 if lab_button_response.clicked() {
                                     for node_type_index in current_node.types.iter() {
-                                        self.visualisation_style
-                                            .label_predicate
-                                            .insert(*node_type_index, *predicate_index);
+                                        self.visualisation_style.update_label(*node_type_index, *predicate_index);
                                     }
                                 }
                                 lab_button_response.on_hover_text("Set this property as label for the node type");
@@ -480,7 +478,7 @@ impl RdfGlanceApp {
                     painter.circle_filled(pos, radius, type_color);
                     node_count += 1;
                     if self.show_labels && !is_hoover {
-                        let node_label = object.node_label(object_iri, &self.visualisation_style.label_predicate, self.short_iri, self.ui_state.display_language);
+                        let node_label = object.node_label(object_iri, &self.visualisation_style, self.short_iri, self.ui_state.display_language);
                         painter.text(
                             pos,
                             egui::Align2::CENTER_CENTER,
@@ -495,7 +493,7 @@ impl RdfGlanceApp {
                 let node_layout = self.ui_state.visible_nodes.get(node_to_hover);
                 if let Some(node_layout) = node_layout {
                     if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_to_hover) {
-                        let node_label = object.node_label(object_iri, &self.visualisation_style.label_predicate, self.short_iri, self.ui_state.display_language);
+                        let node_label = object.node_label(object_iri, &self.visualisation_style, self.short_iri, self.ui_state.display_language);
                         let mut job = egui::text::LayoutJob::default();
                         job.append(
                             node_label,
@@ -613,14 +611,14 @@ impl RdfGlanceApp {
         if let Some(node_to_hover) = node_to_hover {
             if let Some((hover_node_iri,hover_node)) = self.node_data.get_node_by_index(node_to_hover) {
                 self.status_message.clear();
-                self.status_message.push_str(hover_node.node_label(hover_node_iri,&self.visualisation_style.label_predicate, self.short_iri, self.ui_state.display_language));
+                self.status_message.push_str(hover_node.node_label(hover_node_iri,&self.visualisation_style, self.short_iri, self.ui_state.display_language));
             }
         } else if let Some(selected_node) = &self.ui_state.selected_node {
             self.status_message.clear();
             if let Some((selected_node_iri,selected_node)) = self.node_data.get_node_by_index(*selected_node) {
                 self.status_message.push_str(format!(
                     "Nodes: {}, Edges: {} Selected: {}",
-                    node_count, edge_count, selected_node.node_label(selected_node_iri,&self.visualisation_style.label_predicate, self.short_iri, self.ui_state.display_language)
+                    node_count, edge_count, selected_node.node_label(selected_node_iri,&self.visualisation_style, self.short_iri, self.ui_state.display_language)
                 ).as_str());
             }
         } else {

@@ -13,7 +13,7 @@ use flate2::write::ZlibEncoder;
 use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral, StringIndexer};
 use crate::prefix_manager::PrefixManager;
-use crate::RdfGlanceApp;
+use crate::{GVisualisationStyle, RdfGlanceApp};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -31,6 +31,7 @@ pub enum HeaderType {
     Nodes = 0x05,
     Prefixes = 0x06,
     VisualNodes = 0x07,
+    VisualStyles = 0x08,
 }
 
 impl HeaderType {
@@ -43,7 +44,28 @@ impl HeaderType {
             5 => Some(HeaderType::Nodes),
             6 => Some(HeaderType::Prefixes),
             7 => Some(HeaderType::VisualNodes),
+            8 => Some(HeaderType::VisualStyles),
             _ => None,
+        }
+    }
+}
+
+#[repr(u8)]
+pub enum FieldType {
+    VARINT = 0x01,
+    FIX64 = 0x02,
+    FIX32 = 0x03,
+    LENGTHDELIMITED = 0x04,    
+}
+
+impl FieldType {
+    pub fn from_idx(value: u8) -> Result<Self> {
+        match value {
+            1 => Ok(FieldType::VARINT),
+            2 => Ok(FieldType::FIX64),
+            3 => Ok(FieldType::FIX32),
+            4 => Ok(FieldType::LENGTHDELIMITED),
+            _ => Err(anyhow::anyhow!("Unknown field type")),
         }
     }
 }
@@ -66,6 +88,7 @@ impl RdfGlanceApp {
         self.node_data.node_cache.store(&mut file)?;
         self.prefix_manager.store(&mut file)?;
         self.ui_state.visible_nodes.store(&mut file)?;
+        self.visualisation_style.store(&mut file)?;
 
         file.flush()?;
         Ok(())
@@ -117,6 +140,9 @@ impl RdfGlanceApp {
                             HeaderType::VisualNodes => {
                                 app.ui_state.visible_nodes = SortedNodeLayout::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
+                            HeaderType::VisualStyles => {
+                                app.visualisation_style = GVisualisationStyle::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                            }
                         }
                     } else {
                         println!("unknown header type {} ignoring block",header_type_u8);
@@ -148,19 +174,11 @@ fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn 
 
 impl StringIndexer {
     pub fn store(&self, header_type: HeaderType, writer: &mut BufWriter<File>) -> std::io::Result<()> {
-        let len = self.map.len();
-        let reverse: HashMap<IriIndex, &Box<str>> = self.iter()
-            .map(|(key, &value)| (value, key))
-            .collect();
         with_header_len(writer, header_type, &|file| {
             let mut compressor = ZlibEncoder::new( file, Compression::default());
-            for i in 0..len {
-                let i : IriIndex = i as IriIndex;
-                let elem = reverse.get(&i);
-                if let Some(elem) = elem {
-                    compressor.write_all(elem.as_bytes())?;
-                    compressor.write_u8(0x1F)?;
-                }
+            for (_index, lang) in self.map.iter() {
+                compressor.write_all(lang.as_bytes())?;
+                compressor.write_u8(0x1F)?;
             }
             compressor.finish()?;
             Ok(())
@@ -169,7 +187,6 @@ impl StringIndexer {
 
     pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
         let mut index = Self::new();
-        let mut idx_num: IriIndex = 0;
         let mut buffer: Vec<u8> = Vec::with_capacity(256);
         let limited_reader = reader.by_ref().take(size as u64);
         let mut decoder = ZlibDecoder::new(limited_reader);
@@ -181,9 +198,8 @@ impl StringIndexer {
             }
             if byte[0] == 0x1F {
                 let str = std::str::from_utf8(&buffer)?;
-                index.map.insert(str.into(), idx_num);
+                index.map.get_or_intern(str);
                 buffer.clear();
-                idx_num += 1;
             } else {
                 buffer.push(byte[0]);
                 match byte[0] {
@@ -323,6 +339,39 @@ fn write_len_string<W: Write>(str: &str, writer: &mut W) -> std::io::Result<()> 
     Ok(())
 }
 
+fn write_field_index<W: Write>(writer: &mut W, field_type: FieldType, field_index: u32) -> std::io::Result<()> {
+    let field_encoded = (field_index<<3) as u64 | field_type as u64;
+    leb128::write::unsigned(writer, field_encoded)?; 
+    Ok(())
+}
+
+fn read_field_index<R: Read>(reader: &mut R) -> Result<(FieldType, u32)> {
+    let field_encoded = leb128::read::unsigned(reader)?;
+    let field_type_idx = (field_encoded & 0x7) as u8;
+    let field_index = (field_encoded >> 3) as u32;
+    let field_type = FieldType::from_idx(field_type_idx)?;
+    Ok((field_type, field_index))
+}
+
+fn skip_field(reader: &mut BufReader<&File>, field_type: FieldType) -> Result<()> {
+    match field_type {
+        FieldType::VARINT => {
+            let _len = leb128::read::unsigned(reader)?;
+        }
+        FieldType::FIX64 => {
+            let _value = reader.read_u64::<LittleEndian>();
+        }
+        FieldType::FIX32 => {
+            let _value = reader.read_u32::<LittleEndian>();
+        }
+        FieldType::LENGTHDELIMITED => {
+            let len = leb128::read::unsigned(reader)?;
+            reader.seek(SeekFrom::Current(len as i64))?;
+        }
+    }
+    Ok(())
+}
+
 impl Literal {
     pub fn store(&self, file: &mut BufWriter<File>)  -> std::io::Result<()> {
         match self {
@@ -386,13 +435,11 @@ impl PrefixManager {
     pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
         let mut index = Self::new();
         let len = reader.read_u32::<LittleEndian>()?;
-        println!("read {} prefixes",len);
         let limited_reader = reader.by_ref().take((size-4) as u64);
         let mut decoder = ZlibDecoder::new(limited_reader);
         for _ in 0..len {
             let prefix = read_len_string(&mut decoder)?;
             let iri = read_len_string(&mut decoder)?;
-            println!("read prefix {} with iri {}",prefix,iri);
             index.prefixes.insert(iri.into(), prefix.into());
         }
         Ok(index)
@@ -406,19 +453,26 @@ impl SortedNodeLayout {
             for node_layout in self.nodes.iter() {
                 leb128::write::unsigned(writer, node_layout.node_index as u64)?;
                 writer.write_f32::<LittleEndian>(node_layout.pos.x)?;
-                writer.write_f32::<LittleEndian>(node_layout.pos.y)?;   
+                writer.write_f32::<LittleEndian>(node_layout.pos.y)?;
+                // Write number of fields
+                leb128::write::unsigned(writer, 0)?; 
             }
             Ok(())
         })
     }
 
-    pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
+    pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let len = leb128::read::unsigned(reader)?;
         let mut index = SortedNodeLayout { nodes: Vec::with_capacity(len as usize) };
         for _ in 0..len {
             let node_index = leb128::read::unsigned(reader)? as IriIndex;
             let x = reader.read_f32::<LittleEndian>()?;
             let y = reader.read_f32::<LittleEndian>()?;
+            let field_number = leb128::read::unsigned(reader)?;
+            for _ in 0..field_number {
+                let (field_type, _field_index) = read_field_index(reader)?;
+                skip_field(reader, field_type)?;
+            }
             index.nodes.push(NodeLayout {
                 node_index,
                 pos: egui::Pos2::new(x, y),
@@ -426,6 +480,73 @@ impl SortedNodeLayout {
             });            
         }
         Ok(index)
+    }
+}
+
+impl GVisualisationStyle {
+    pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
+        with_header_len(writer, HeaderType::VisualStyles, &|writer| {
+            leb128::write::unsigned(writer, self.type_styles.len() as u64)?;
+            for (type_index, style) in self.type_styles.iter() {
+                leb128::write::unsigned(writer, *type_index as u64)?;
+                leb128::write::unsigned(writer, style.label_index as u64)?;
+                leb128::write::unsigned(writer, style.priority as u64)?;
+                let col = style.color.to_array();
+                writer.write(&col)?;
+                leb128::write::unsigned(writer, 0)?;
+            }
+            leb128::write::unsigned(writer, self.reference_styles.len() as u64)?;
+            for (reference_index, style) in self.reference_styles.iter() {
+                leb128::write::unsigned(writer, *reference_index as u64)?;
+                let col = style.color.to_array();
+                writer.write(&col)?;
+                leb128::write::unsigned(writer, 0)?;
+            }
+            Ok(())
+        })
+    }
+
+    pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
+        let mut styles = GVisualisationStyle {
+            type_styles: HashMap::new(),
+            reference_styles: HashMap::new(),
+        };
+        let len_types = leb128::read::unsigned(reader)?;
+        for _ in 0..len_types {
+            let type_index = leb128::read::unsigned(reader)? as IriIndex;
+            let label_index = leb128::read::unsigned(reader)? as IriIndex;
+            let priority = leb128::read::unsigned(reader)? as u32;
+            let mut color = [0u8; 4];
+            reader.read_exact(&mut color)?;
+            let field_number = leb128::read::unsigned(reader)?;
+            for _ in 0..field_number {
+                let (field_type, _field_index) = read_field_index(reader)?;
+                skip_field(reader, field_type)?;
+            }
+            let style = crate::TypeStyle { 
+                color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
+                priority: priority, 
+                label_index: label_index, 
+            };
+            styles.type_styles.insert(type_index, style);
+        }
+        let len_references = leb128::read::unsigned(reader)?;
+        for _ in 0..len_references {
+            let reference_index = leb128::read::unsigned(reader)? as IriIndex;
+            let mut color = [0u8; 4];
+            reader.read_exact(&mut color)?;
+            let style = crate::ReferenceStyle { 
+                color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
+            };
+            let field_number = leb128::read::unsigned(reader)?;
+            for _ in 0..field_number {
+                let (field_type, _field_index) = read_field_index(reader)?;
+                skip_field(reader, field_type)?;
+            }
+            styles.reference_styles.insert(reference_index, style);
+        }
+
+        Ok(styles)
     }
 }
 
@@ -454,6 +575,9 @@ mod tests {
         let duration = start.elapsed();
         println!("Time taken to read ttl {:?}", duration);
 
+        let label_index = vs.node_data.indexers.predicate_indexer.get_index("rdfs:label");
+        assert_eq!(0, label_index);
+
         vs.store(&store_path)?;
 
         assert!(store_path.exists(),"file does not exists");
@@ -467,13 +591,15 @@ mod tests {
         assert_eq!(vs.node_data.indexers.predicate_indexer.map.len(),restored.node_data.indexers.predicate_indexer.map.len());
         assert_eq!(vs.node_data.indexers.type_indexer.map.len(),restored.node_data.indexers.type_indexer.map.len());
 
-        let predicates : Vec<Box<str>> = vs.node_data.indexers.predicate_indexer.map.keys().cloned().collect();
+        let predicates = vec!["rdf:type"];
         for pred_val in &predicates {
             assert!(vs.node_data.indexers.get_predicate_index(pred_val)==restored.node_data.indexers.get_predicate_index(pred_val))
         }
 
         assert_eq!(vs.node_data.len(),restored.node_data.len());
         assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
+        assert_eq!(vs.ui_state.visible_nodes.nodes.len(),restored.ui_state.visible_nodes.nodes.len());    
+        assert_eq!(vs.visualisation_style.type_styles.len(),restored.visualisation_style.type_styles.len());    
 
         Ok(())
     }
