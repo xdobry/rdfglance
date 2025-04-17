@@ -9,9 +9,11 @@ use flate2::read::ZlibDecoder;
 use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
+use serde::de;
 
 use crate::layout::{NodeLayout, SortedNodeLayout};
-use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral, StringIndexer};
+use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
+use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
 use crate::{GVisualisationStyle, RdfGlanceApp};
 
@@ -24,14 +26,16 @@ const BLOCK_PRELUDE_SIZE: u32 = 5;
 
 #[repr(u8)]
 pub enum HeaderType {
-    Predicates = 0x01,
-    Types = 0x02,
-    Languages = 0x03,
-    DataTypes = 0x04,
-    Nodes = 0x05,
-    Prefixes = 0x06,
-    VisualNodes = 0x07,
-    VisualStyles = 0x08,
+    Predicates = 1,
+    Types = 2,
+    Languages = 3,
+    DataTypes = 4,
+    Nodes = 5,
+    Prefixes = 6,
+    VisualNodes = 7,
+    VisualStyles = 8,
+    Literals = 9,
+    ShortLiterals = 10,
 }
 
 impl HeaderType {
@@ -45,6 +49,8 @@ impl HeaderType {
             6 => Some(HeaderType::Prefixes),
             7 => Some(HeaderType::VisualNodes),
             8 => Some(HeaderType::VisualStyles),
+            9 => Some(HeaderType::Literals),
+            10 => Some(HeaderType::ShortLiterals),
             _ => None,
         }
     }
@@ -85,6 +91,8 @@ impl RdfGlanceApp {
         self.node_data.indexers.type_indexer.store(HeaderType::Types, &mut file)?;
         self.node_data.indexers.language_indexer.store(HeaderType::Languages, &mut file)?;
         self.node_data.indexers.datatype_indexer.store(HeaderType::DataTypes, &mut file)?;
+        self.node_data.indexers.short_literal_indexer.store(HeaderType::ShortLiterals, &mut file)?;
+        self.node_data.indexers.literal_cache.store(&mut file)?;
         self.node_data.node_cache.store(&mut file)?;
         self.prefix_manager.store(&mut file)?;
         self.ui_state.visible_nodes.store(&mut file)?;
@@ -142,6 +150,12 @@ impl RdfGlanceApp {
                             }
                             HeaderType::VisualStyles => {
                                 app.visualisation_style = GVisualisationStyle::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                            }
+                            HeaderType::Literals => {
+                                app.node_data.indexers.literal_cache = StringCache::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                            }
+                            HeaderType::ShortLiterals => {
+                                app.node_data.indexers.short_literal_indexer = StringIndexer::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                         }
                     } else {
@@ -372,23 +386,40 @@ fn skip_field(reader: &mut BufReader<&File>, field_type: FieldType) -> Result<()
     Ok(())
 }
 
+impl IndexSpan {
+    pub fn store(&self, writer: &mut BufWriter<File>)  -> std::io::Result<()> {
+        leb128::write::unsigned(writer, self.start as u64)?;
+        leb128::write::unsigned(writer, self.len as u64)?;
+        Ok(())
+    }
+    pub fn restore<R: Read>(reader: &mut R) -> Result<Self> {
+        let start = leb128::read::unsigned(reader)? as u32;
+        let len = leb128::read::unsigned(reader)? as u32;
+        Ok(IndexSpan { start, len })
+    }
+}
+
 impl Literal {
-    pub fn store(&self, file: &mut BufWriter<File>)  -> std::io::Result<()> {
+    pub fn store(&self, writer: &mut BufWriter<File>)  -> std::io::Result<()> {
         match self {
-            Literal::String(str) => {
-                file.write_u8(1)?;
-                write_len_string(str, file)?;
+            Literal::String(span) => {
+                writer.write_u8(1)?;
+                span.store(writer)?;
             },
-            Literal::LangString(lang_index, str) => {
-                file.write_u8(2)?;
-                leb128::write::unsigned(file, *lang_index as u64)?;
-                write_len_string(str, file)?;
+            Literal::LangString(lang_index, span) => {
+                writer.write_u8(2)?;
+                leb128::write::unsigned(writer, *lang_index as u64)?;
+                span.store(writer)?;
             },
-            Literal::TypedString(type_index, str) => {
-                file.write_u8(3)?;
-                leb128::write::unsigned(file, *type_index as u64)?;
-                write_len_string(str, file)?;
+            Literal::TypedString(type_index, span) => {
+                writer.write_u8(3)?;
+                leb128::write::unsigned(writer, *type_index as u64)?;
+                span.store(writer)?;
             }
+            Literal::StringShort(index) => {
+                writer.write_u8(4)?;
+                leb128::write::unsigned(writer, *index as u64)?;
+            },
         }
         Ok(())
     }
@@ -396,15 +427,22 @@ impl Literal {
         let literal_type = reader.read_u8()?;
         match literal_type {
             1 => {
-                Ok(Literal::String(read_len_string(reader)?))
+                let span = IndexSpan::restore(reader)?;
+                Ok(Literal::String(span))
             },
             2 => {
                 let lang_index = leb128::read::unsigned(reader)? as LangIndex;
-                Ok(Literal::LangString(lang_index,read_len_string(reader)?))
+                let span = IndexSpan::restore(reader)?;
+                Ok(Literal::LangString(lang_index,span))
             },
             3 => {
                 let data_type_index = leb128::read::unsigned(reader)? as DataTypeIndex;
-                Ok(Literal::TypedString(data_type_index,read_len_string(reader)?))
+                let span = IndexSpan::restore(reader)?;
+                Ok(Literal::TypedString(data_type_index,span))
+            },
+            4 => {
+                let index = leb128::read::unsigned(reader)? as IriIndex;
+                Ok(Literal::StringShort(index))
             },
             _ => {
                 Err(anyhow::anyhow!(
@@ -550,6 +588,29 @@ impl GVisualisationStyle {
     }
 }
 
+impl StringCache {
+    pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
+        with_header_len(writer, HeaderType::Literals, &|file| {
+            let mut compressor = ZlibEncoder::new( file, Compression::default());
+            compressor.write_all(self.cache.as_bytes())?;
+            compressor.finish()?;
+            Ok(())
+        })
+    }
+
+    pub fn restore<R: Read>(reader: &mut R, size: u32) -> Result<Self> {
+        let limited_reader = reader.by_ref().take(size as u64);
+        let mut decoder = ZlibDecoder::new(limited_reader);
+        let mut str = String::new();
+        decoder.read_to_string(&mut str)?;
+        let index = StringCache { 
+            cache: str
+        };
+        Ok(index)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use std::{fs, path::PathBuf, time::Instant};
@@ -590,6 +651,22 @@ mod tests {
         assert_eq!(vs.node_data.indexers.language_indexer.map.len(),restored.node_data.indexers.language_indexer.map.len());
         assert_eq!(vs.node_data.indexers.predicate_indexer.map.len(),restored.node_data.indexers.predicate_indexer.map.len());
         assert_eq!(vs.node_data.indexers.type_indexer.map.len(),restored.node_data.indexers.type_indexer.map.len());
+
+        let rust_node = restored.node_data.get_node("dbr:Rust_(programming_language)");
+        assert!(rust_node.is_some(),"rust node not found");
+        if let Some(rust_node) = rust_node {
+            rust_node.references.iter().for_each(|(pred,ref_index)| {
+                let pred_str = restored.node_data.indexers.predicate_indexer.index_to_str(*pred).unwrap();
+                assert!(pred_str.len()>1);
+                restored.node_data.get_node_by_index(*ref_index);
+            });
+            rust_node.properties.iter().for_each(|(pred,literal)| {
+                let pred_str = restored.node_data.indexers.predicate_indexer.index_to_str(*pred).unwrap();
+                assert!(pred_str.len()>1);
+                let lit_str = literal.as_str_ref(&restored.node_data.indexers);
+                assert!(lit_str.len()>1);
+            });
+        }
 
         let predicates = vec!["rdf:type"];
         for pred_val in &predicates {

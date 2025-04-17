@@ -5,7 +5,7 @@ use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, rdfwrap::{self, RDFWrap}, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, GVisualisationStyle, UIState, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, GVisualisationStyle, UIState, NodeAction
 };
 
 pub struct TypeInstanceIndex {
@@ -163,9 +163,9 @@ impl TypeData {
         instance_action: &mut NodeAction,
         node_data: &mut NodeData,
         color_cache: &GVisualisationStyle,
-        rdfwrap: &mut dyn rdfwrap::RDFAdapter,
         prefix_manager: &PrefixManager,
         layout_data: &UIState,
+        iri_display: IriDisplay,
     ) {
         let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
@@ -300,6 +300,7 @@ impl TypeData {
         }
         xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
 
+        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
         for column_desc in self
             .instance_view
             .display_properties
@@ -308,12 +309,8 @@ impl TypeData {
             .skip(self.instance_view.column_pos as usize)
         {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
-            let predicate_label = RDFWrap::iri2label_fallback(
-                node_data
-                    .get_predicate(column_desc.predicate_index)
-                    .unwrap(),
-            );
-            text_wrapped(predicate_label, column_desc.width, painter, top_left, false);
+            let predicate_label = node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
+            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false);
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect =
                 egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
@@ -438,7 +435,7 @@ impl TypeData {
                     let property = node
                         .get_property(column_desc.predicate_index, layout_data.display_language);
                     if let Some(property) = property {
-                        let value = property.as_ref();
+                        let value = property.as_str_ref(&node_data.indexers);
                         let cell_rect = egui::Rect::from_min_size(
                             available_rect.left_top() + Vec2::new(xpos, ypos),
                             Vec2::new(column_desc.width, ROW_HIGHT),
@@ -583,12 +580,9 @@ impl TypeData {
                         ui.separator();
                         ui.menu_button("Unhide Columns", |ui| {
                             for column_desc in hidden_columns {
+                                let predicate_label = node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
                                 if ui
-                                    .button(RDFWrap::iri2label_fallback(
-                                        node_data
-                                            .get_predicate(column_desc.predicate_index)
-                                            .unwrap(),
-                                    ))
+                                    .button(predicate_label.as_str())
                                     .clicked()
                                 {
                                     *table_action =
@@ -610,7 +604,7 @@ impl TypeData {
                     if let Some((_node_iri, node)) = node {
                         for (predicate_index, value) in &node.properties {
                             if predictate == *predicate_index {
-                                ui.label(value.as_ref());
+                                ui.label(value.as_str_ref(&node_data.indexers));
                             }
                         }
                         let button_text = egui::RichText::new(concatcp!(ICON_CLOSE," Close")).size(16.0);
@@ -633,9 +627,9 @@ impl TypeData {
                     let node = node_data.get_node_by_index(instance_index);
                     if let Some((_node_iri, node)) = node {
                         let mut node_to_click: Option<IriIndex> = None;
+                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                         if let Some(node_index) = show_references(
                             node_data,
-                            rdfwrap,
                             color_cache,
                             ui,
                             "References",
@@ -643,6 +637,7 @@ impl TypeData {
                             layout_data,
                             300.0,
                             "ref",
+                            &label_context,
                         ) {
                             node_to_click = Some(node_index);
                             close_menu = true;
@@ -650,7 +645,6 @@ impl TypeData {
                         ui.push_id("refby", |ui| {
                             if let Some(node_index) = show_references(
                                 node_data,
-                                rdfwrap,
                                 color_cache,
                                 ui,
                                 "Referenced by",
@@ -658,6 +652,7 @@ impl TypeData {
                                 layout_data,
                                 300.0,
                                 "ref_by",
+                                &label_context,
                             ) {
                                 node_to_click = Some(node_index);
                                 close_menu = true;
@@ -785,7 +780,7 @@ impl TypeInstanceIndex {
                 type_data.instances.push(node_index as IriIndex);
                 for (predicate_index, value) in &node.properties {
                     type_data.count_property(*predicate_index, 1);
-                    type_data.max_len_property(*predicate_index, value.as_ref().len() as u32);
+                    type_data.max_len_property(*predicate_index, value.as_str_ref(&node_data.indexers).len() as u32);
                 }
                 for (predicate_index, _) in &node.references {
                     type_data.count_reverence(*predicate_index, 1);
@@ -850,7 +845,6 @@ impl TypeInstanceIndex {
         layout_data: &mut UIState,
         prefix_manager: &PrefixManager,
         color_cache: &GVisualisationStyle,
-        rdfwrap: &mut dyn rdfwrap::RDFAdapter,
         iri_display: IriDisplay,
     ) -> NodeAction {
         let mut instance_action = NodeAction::None;
@@ -908,10 +902,12 @@ impl TypeInstanceIndex {
                                     let label_a = node_data.type_display(
                                         *a,
                                         &label_context,
+                                        &node_data.indexers
                                     );
                                     let label_b = node_data.type_display(
                                         *b,
                                         &label_context,
+                                        &node_data.indexers
                                     );
                                     label_a.as_str().cmp(label_b.as_str())
                                 });
@@ -966,6 +962,7 @@ impl TypeInstanceIndex {
                                         let predicate_label = node_data.predicate_display(
                                             *predicate_index,
                                             &label_context,
+                                            &node_data.indexers
                                         );
                                         ui.label(predicate_label.as_str());
                                         ui.label(pcharecteristics.count.to_string());
@@ -987,6 +984,7 @@ impl TypeInstanceIndex {
                                         let predicate_label = node_data.predicate_display(
                                             *predicate_index,
                                             &label_context,
+                                            &node_data.indexers
                                         );
                                         ui.label(predicate_label.as_str());
                                         ui.label(count.to_string());
@@ -1009,6 +1007,7 @@ impl TypeInstanceIndex {
                                             let predicate_label = node_data.predicate_display(
                                                 *predicate_index,
                                                 &label_context,
+                                                &node_data.indexers
                                             );
                                             ui.label(predicate_label.as_str());
                                             ui.label(count.to_string());
@@ -1076,9 +1075,9 @@ impl TypeInstanceIndex {
                                 &mut instance_action,
                                 node_data,
                                 color_cache,
-                                rdfwrap,
                                 prefix_manager,
                                 layout_data,
+                                iri_display,
                             );
                         });
                         strip.cell(|ui| {
@@ -1129,7 +1128,19 @@ impl TypeInstanceIndex {
                                             predicate_to_sort,
                                             layout_data.display_language,
                                         );
-                                        a_value.cmp(b_value)
+                                        if let Some(a_value) = a_value {
+                                            if let Some(b_value) = b_value {
+                                                let a_value = a_value.as_str_ref(&node_data.indexers);
+                                                let b_value = b_value.as_str_ref(&node_data.indexers);
+                                                return a_value.cmp(b_value);
+                                            } else {
+                                                return std::cmp::Ordering::Less;
+                                            }
+                                        } else if let Some(_b_value) = b_value {
+                                            return std::cmp::Ordering::Greater;
+                                        } else {
+                                            return std::cmp::Ordering::Equal;
+                                        }
                                     } else {
                                         std::cmp::Ordering::Less
                                     }
@@ -1154,7 +1165,19 @@ impl TypeInstanceIndex {
                                             predicate_to_sort,
                                             layout_data.display_language,
                                         );
-                                        b_value.cmp(a_value)
+                                        if let Some(a_value) = a_value {
+                                            if let Some(b_value) = b_value {
+                                                let a_value = a_value.as_str_ref(&node_data.indexers);
+                                                let b_value = b_value.as_str_ref(&node_data.indexers);
+                                                return a_value.cmp(b_value);
+                                            } else {
+                                                return std::cmp::Ordering::Less;
+                                            }
+                                        } else if let Some(_b_value) = b_value {
+                                            return std::cmp::Ordering::Greater;
+                                        } else {
+                                            return std::cmp::Ordering::Equal;
+                                        }
                                     } else {
                                         std::cmp::Ordering::Greater
                                     }
@@ -1248,7 +1271,7 @@ impl TypeInstanceIndex {
                             .filter(|&instance_index| {
                                 let node = node_data.get_node_by_index(instance_index);
                                 if let Some((node_iri, node)) = node {
-                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri) {
+                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri, &node_data.indexers) {
                                         return true;
                                     }
                                 }
@@ -1356,6 +1379,7 @@ impl TypeInstanceIndex {
                     let type_label = node_data.type_display(
                         *type_index,
                         &label_context,
+                        &node_data.indexers
                     );
                     row.col(|ui| {
                         ui.add(egui::Label::new(type_label.as_str()).selectable(false));

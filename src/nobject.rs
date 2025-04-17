@@ -1,8 +1,7 @@
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
-use string_interner::{backend::StringBackend, symbol::SymbolU32, StringInterner, Symbol};
 
-use crate::{config::IriDisplay, prefix_manager::PrefixManager, GVisualisationStyle};
+use crate::{config::IriDisplay, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, GVisualisationStyle};
 
 pub type IriIndex = u32;
 pub type LangIndex = u16;
@@ -10,34 +9,35 @@ pub type DataTypeIndex = u16;
 
 #[derive(Clone,PartialEq, Eq)]
 pub enum Literal {
-    String(Box<str>),
-    LangString(LangIndex, Box<str>),
-    TypedString(DataTypeIndex, Box<str>),
+    StringShort(IriIndex),
+    String(IndexSpan),
+    LangString(LangIndex, IndexSpan),
+    TypedString(DataTypeIndex, IndexSpan),
 }
 
 
-impl AsRef<str> for Literal {
-    fn as_ref(&self) -> &str {
+impl Literal {
+    pub fn as_str_ref<'a>(&self, indexers: &'a Indexers) -> &'a str {
         match self {
-            Literal::String(str) => str,
-            Literal::LangString(_index,str) => str,
-            Literal::TypedString(_type, str) => str,
+            Literal::StringShort(index) => {
+                let str = indexers.short_literal_indexer.index_to_str(*index).unwrap();
+                str
+            }
+            Literal::String(str) => {
+                let str = indexers.literal_cache.get_str(*str);
+                str
+            }
+            Literal::LangString(_index,str) => {
+                let str = indexers.literal_cache.get_str(*str);
+                str
+            }
+            Literal::TypedString(_type, str) => {
+                let str = indexers.literal_cache.get_str(*str);
+                str
+            }
         }
     }
 }
-
-impl PartialOrd for Literal {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Literal {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_ref().cmp(other.as_ref())
-    }
-}
-
 
 
 pub type ObjectType = Literal;
@@ -68,6 +68,8 @@ pub struct Indexers {
     pub type_indexer: StringIndexer,
     pub language_indexer: StringIndexer,
     pub datatype_indexer: StringIndexer,
+    pub short_literal_indexer: StringIndexer,
+    pub literal_cache: StringCache,
 }
 
 pub enum LabelDisplayValue<'a> {
@@ -114,8 +116,8 @@ impl NObject {
         false
     }
 
-    pub fn node_label<'a>(&'a self, iri: &'a str, styles: &GVisualisationStyle, should_short_iri: bool, language_index: LangIndex) -> &'a str {
-        let label_opt = self.node_label_opt(styles, language_index);
+    pub fn node_label<'a>(&'a self, iri: &'a str, styles: &GVisualisationStyle, should_short_iri: bool, language_index: LangIndex, indexers: &'a Indexers) -> &'a str {
+        let label_opt = self.node_label_opt(styles, language_index, indexers);
         if let Some(label) = label_opt {
             return label;
         }
@@ -125,12 +127,12 @@ impl NObject {
         iri
     }
 
-    pub fn node_label_opt(&self, styles: &GVisualisationStyle, language_index: LangIndex) -> Option<&str> {
+    pub fn node_label_opt<'a>(&self, styles: &GVisualisationStyle, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
         for type_index in self.types.iter() {
             if let Some(type_style) = styles.type_styles.get(type_index) {
                 let prop = self.get_property(type_style.label_index, language_index);
                 if let Some(prop) = prop {
-                    return Some(prop.as_ref());
+                    return Some(prop.as_str_ref(indexers));
                 }
             }
         }
@@ -151,7 +153,7 @@ impl NObject {
                             fallback_lang = Some(value);
                         }
                     }
-                    ObjectType::String(_) | ObjectType::TypedString(_, _) => {
+                    ObjectType::String(_) | ObjectType::TypedString(_, _) | ObjectType::StringShort(_)=> {
                         no_lang = Some(value);
                     }
                 }
@@ -166,12 +168,12 @@ impl NObject {
         None
     }
 
-    pub fn apply_filter(&self, filter: &str, iri: &str) -> bool {
+    pub fn apply_filter(&self, filter: &str, iri: &str, indexers: &Indexers) -> bool {
         if iri.contains(filter) {
             return true;
         }
         for (_predicate, value) in &self.properties {
-            if value.as_ref().contains(filter) {
+            if value.as_str_ref(indexers).contains(filter) {
                 return true;
             }
         }
@@ -192,6 +194,8 @@ impl Indexers {
             type_indexer: StringIndexer::new(),
             language_indexer: StringIndexer::new(),
             datatype_indexer: StringIndexer::new(),
+            short_literal_indexer: StringIndexer::new(),
+            literal_cache: StringCache::new(),
         };
         indexer.language_indexer.get_index("en");
         indexer.predicate_indexer.get_index("rdfs:label");
@@ -374,31 +378,31 @@ impl NodeData {
         self.node_cache.cache.clear();
         self.indexers.clean();
     }
-    pub fn type_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
+    pub fn type_label<'a>(&self, type_index: IriIndex, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
         let type_iri = self.indexers.type_indexer.index_to_str(type_index);
         if let Some(type_iri) = type_iri {
             if let Some(node) = self.get_node(type_iri) {
                 let prop = node.get_property(0, language_index);
                 if let Some(prop) = prop {
-                    return Some(prop.as_ref());
+                    return Some(prop.as_str_ref(indexers));
                 }
             }
         }
         None
     }
-    pub fn predicate_label(&self, type_index: IriIndex, language_index: LangIndex) -> Option<&str> {
+    pub fn predicate_label<'a>(&self, type_index: IriIndex, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
         let predicate_iri = self.indexers.predicate_indexer.index_to_str(type_index);
         if let Some(predicate_iri) = predicate_iri {
             if let Some(node) = self.get_node(predicate_iri) {
                 let prop = node.get_property(0, language_index);
                 if let Some(prop) = prop {
-                    return Some(prop.as_ref());
+                    return Some(prop.as_str_ref(indexers));
                 }
             }
         }
         None
     }
-    pub fn type_display(&self, type_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
+    pub fn type_display<'a>(&'a self, type_index: IriIndex, label_context: &'a LabelContext, indexers: &'a Indexers) -> LabelDisplayValue {
         let type_iri = self.indexers.type_indexer.index_to_str(type_index);
         if let Some(type_iri) = type_iri {
             match label_context.iri_display {
@@ -414,7 +418,7 @@ impl NodeData {
                     LabelDisplayValue::FullRef(type_iri)
                 }
                 IriDisplay::Label => {
-                    let type_label = self.type_label(type_index, label_context.language_index);
+                    let type_label = self.type_label(type_index, label_context.language_index, indexers);
                     if let Some(type_label) = type_label {
                         LabelDisplayValue::ShortAndIri(type_label,type_iri)
                     } else {
@@ -425,7 +429,7 @@ impl NodeData {
                     LabelDisplayValue::FullRef(short_iri(type_iri))
                 }
                 IriDisplay::LabelOrShorten => {
-                    let type_label = self.type_label(type_index, label_context.language_index);
+                    let type_label = self.type_label(type_index, label_context.language_index, indexers);
                     if let Some(type_label) = type_label {
                         LabelDisplayValue::ShortAndIri(type_label,type_iri)
                     } else {
@@ -438,7 +442,7 @@ impl NodeData {
         }
     }
 
-    pub fn predicate_display(&self, predicate_index: IriIndex, label_context: &LabelContext) -> LabelDisplayValue {
+    pub fn predicate_display<'a>(&'a self, predicate_index: IriIndex, label_context: &LabelContext, indexers: &'a Indexers) -> LabelDisplayValue {
         let predicate_iri = self.indexers.predicate_indexer.index_to_str(predicate_index);
         if let Some(predicate_iri) = predicate_iri {
             match label_context.iri_display {
@@ -454,7 +458,7 @@ impl NodeData {
                     LabelDisplayValue::FullRef(predicate_iri)
                 }
                 IriDisplay::Label => {
-                    let type_label = self.type_label(predicate_index, label_context.language_index);
+                    let type_label = self.predicate_label(predicate_index, label_context.language_index, indexers);
                     if let Some(type_label) = type_label {
                         LabelDisplayValue::ShortAndIri(type_label,predicate_iri)
                     } else {
@@ -465,7 +469,7 @@ impl NodeData {
                     LabelDisplayValue::FullRef(short_iri(predicate_iri))
                 }
                 IriDisplay::LabelOrShorten => {
-                    let type_label = self.type_label(predicate_index, label_context.language_index);
+                    let type_label = self.predicate_label(predicate_index, label_context.language_index, indexers);
                     if let Some(type_label) = type_label {
                         LabelDisplayValue::ShortAndIri(type_label,predicate_iri)
                     } else {
@@ -553,34 +557,6 @@ impl NodeData {
     }
 } 
 
-pub struct StringIndexer {
-    pub map: StringInterner<StringBackend>,
-}
-
-impl Default for StringIndexer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl StringIndexer {
-    pub fn new() -> Self {
-        Self { map: StringInterner::default() }
-    }
-
-    /// Converts a string to an index, assigning a new index if it's unknown
-    pub fn get_index(&mut self, s: &str) -> IriIndex {
-        let index = self.map.get_or_intern(s);
-        index.to_usize() as IriIndex
-    }
-
-    /// Retrieves a string from an index
-    pub fn index_to_str(&self, index: IriIndex) -> Option<&str> {
-        self.map.resolve(SymbolU32::try_from_usize(index as usize).unwrap())
-    }
-    
-}
-
 pub struct LabelContext<'a> {
     pub language_index: LangIndex,
     pub iri_display: IriDisplay,
@@ -601,24 +577,9 @@ impl<'a> LabelContext<'a> {
 #[cfg(test)]
 mod tests {
     use oxrdf::Triple;
-    use crate::prefix_manager::PrefixManager;
-    use super::{NodeData, StringIndexer};
+    use crate::{config::IriDisplay, nobject::LabelContext, prefix_manager::PrefixManager};
+    use super::NodeData;
 
-    #[test]
-    fn test_sting_indexer() {
-        let mut string_indexer = StringIndexer::new();
-        let index1 = string_indexer.get_index("test");
-        let index2 = string_indexer.get_index("test");
-        assert_eq!(0, index1);
-        assert_eq!(index1, index2);
-        let index3 = string_indexer.get_index("test2");
-        assert_ne!(index1, index3);
-        assert_eq!(index1+1, index3);
-        let s = string_indexer.index_to_str(index2);
-        assert!(s.is_some());
-        assert_eq!("test",s.unwrap());
-        assert!(string_indexer.index_to_str(100).is_none());  
-    }
 
     #[test]
     fn test_node_data() {
@@ -664,7 +625,117 @@ mod tests {
 
         let lit = node.get_property(pred_index, 0);
         assert!(lit.is_some());
-        assert_eq!(lit.unwrap().as_ref(), "test");
+        assert_eq!(lit.unwrap().as_str_ref(&node_data.indexers), "test");
 
+    }
+
+    #[test]
+    fn test_node_data_labels() {
+        let mut node_data = NodeData::new();
+        let prefix_manager = PrefixManager::new();
+
+        let language_filter: Vec<String> = vec![];
+        let mut index_cache = crate::rdfwrap::IndexCache {
+            index: 0,
+            iri: String::with_capacity(100),
+        };
+        let subject = oxrdf::NamedNode::new("http://example.org#subject").unwrap();
+        let rdf_type = oxrdf::NamedNode::new("http://example.org#ClassFoo").unwrap();
+        let data_predicate = oxrdf::NamedNode::new("http://example.org#pred").unwrap();
+        let owl_data_property = oxrdf::NamedNode::new("http://www.w3.org/2002/07/owl#DatatypeProperty").unwrap();
+        let owl_class = oxrdf::NamedNode::new("http://www.w3.org/2002/07/owl#Class").unwrap();
+
+        let mut tcount = 0;
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            Triple::new(
+                subject.clone(),
+                oxrdf::vocab::rdf::TYPE,
+                rdf_type.clone(),
+            ), &mut index_cache, &language_filter, &prefix_manager);
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            Triple::new(
+                subject.clone(),
+                data_predicate.clone(),
+                oxrdf::Literal::new_simple_literal("test"),
+            ), &mut index_cache, &language_filter, &prefix_manager);
+        
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            Triple::new(
+                data_predicate.clone(),
+                oxrdf::vocab::rdf::TYPE,
+                owl_data_property.clone(),
+            ), &mut index_cache, &language_filter, &prefix_manager);
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+            Triple::new(
+                data_predicate.clone(),
+                oxrdf::vocab::rdfs::LABEL,
+                oxrdf::Literal::new_simple_literal("mypred"),
+            ), &mut index_cache, &language_filter, &prefix_manager);
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+                Triple::new(
+                    rdf_type.clone(),
+                    oxrdf::vocab::rdf::TYPE,
+                    owl_class.clone(),
+                ), &mut index_cache, &language_filter, &prefix_manager);
+
+
+        crate::rdfwrap::add_triple(&mut tcount,&mut node_data.indexers, &mut node_data.node_cache,
+                Triple::new(
+                    rdf_type.clone(),
+                    oxrdf::vocab::rdfs::LABEL,
+                    oxrdf::Literal::new_simple_literal("MyClass"),
+                ), &mut index_cache, &language_filter, &prefix_manager);
+
+        let node = node_data.get_node(subject.as_str());
+        assert!(node.is_some());
+        let node = node.unwrap();
+        assert_eq!(node.types.len(), 1);
+
+        let type_index = node.types.get(0).unwrap();
+        assert_eq!(rdf_type.as_str(), node_data.indexers.type_indexer.index_to_str(*type_index).unwrap());
+
+        let type_label = node_data.type_label(*type_index, 0, &node_data.indexers);
+        assert!(type_label.is_some());
+        let type_label = type_label.unwrap();
+        assert_eq!(type_label, "MyClass");
+
+        assert_eq!(node.properties.len(), 1);
+        let (prop_index, prop_literal) = node.properties.get(0).unwrap();
+        assert_eq!(data_predicate.as_str(), node_data.indexers.predicate_indexer.index_to_str(*prop_index).unwrap());
+        let prop_str = prop_literal.as_str_ref(&node_data.indexers);
+        assert_eq!(prop_str, "test");
+    
+        let prop_label = node_data.predicate_label(*prop_index, 0, &node_data.indexers);
+        assert!(prop_label.is_some());
+        let prop_label = prop_label.unwrap();
+        assert_eq!(prop_label, "mypred");
+
+        let label_context = LabelContext::new(0, IriDisplay::Label, &prefix_manager);
+        let type_display = node_data.type_display(*type_index, &label_context, &node_data.indexers);
+        assert_eq!("MyClass",type_display.as_str());
+        let type_display = node_data.predicate_display(*prop_index, &label_context, &node_data.indexers);
+        assert_eq!("mypred",type_display.as_str());
+
+        let label_context = LabelContext::new(0, IriDisplay::LabelOrShorten, &prefix_manager);
+        let type_display = node_data.type_display(*type_index, &label_context, &node_data.indexers);
+        assert_eq!("MyClass",type_display.as_str());
+        let type_display = node_data.predicate_display(*prop_index, &label_context, &node_data.indexers);
+        assert_eq!("mypred",type_display.as_str());
+
+        let label_context = LabelContext::new(0, IriDisplay::Shorten, &prefix_manager);
+        let type_display = node_data.type_display(*type_index, &label_context, &node_data.indexers);
+        assert_eq!("ClassFoo",type_display.as_str());
+        let type_display = node_data.predicate_display(*prop_index, &label_context, &node_data.indexers);
+        assert_eq!("pred",type_display.as_str());
+
+        let label_context = LabelContext::new(0, IriDisplay::Full, &prefix_manager);
+        let type_display = node_data.type_display(*type_index, &label_context, &node_data.indexers);
+        assert_eq!("http://example.org#ClassFoo",type_display.as_str());
+        let type_display = node_data.predicate_display(*prop_index, &label_context, &node_data.indexers);
+        assert_eq!("http://example.org#pred",type_display.as_str());
     }
 }

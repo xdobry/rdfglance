@@ -38,6 +38,7 @@ pub mod uitools;
 pub mod style;
 pub mod persistency;
 pub mod menu_bar;
+pub mod string_indexer;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -675,7 +676,6 @@ impl eframe::App for RdfGlanceApp {
                                         &mut self.ui_state,
                                         &self.prefix_manager,
                                         &self.visualisation_style,
-                                        &mut *self.rdfwrap,
                                         self.persistent_data.config_data.iri_display,
                                     )
                                 }

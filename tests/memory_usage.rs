@@ -25,4 +25,6 @@ fn test_memory_usage() {
     //  !! Data strucures use 538.6553 kB of RAM.
     // StringInterner
     //  !! Data strucures use 537.81934 kB of RAM.
+    // StringCache nad StringIndexer for small literals
+    //  !! Data strucures use 480 kB of RAM.
 }

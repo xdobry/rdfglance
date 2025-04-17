@@ -109,6 +109,7 @@ impl RdfGlanceApp {
                             let type_label = self.node_data.type_display(
                                 *type_index,
                                 &label_context,
+                                &self.node_data.indexers
                             );
                             if ui.button(type_label.as_str()).clicked() {
                                 node_to_click = NodeAction::ShowType(*type_index);
@@ -153,6 +154,7 @@ impl RdfGlanceApp {
                                 let predicate_label = self.node_data.predicate_display(
                                     *predicate_index,
                                     &label_context,
+                                    &self.node_data.indexers,
                                 );
                                 let lab_button = egui::Button::new(predicate_label.as_str());
                                 let lab_button_response = ui.add(lab_button);
@@ -162,7 +164,7 @@ impl RdfGlanceApp {
                                     }
                                 }
                                 lab_button_response.on_hover_text("Set this property as label for the node type");
-                                ui.label(prop_value.as_ref());
+                                ui.label(prop_value.as_str_ref(&self.node_data.indexers));
                                 ui.end_row();
                             }
                         });
@@ -193,12 +195,11 @@ impl RdfGlanceApp {
                                 );
                             }
                         }
+                        let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
                         for reference_index in references.iter() {
                             ui.horizontal(|ui| {
-                                let reference_label = self.rdfwrap.iri2label(
-                                    self.node_data.get_predicate(*reference_index).unwrap(),
-                                );
-                                if ui.button(reference_label).clicked() {
+                                let reference_label = self.node_data.predicate_display(*reference_index, &label_context, &self.node_data.indexers);
+                                if ui.button(reference_label.as_str()).clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut npos = NeighbourPos::new();
                                     for (predicate_index, ref_iri) in &current_node.references {
@@ -287,12 +288,11 @@ impl RdfGlanceApp {
                                 );
                             }
                         }
+                        let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
                         for reference_index in references.iter() {
                             ui.horizontal(|ui| {
-                                let reference_label = self.rdfwrap.iri2label(
-                                    self.node_data.get_predicate(*reference_index).unwrap(),
-                                );
-                                if ui.button(reference_label).clicked() {
+                                let reference_label = self.node_data.predicate_display(*reference_index, &label_context, &self.node_data.indexers);
+                                if ui.button(reference_label.as_str()).clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut npos = NeighbourPos::new();
                                     for (predicate_index, ref_iri) in
@@ -478,7 +478,12 @@ impl RdfGlanceApp {
                     painter.circle_filled(pos, radius, type_color);
                     node_count += 1;
                     if self.show_labels && !is_hoover {
-                        let node_label = object.node_label(object_iri, &self.visualisation_style, self.short_iri, self.ui_state.display_language);
+                        let node_label = object.node_label(object_iri, 
+                            &self.visualisation_style, 
+                            self.short_iri, 
+                            self.ui_state.display_language,
+                            &self.node_data.indexers
+                        );
                         painter.text(
                             pos,
                             egui::Align2::CENTER_CENTER,
@@ -493,7 +498,12 @@ impl RdfGlanceApp {
                 let node_layout = self.ui_state.visible_nodes.get(node_to_hover);
                 if let Some(node_layout) = node_layout {
                     if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_to_hover) {
-                        let node_label = object.node_label(object_iri, &self.visualisation_style, self.short_iri, self.ui_state.display_language);
+                        let node_label = object.node_label(object_iri, 
+                            &self.visualisation_style, 
+                            self.short_iri, 
+                            self.ui_state.display_language,
+                            &self.node_data.indexers
+                        );
                         let mut job = egui::text::LayoutJob::default();
                         job.append(
                             node_label,
@@ -611,14 +621,24 @@ impl RdfGlanceApp {
         if let Some(node_to_hover) = node_to_hover {
             if let Some((hover_node_iri,hover_node)) = self.node_data.get_node_by_index(node_to_hover) {
                 self.status_message.clear();
-                self.status_message.push_str(hover_node.node_label(hover_node_iri,&self.visualisation_style, self.short_iri, self.ui_state.display_language));
+                self.status_message.push_str(hover_node.node_label(hover_node_iri,
+                    &self.visualisation_style, 
+                    self.short_iri, 
+                    self.ui_state.display_language,
+                    &self.node_data.indexers
+                ));
             }
         } else if let Some(selected_node) = &self.ui_state.selected_node {
             self.status_message.clear();
             if let Some((selected_node_iri,selected_node)) = self.node_data.get_node_by_index(*selected_node) {
                 self.status_message.push_str(format!(
                     "Nodes: {}, Edges: {} Selected: {}",
-                    node_count, edge_count, selected_node.node_label(selected_node_iri,&self.visualisation_style, self.short_iri, self.ui_state.display_language)
+                    node_count, edge_count, selected_node.node_label(selected_node_iri, 
+                        &self.visualisation_style, 
+                        self.short_iri, 
+                        self.ui_state.display_language,
+                        &self.node_data.indexers
+                    )
                 ).as_str());
             }
         } else {

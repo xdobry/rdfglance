@@ -14,6 +14,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use std::time::Instant;
 
+const SHORT_STR_LITERAL_LEN: usize = 32;
+
 pub trait RDFAdapter {
     fn load_object(&mut self, iri: &str, node_data: &mut NodeData) -> Option<NObject>;
     fn iri2label<'a>(&mut self, iri: &'a str) -> &'a str;
@@ -269,15 +271,17 @@ impl RDFWrap {
                             ));
                         }
                         Term::Literal(literal) => {
+                            let span = node_data.indexers.literal_cache.push_str(literal.value());
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                Literal::String(literal.value().into()),
+                                Literal::String(span),
                             ));
                         }
                         _ => {
+                            let span = node_data.indexers.literal_cache.push_str(triple.object.to_string().as_str());
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
-                                Literal::String(triple.object.to_string().into()),
+                                Literal::String(span),
                             ));
                         }
                     }
@@ -458,19 +462,27 @@ fn add_predicate_object(
                     let datatype = literal.datatype();
                     if let Some(language) = language {
                         let language_index = indexer.get_language_index(language);
+                        let span = indexer.literal_cache.push_str(value);
                         node.properties.push((
                             predicate_index,
-                            Literal::LangString(language_index, value.into()),
+                            Literal::LangString(language_index, span),
                         ));
                     } else if datatype == xsd::STRING {
-                        node.properties
-                            .push((predicate_index, Literal::String(value.into())));
+                        let literal = if value.len()<SHORT_STR_LITERAL_LEN {
+                            let index = indexer.short_literal_indexer.get_index(value);
+                            Literal::StringShort(index)
+                        } else {
+                            let span = indexer.literal_cache.push_str(value);
+                            Literal::String(span)
+                        };
+                        node.properties.push((predicate_index, literal));
                     } else {
                         let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
                         let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
+                        let span = indexer.literal_cache.push_str(value);
                         node.properties.push((
                             predicate_index,
-                            Literal::TypedString(data_type_index, value.into()),
+                            Literal::TypedString(data_type_index,span),
                         ));
                     }
                     *triples_count += 1;

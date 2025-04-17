@@ -2,7 +2,7 @@ use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, rdfwrap, style::ICON_GRAPH, GVisualisationStyle, UIState, NodeAction, RdfGlanceApp
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::ICON_GRAPH, GVisualisationStyle, UIState, NodeAction, RdfGlanceApp
 };
 
 impl RdfGlanceApp {
@@ -50,6 +50,7 @@ impl RdfGlanceApp {
                         let type_label = self.node_data.type_display(
                             *type_index,
                             &label_context,
+                            &self.node_data.indexers
                         );
                         if ui.button(type_label.as_str()).clicked() {
                             action_type_index = NodeAction::ShowType(*type_index);
@@ -59,7 +60,7 @@ impl RdfGlanceApp {
                 if current_node.properties.is_empty() {
                     let h = (ui.available_height()-40.0).max(300.0);
                     node_to_click = show_refs_table(ui, current_node, &self.node_data, 
-                        &mut *self.rdfwrap, &self.visualisation_style, &self.ui_state, h);
+                         &self.visualisation_style, &self.ui_state, h, &label_context);
                 } else {
                     egui::ScrollArea::vertical()
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -112,15 +113,16 @@ impl RdfGlanceApp {
                                     let predicate_label = self.node_data.predicate_display(
                                         *predicate_index,
                                         &label_context,
+                                        &self.node_data.indexers
                                     );
                                     ui.label(predicate_label.as_str());
-                                    ui.label(prop_value.as_ref());
+                                    ui.label(prop_value.as_str_ref(&self.node_data.indexers));
                                     ui.end_row();
                                 }
                             });
                         let h = (ui.available_height()-40.0).max(300.0);
-                        node_to_click = show_refs_table(ui, current_node, &self.node_data, 
-                            &mut *self.rdfwrap, &self.visualisation_style, &self.ui_state, h);
+                        node_to_click = show_refs_table(ui, current_node, &self.node_data,
+                           &self.visualisation_style, &self.ui_state, h, &label_context);
                     });
                 }
             }
@@ -136,10 +138,13 @@ impl RdfGlanceApp {
 }
 
 pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject, 
-    node_data: &NodeData, rdfwrap: &mut dyn rdfwrap::RDFAdapter, 
+    node_data: &NodeData,
     color_cache: &GVisualisationStyle, 
-    layout_data: &UIState, h: f32) -> Option<IriIndex> {
-    let mut node_to_click: Option<IriIndex> = None;        
+    layout_data: &UIState, h: f32,
+    label_context: &LabelContext,
+    ) -> Option<IriIndex> {
+    let mut node_to_click: Option<IriIndex> = None;
+
     StripBuilder::new(ui)
     .size(egui_extras::Size::exact(600.0))
     .size(egui_extras::Size::exact(600.0)) // Two resizable panels with equal initial width
@@ -147,7 +152,6 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
         strip.cell(|ui| {
             if let Some(node_index) = show_references(
                 node_data,
-                rdfwrap,
                 color_cache,
                 ui,
                 "References",
@@ -155,6 +159,7 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
                 layout_data,
                 h,
                 "ref",
+                label_context
             ) {
                 node_to_click = Some(node_index);
             }
@@ -163,7 +168,6 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
             ui.push_id("ref2", |ui| {
                 if let Some(node_index) = show_references(
                     node_data,
-                    rdfwrap,
                     color_cache,
                     ui,
                     "Referenced by",
@@ -171,6 +175,7 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
                     layout_data,
                     h,
                     "ref_by",
+                    label_context
                 ) {
                     node_to_click = Some(node_index);
                 }
@@ -182,7 +187,6 @@ pub fn show_refs_table( ui: &mut egui::Ui, current_node: &NObject,
 
 pub fn show_references(
     node_data: &NodeData,
-    rdfwrap: &mut dyn rdfwrap::RDFAdapter,
     color_cache: &GVisualisationStyle,
     ui: &mut egui::Ui,
     label: &str,
@@ -190,6 +194,7 @@ pub fn show_references(
     layout_data: &UIState,
     height: f32,
     id_salt: &str,
+    label_context: &LabelContext,
 ) -> Option<IriIndex> {
     let mut node_to_click: Option<IriIndex> = None;
     if !references.is_empty() {
@@ -210,7 +215,7 @@ pub fn show_references(
             .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
             .min_scrolled_height(height)
             .max_scroll_height(height);
-
+    
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
@@ -230,11 +235,8 @@ pub fn show_references(
                 body.rows(text_height, references.len(), |mut row| {
                     let (predicate_index, ref_index) = references.get(row.index()).unwrap();
                     row.col(|ui| {
-                        
-                        
-                        ui.label(
-                            rdfwrap.iri2label(node_data.get_predicate(*predicate_index).unwrap()),
-                        );
+                        let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
+                        ui.label(predicate_label.as_str());
                     });
                     if let Some((ref_iri, ref_node)) = node_data.get_node_by_index(*ref_index) {
                         row.col(|ui| {
@@ -243,20 +245,23 @@ pub fn show_references(
                             }
                         });
                         row.col(|ui| {
-                            let types_label = ref_node
+                            let mut types_label : String = String::new();
+                            ref_node
                                 .types
                                 .iter()
-                                .map(|type_index| {
-                                    rdfwrap.iri2label(node_data.get_type(*type_index).unwrap())
-                                })
-                                .collect::<Vec<&str>>()
-                                .join(", ");
+                                .for_each(|type_index| {
+                                    if !types_label.is_empty() {
+                                        types_label.push_str(", ");
+                                    }
+                                    types_label.push_str(node_data.type_display(*type_index, label_context, &node_data.indexers).as_str());
+                                });
                             ui.label(types_label);
                         });
                         row.col(|ui| {
                             let label = ref_node.node_label_opt(
                                 &color_cache,
                                 layout_data.display_language,
+                                &node_data.indexers,
                             );
                             if let Some(label) = label {
                                 ui.label(label);
