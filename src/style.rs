@@ -9,3 +9,4 @@ pub const ICON_LANG: &str = "\u{fe4e8}";
 pub const ICON_DELETE: &str = "\u{1f5d1}";
 pub const ICON_CLOSE: &str = "\u{1f5d9}";
 pub const ICON_FILTER: &str = "\u{1f50d}";
+pub const ICON_WRENCH: &str = "\u{1f527}";

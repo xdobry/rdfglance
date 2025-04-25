@@ -3,7 +3,7 @@ use egui::Pos2;
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::{config::Config, nobject::{IriIndex, NodeData}, SortedVec};
+use crate::{config::Config, nobject::{IriIndex, NodeData}, NodeShape, SortedVec};
 
 const MAX_DISTANCE: f32 = 200.0;
 const DUMPING : f32 = 0.2;
@@ -11,13 +11,17 @@ const DUMPING : f32 = 0.2;
 pub struct NodeLayout {
     pub node_index: IriIndex,
     pub pos: Pos2,
-    pub vel: Vec2,   
+    pub vel: Vec2, 
+    pub size: Vec2,
+    pub node_shape: NodeShape,  
 }
 
 impl NodeLayout {
     pub fn new(node_index: IriIndex) -> Self {
         Self {
             node_index,
+            node_shape: NodeShape::Circle,
+            size: Vec2::new(10.0, 10.0),
             pos: Pos2::new(
                 rand::rng().random_range(-100.0..100.0),
                 rand::rng().random_range(-100.0..100.0),
@@ -110,6 +114,7 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
     let repulsion_factor: f32 = config.repulsion_constant * ((500.0*500.0) / (visible_nodes.nodes.len() as f32));
     for node_layout in visible_nodes.nodes.iter() {
         let object = objects.get_node_by_index(node_layout.node_index);
+        let n_radius = node_layout.size.x / 2.0;
         if let Some((_,object)) = object {
             let mut f = Vec2::new(0.0, 0.0);
             for nnode_layout in visible_nodes.nodes.iter() {
@@ -120,6 +125,14 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
                         let distance = direction.length();
                         if distance > 0.0 && distance < MAX_DISTANCE {
                             let force = repulsion_factor / (distance * distance);
+                            /*
+                            let is_overlapping = (node_layout.size.x + nnode_layout.size.x)/2.0 > distance;
+                            if is_overlapping {
+                                f += (direction / distance) * force * 10.0;
+                            } else {
+                                f += (direction / distance) * force;
+                            }
+                            */
                             f += (direction / distance) * force;
                         }
                         for (predicate_iri, refiri) in nobject.references.iter() {
@@ -139,14 +152,12 @@ pub fn layout_graph(objects: &mut NodeData, visible_nodes: &mut SortedNodeLayout
                     if hidden_predicates.contains(*predicate_iri) {
                         continue;
                     }
-                    let nobject = visible_nodes.get(*refiri);
-                    if let Some(nobject) = nobject {
-                        let direction = nobject.pos - node_layout.pos;
-                        let distance = direction.length();
-                        if distance > 0.0 {
-                            let force = config.attraction_factor * distance;
-                            f += (direction / distance) * force;
-                        }
+                    let nnode_layout = visible_nodes.get(*refiri);
+                    if let Some(nnode_layout) = nnode_layout {
+                        let direction = nnode_layout.pos - node_layout.pos;
+                        let distance = direction.length() - n_radius - nnode_layout.size.x / 2.0 - 4.0;
+                        let force = config.attraction_factor * distance;
+                        f += (direction / distance) * force;
                     }
                 }
             }

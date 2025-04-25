@@ -9,13 +9,12 @@ use flate2::read::ZlibDecoder;
 use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
-use serde::de;
 
 use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
-use crate::{GVisualisationStyle, RdfGlanceApp};
+use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -95,7 +94,7 @@ impl RdfGlanceApp {
         self.node_data.indexers.literal_cache.store(&mut file)?;
         self.node_data.node_cache.store(&mut file)?;
         self.prefix_manager.store(&mut file)?;
-        self.ui_state.visible_nodes.store(&mut file)?;
+        self.visible_nodes.store(&mut file)?;
         self.visualisation_style.store(&mut file)?;
 
         file.flush()?;
@@ -146,7 +145,7 @@ impl RdfGlanceApp {
                                 app.prefix_manager = PrefixManager::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::VisualNodes => {
-                                app.ui_state.visible_nodes = SortedNodeLayout::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
+                                app.visible_nodes = SortedNodeLayout::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::VisualStyles => {
                                 app.visualisation_style = GVisualisationStyle::restore(&mut reader, block_size-BLOCK_PRELUDE_SIZE)?;
@@ -515,6 +514,8 @@ impl SortedNodeLayout {
                 node_index,
                 pos: egui::Pos2::new(x, y),
                 vel: Vec2::new(0.0, 0.0),
+                node_shape: crate::NodeShape::Circle,
+                size: Vec2::ZERO,
             });            
         }
         Ok(index)
@@ -548,6 +549,7 @@ impl GVisualisationStyle {
         let mut styles = GVisualisationStyle {
             type_styles: HashMap::new(),
             reference_styles: HashMap::new(),
+            default_type_style: crate::TypeStyle::default(),
         };
         let len_types = leb128::read::unsigned(reader)?;
         for _ in 0..len_types {
@@ -565,6 +567,7 @@ impl GVisualisationStyle {
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
                 priority: priority, 
                 label_index: label_index, 
+                ..crate::TypeStyle::default()
             };
             styles.type_styles.insert(type_index, style);
         }
@@ -573,8 +576,9 @@ impl GVisualisationStyle {
             let reference_index = leb128::read::unsigned(reader)? as IriIndex;
             let mut color = [0u8; 4];
             reader.read_exact(&mut color)?;
-            let style = crate::ReferenceStyle { 
+            let style = EdgeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
+                ..EdgeStyle::default()
             };
             let field_number = leb128::read::unsigned(reader)?;
             for _ in 0..field_number {
@@ -675,7 +679,7 @@ mod tests {
 
         assert_eq!(vs.node_data.len(),restored.node_data.len());
         assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
-        assert_eq!(vs.ui_state.visible_nodes.nodes.len(),restored.ui_state.visible_nodes.nodes.len());    
+        assert_eq!(vs.visible_nodes.nodes.len(),restored.visible_nodes.nodes.len());    
         assert_eq!(vs.visualisation_style.type_styles.len(),restored.visualisation_style.type_styles.len());    
 
         Ok(())

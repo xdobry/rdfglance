@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing, layout::{self, SortedNodeLayout}, nobject::{IriIndex, LabelContext, Literal}, 
-    style::ICON_GRAPH, 
-    uitools::{popup_at, ColorBox}, ExpandType, NodeAction, RdfGlanceApp
+    drawing::{self, draw_node_label}, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::{popup_at, ColorBox}, ExpandType, GVisualisationStyle, LabelPosition, NodeAction, NodeShape, NodeSize, RdfGlanceApp, TypeStyle, UIState
 };
 use const_format::concatcp;
-use eframe::egui::{self, FontId, Pos2, Sense, Vec2};
-use egui::{Color32, Rect, Slider};
+use eframe::egui::{self, Pos2, Sense, Vec2};
+use egui::{Painter, Rect, Slider};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
+
 
 struct ReferencesState {
     pub count: u32,
@@ -20,7 +19,7 @@ struct ReferencesState {
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
-        if self.ui_state.visible_nodes.nodes.is_empty() {
+        if self.visible_nodes.nodes.is_empty() {
             ui.heading(concatcp!("No nodes to display. Go to tables or browser and add a node to graph using button with ",ICON_GRAPH));
             return NodeAction::None;
         }
@@ -29,7 +28,7 @@ impl RdfGlanceApp {
             if self.ui_state.compute_layout || self.ui_state.force_compute_layout {
                 let max_move = layout::layout_graph(
                     &mut self.node_data,
-                    &mut self.ui_state.visible_nodes,
+                    &mut self.visible_nodes,
                     &self.ui_state.hidden_predicates,
                     &self.persistent_data.config_data,
                 );
@@ -45,21 +44,21 @@ impl RdfGlanceApp {
                 self.expand_all();
             }
             if ui.button("To Center").clicked() {
-                self.ui_state.scene_rect = Rect::ZERO;
-                self.ui_state.visible_nodes.to_center();
+                self.graph_state.scene_rect = Rect::ZERO;
+                self.visible_nodes.to_center();
             }
             /*
             if ui.button("Show all").clicked() {
                 self.show_all();
             }
              */
-            ui.checkbox(&mut self.show_properties, "Show Properties");
+            ui.checkbox(&mut self.ui_state.show_properties, "Show Properties");
             ui.label("nodes force");
             ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
             ui.label("edges force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.005..=0.2));
-            ui.checkbox(&mut self.show_labels, "Show Labels");
-            ui.checkbox(&mut self.short_iri, "Short Iri");
+            ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.001..=0.2));
+            ui.checkbox(&mut self.ui_state.show_labels, "Show Labels");
+            ui.checkbox(&mut self.ui_state.short_iri, "Short Iri");
             let help_but = ui.button("\u{2753}");
             if help_but.clicked() {
                 self.help_open = true;
@@ -76,27 +75,105 @@ impl RdfGlanceApp {
                     });
             }
         });
-        if self.show_properties {
-            egui::SidePanel::right("right_panel")
-                .exact_width(500.0)
-                .show_inside(ui, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        node_to_click = self.display_node_details(ui);
-                    });
-                });
-            egui::CentralPanel::default().show_inside(ui, |ui| {
-                self.display_graph(ctx, ui);
-            });
+        if self.ui_state.type_style_edit.is_some() {
+            self.display_node_style(ui);
         } else {
-            self.display_graph(ctx, ui);
+            if self.ui_state.show_properties {
+                egui::SidePanel::right("right_panel")
+                    .exact_width(500.0)
+                    .show_inside(ui, |ui| {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            node_to_click = self.display_node_details(ui);
+                        });
+                    });
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    self.display_graph(ctx, ui);
+                });
+            } else {
+                self.display_graph(ctx, ui);
+            }
         }
         node_to_click
+    }
+
+    pub fn display_node_style(&mut self, ui: &mut egui::Ui) {
+        if let Some(type_style_edit) = self.ui_state.type_style_edit {
+            let type_style = self.visualisation_style.type_styles.get_mut(&type_style_edit);
+            if let Some(type_style) = type_style {
+                if ui.button("Close Style Edit").clicked() {
+                    self.ui_state.type_style_edit = None;
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Priority:");
+                    ui.add(Slider::new(&mut type_style.priority, 0..=1000));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Background Color:");
+                    ui.color_edit_button_srgba(&mut type_style.color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Shape:");
+                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Circle, "Circle");
+                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Rect, "Rectangle");
+                    // ui.selectable_value(&mut type_style.node_shape, NodeShape::Elipse, "Ellipse");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Rectangle Corner Radius:");
+                    ui.add(Slider::new(&mut type_style.corner_radius, 0.0..=20.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Sizing:");
+                    ui.selectable_value(&mut type_style.node_size, NodeSize::Fixed, "Fixed");
+                    ui.selectable_value(&mut type_style.node_size, NodeSize::Label, "Label Dependant");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Width:");
+                    ui.add(Slider::new(&mut type_style.width, 3.0..=150.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Height:");
+                    ui.add(Slider::new(&mut type_style.height, 3.0..=150.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Border Width:");
+                    ui.add(Slider::new(&mut type_style.border_width, 0.0..=20.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Border Color:");
+                    ui.color_edit_button_srgba(&mut type_style.border_color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max Lines:");
+                    ui.add(Slider::new(&mut type_style.max_lines, 1..=10));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Font Size:");
+                    ui.add(Slider::new(&mut type_style.font_size, 5.0..=25.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Label Position:");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Center, "Center");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Above, "Above");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Below, "Below");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Right, "Right");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Left, "Left");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Label Max Width (0-unlimited):");
+                    ui.add(Slider::new(&mut type_style.label_max_width, 0.0..=300.0));
+                });
+                let desired_size = Vec2::new(800.0, 500.0); // width, height
+                let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
+                let node_label = "Test Label";
+                draw_node_label(&painter, node_label, type_style, response.rect.center(), false, false, true);
+            }
+        }
     }
 
     pub fn display_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click = NodeAction::None;
         if let Some(iri_index) = &self.ui_state.selected_node {
-            if self.ui_state.visible_nodes.contains(*iri_index) {
+            if self.visible_nodes.contains(*iri_index) {
                 let current_node = self.node_data.get_node_by_index(*iri_index);
                 if let Some((current_node_iri,current_node)) = current_node {
                     if ui.link(current_node_iri).clicked() {
@@ -113,6 +190,9 @@ impl RdfGlanceApp {
                             );
                             if ui.button(type_label.as_str()).clicked() {
                                 node_to_click = NodeAction::ShowType(*type_index);
+                            }
+                            if ui.button(ICON_WRENCH).clicked() {
+                                self.ui_state.type_style_edit = Some(*type_index);
                             }
                         }
                     });
@@ -176,7 +256,7 @@ impl RdfGlanceApp {
                             HashMap::new();
                         let mut references: Vec<IriIndex> = Vec::new();
                         for (predicate_index, ref_iri) in &current_node.references {
-                            let is_visible = self.ui_state.visible_nodes.contains(*ref_iri);
+                            let is_visible = self.visible_nodes.contains(*ref_iri);
                             if references.contains(predicate_index) {
                                 let reference_state =
                                     reference_state.get_mut(predicate_index).unwrap();
@@ -204,10 +284,10 @@ impl RdfGlanceApp {
                                     let mut npos = NeighbourPos::new();
                                     for (predicate_index, ref_iri) in &current_node.references {
                                         if predicate_index == reference_index {
-                                            npos.add_by_index(&mut self.ui_state.visible_nodes, *iri_index,*ref_iri);
+                                            npos.add_by_index(&mut self.visible_nodes, *iri_index,*ref_iri);
                                         }
                                     }
-                                    npos.position( &mut self.ui_state.visible_nodes);
+                                    npos.position( &mut self.visible_nodes);
                                 }
                                 ui.add(ColorBox::new(
                                     self.visualisation_style.get_predicate_color(*reference_index),
@@ -217,7 +297,7 @@ impl RdfGlanceApp {
                                 if ext_button.clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
-                                    for visible_index in self.ui_state.visible_nodes.nodes.iter() {
+                                    for visible_index in self.visible_nodes.nodes.iter() {
                                         let visible_node =
                                             self.node_data.get_node_by_index(visible_index.node_index);
                                         if let Some((_v_node_iri,visible_node)) = visible_node {
@@ -234,9 +314,9 @@ impl RdfGlanceApp {
                                     }
                                     let mut npos = NeighbourPos::new();
                                     for (parent_index, node_index) in nodes_to_add.iter() {
-                                        npos.add_by_index(&mut self.ui_state.visible_nodes, *parent_index,*node_index);
+                                        npos.add_by_index(&mut self.visible_nodes, *parent_index,*node_index);
                                     }
-                                    npos.position( &mut self.ui_state.visible_nodes);
+                                    npos.position( &mut self.visible_nodes);
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
                                 let state = format!(
@@ -269,7 +349,7 @@ impl RdfGlanceApp {
                             HashMap::new();
                         let mut references: Vec<IriIndex> = Vec::new();
                         for (predicate_index, ref_iri) in &current_node.reverse_references {
-                            let is_visible = self.ui_state.visible_nodes.contains(*ref_iri);
+                            let is_visible = self.visible_nodes.contains(*ref_iri);
                             if references.contains(predicate_index) {
                                 let reference_state =
                                     reference_state.get_mut(predicate_index).unwrap();
@@ -299,10 +379,10 @@ impl RdfGlanceApp {
                                         &current_node.reverse_references
                                     {
                                         if predicate_index == reference_index {
-                                            npos.add_by_index(&mut self.ui_state.visible_nodes, *iri_index,*ref_iri);
+                                            npos.add_by_index(&mut self.visible_nodes, *iri_index,*ref_iri);
                                         }
                                     }
-                                    npos.position( &mut self.ui_state.visible_nodes);
+                                    npos.position( &mut self.visible_nodes);
                                 }
                                 ui.add(ColorBox::new(
                                     self.visualisation_style.get_predicate_color(*reference_index),
@@ -310,7 +390,7 @@ impl RdfGlanceApp {
                                 if ui.button("➕").clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
-                                    for node_layout in &self.ui_state.visible_nodes.nodes {
+                                    for node_layout in &self.visible_nodes.nodes {
                                         let visible_node =
                                             self.node_data.get_node_by_index(node_layout.node_index);
                                         if let Some((_,visible_node)) = visible_node {
@@ -327,9 +407,9 @@ impl RdfGlanceApp {
                                     }
                                     let mut npos = NeighbourPos::new();
                                     for (root_index,node_to_add) in nodes_to_add.iter() {
-                                        npos.add_by_index(&mut self.ui_state.visible_nodes,*root_index,*node_to_add);
+                                        npos.add_by_index(&mut self.visible_nodes,*root_index,*node_to_add);
                                     }
-                                    npos.position( &mut self.ui_state.visible_nodes);
+                                    npos.position( &mut self.visible_nodes);
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
                                 let state = format!(
@@ -377,7 +457,7 @@ impl RdfGlanceApp {
 
 
         let scene = egui::Scene::new().zoom_range(0.3..=4.0);
-        scene.show(ui, &mut self.ui_state.scene_rect, |ui| {
+        scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
             let available_width = ui.available_width();
             let available_height = ui.available_height();
             let size = Vec2::new(available_width, available_height);
@@ -386,8 +466,6 @@ impl RdfGlanceApp {
             let painter = ui.painter();
     
             let center = rect.center();
-            let font = FontId::proportional(16.0);
-            let radius = 10.0;
 
             // The code is complicated because of event handling, especially for click and dragging
             // If node is clicked/dragged the event sould not be probagated to scena layer
@@ -415,19 +493,22 @@ impl RdfGlanceApp {
             });
 
     
-            for node_layout in self.ui_state.visible_nodes.nodes.iter() {
+            for node_layout in self.visible_nodes.nodes.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     for (pred_index, ref_iri) in &object.references {
-                        if !self.ui_state.hidden_predicates.contains(*pred_index) && self.ui_state.visible_nodes.contains(*ref_iri) {
-                            if let Some(ref_object) = self.ui_state.visible_nodes.get(*ref_iri) {
+                        if !self.ui_state.hidden_predicates.contains(*pred_index) && self.visible_nodes.contains(*ref_iri) {
+                            if let Some(ref_object) = self.visible_nodes.get(*ref_iri) {
                                 let pos1 = center + node_layout.pos.to_vec2();
                                 let pos2 = center + ref_object.pos.to_vec2();
-                                drawing::draw_arrow_to_circle(
+                                drawing::draw_edge(
                                     painter,
                                     pos1,
+                                    node_layout.size,
+                                    node_layout.node_shape,
                                     pos2,
-                                    radius,
-                                    self.visualisation_style.get_predicate_color(*pred_index),
+                                    ref_object.size,
+                                    ref_object.node_shape,
+                                    self.visualisation_style.get_edge_syle(*pred_index),
                                 );
                                 edge_count += 1;
                             }
@@ -436,90 +517,59 @@ impl RdfGlanceApp {
                 }
             }
             if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
-                if let Some(node_to_drag) = self.ui_state.visible_nodes.get_mut(*node_to_drag_index) {
-                    node_to_drag.pos = (mouse_pos - center).to_pos2();
+                if let Some(node_to_drag) = self.visible_nodes.get_mut(*node_to_drag_index) {
+                    node_to_drag.pos = (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
                 }
             }
-            for node_layout in self.ui_state.visible_nodes.nodes.iter() {
+            for node_layout in self.visible_nodes.nodes.iter_mut() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
+                    let (node_rect,node_shape) = draw_node(&self.visualisation_style, 
+                        &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
+                        self.ui_state.selected_node == Some(node_layout.node_index), false);
+                    node_layout.node_shape = node_shape;
+                    node_layout.size = node_rect.size();
                     if self.ui_state.context_menu_node.is_none() || was_action {
-                        if single_clicked && (pos - mouse_pos).length() < radius {
+                        if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                             self.ui_state.selected_node = Some(node_layout.node_index);
                             was_action = true;
                         }
-                        if primary_down && (pos - mouse_pos).length() < radius {
+                        if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
                             self.ui_state.node_to_drag = Some(node_layout.node_index);
+                            self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
                             was_action = true;
                         }
-                        if double_clicked && (pos - mouse_pos).length() < radius {
+                        if double_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                             node_to_click = Some(node_layout.node_index);
                             was_action = true;
                         }
-                        if secondary_clicked && (pos - mouse_pos).length() < radius {
+                        if secondary_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                             was_context_click = true;
                             self.ui_state.context_menu_pos = global_mouse_pos;
                             self.ui_state.context_menu_node = Some(node_layout.node_index);
                             was_action = true;
                         }
                     }
-                    let mut is_hoover = false;
-                    if !was_action && (pos - mouse_pos).length() < radius {
+                    if !was_action && is_overlapping(&node_rect, mouse_pos, node_shape) {
                         node_to_hover = Some(node_layout.node_index);
-                        is_hoover = true;
                         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
                     }
-                    if self.ui_state.selected_node.is_some()
-                        && self.ui_state.selected_node.unwrap() == node_layout.node_index
-                    {
-                        painter.circle_filled(pos, radius + 3.0, egui::Color32::YELLOW);
-                    }
-                    let type_color = self.visualisation_style.get_type_color(&object.types);
-                    painter.circle_filled(pos, radius, type_color);
                     node_count += 1;
-                    if self.show_labels && !is_hoover {
-                        let node_label = object.node_label(object_iri, 
-                            &self.visualisation_style, 
-                            self.short_iri, 
-                            self.ui_state.display_language,
-                            &self.node_data.indexers
-                        );
-                        painter.text(
-                            pos,
-                            egui::Align2::CENTER_CENTER,
-                            node_label,
-                            font.clone(),
-                            egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
-                        );
-                    }
                 }
             }
+            /* TODO Unselect node but only in clicked in the graph area
+            if primary_down && !was_action {
+                self.ui_state.selected_node = None;
+            }
+            */
             if let Some(node_to_hover) = node_to_hover {
-                let node_layout = self.ui_state.visible_nodes.get(node_to_hover);
+                let node_layout = self.visible_nodes.get(node_to_hover);
                 if let Some(node_layout) = node_layout {
                     if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_to_hover) {
-                        let node_label = object.node_label(object_iri, 
-                            &self.visualisation_style, 
-                            self.short_iri, 
-                            self.ui_state.display_language,
-                            &self.node_data.indexers
-                        );
-                        let mut job = egui::text::LayoutJob::default();
-                        job.append(
-                            node_label,
-                            0.0,
-                            egui::TextFormat {
-                                font_id: font.clone(),
-                                color: Color32::BLUE,
-                                ..Default::default()
-                            },
-                        );                       
-                        let galley = painter.layout_job(job);
                         let pos = center + node_layout.pos.to_vec2();
-                        let text_pos = pos-Vec2::new(galley.rect.width()/2.0,galley.rect.height()/2.0);
-                        let hrec = galley.rect.translate(Vec2::new(text_pos.x,text_pos.y));
-                        painter.rect_filled(hrec, 3.0, Color32::from_rgba_unmultiplied(255, 255, 153, 200));
-                        painter.galley(text_pos, galley, Color32::BLACK);                            
+                        draw_node(&self.visualisation_style, 
+                            &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
+                            self.ui_state.selected_node == Some(node_layout.node_index), true);
                     }
                 }
             }
@@ -552,14 +602,14 @@ impl RdfGlanceApp {
                     // TODO need to clone the types to release the mutable borrow from current_node (node_data)
                     let types = current_node.types.clone();
                     if ui.button("Hide").clicked() {
-                        self.ui_state.visible_nodes.remove(current_index);
+                        self.visible_nodes.remove(current_index);
                         self.ui_state.compute_layout = true;
                         close_menu = true;
                     }
                     if ui.button("Hide this Type").clicked() {
                         self.ui_state.compute_layout = true;
-                        self.ui_state.visible_nodes.remove(current_index);
-                        self.ui_state.visible_nodes.nodes.retain(|x| {
+                        self.visible_nodes.remove(current_index);
+                        self.visible_nodes.nodes.retain(|x| {
                             let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 !node.has_same_type(&types)
@@ -571,13 +621,13 @@ impl RdfGlanceApp {
                     }
                     if ui.button("Hide other").clicked() {
                         self.ui_state.compute_layout = true;
-                        self.ui_state.visible_nodes.nodes.clear();
-                        self.ui_state.visible_nodes.add_by_index(current_index);
+                        self.visible_nodes.nodes.clear();
+                        self.visible_nodes.add_by_index(current_index);
                         close_menu = true;
                     }
                     if ui.button("Hide other Types").clicked() {
                         self.ui_state.compute_layout = true;
-                        self.ui_state.visible_nodes.nodes.retain(|x| {
+                        self.visible_nodes.nodes.retain(|x| {
                             let node = self.node_data.get_node_by_index(x.node_index);
                             if let Some((_,node)) = node {
                                 node.has_same_type(&types)
@@ -623,7 +673,7 @@ impl RdfGlanceApp {
                 self.status_message.clear();
                 self.status_message.push_str(hover_node.node_label(hover_node_iri,
                     &self.visualisation_style, 
-                    self.short_iri, 
+                    self.ui_state.short_iri, 
                     self.ui_state.display_language,
                     &self.node_data.indexers
                 ));
@@ -635,7 +685,7 @@ impl RdfGlanceApp {
                     "Nodes: {}, Edges: {} Selected: {}",
                     node_count, edge_count, selected_node.node_label(selected_node_iri, 
                         &self.visualisation_style, 
-                        self.short_iri, 
+                        self.ui_state.short_iri, 
                         self.ui_state.display_language,
                         &self.node_data.indexers
                     )
@@ -646,7 +696,53 @@ impl RdfGlanceApp {
             self.status_message.push_str(format!("Nodes: {}, Edges: {}", node_count, edge_count).as_str());
         }
     }
+
 }
+
+fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape : NodeShape) -> bool {
+    if node_rect.contains(pos) {
+        if node_shape == NodeShape::Circle {
+            let center = node_rect.center();
+            let radius = node_rect.width()/2.0;
+            if (pos.x - center.x).powi(2) + (pos.y - center.y).powi(2) < radius.powi(2) {
+                return true;
+            }
+        } else if node_shape == NodeShape::Elipse {
+            let center = node_rect.center();
+            let radius_x = node_rect.width()/2.0;
+            let radius_y = node_rect.height()/2.0;
+            if ((pos.x - center.x)/radius_x).powi(2) + ((pos.y - center.y)/radius_y).powi(2) < 1.0 {
+                return true;
+            }
+        } else if node_shape == NodeShape::Rect {
+            return true;
+        }
+        return false;
+    }
+    false
+}
+
+fn draw_node(
+    visualisation_style: &GVisualisationStyle,
+    indexers: &Indexers,
+    ui_state: &UIState,
+    painter: &Painter,
+    node_object: &NObject,
+    object_iri: &Box<str>,
+    pos: Pos2,
+    selected: bool,
+    highlighted: bool,
+) -> (Rect, NodeShape) {
+    let type_style = visualisation_style.get_type_style(&node_object.types);
+    let node_label = node_object.node_label(object_iri, 
+        visualisation_style, 
+        ui_state.short_iri, 
+        ui_state.display_language,
+        indexers
+    );
+    draw_node_label(painter, node_label, type_style, pos, selected, highlighted, ui_state.show_labels)
+}
+
 
 pub struct NeighbourPos {
     nodes: HashMap<IriIndex,Vec<IriIndex>>,

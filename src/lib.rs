@@ -58,11 +58,10 @@ pub struct RdfGlanceApp {
     nav_pos: usize,
     nav_history: Vec<IriIndex>,
     display_type: DisplayType,
-    show_properties: bool,
-    show_labels: bool,
-    short_iri: bool,
     pub node_data: NodeData,
     ui_state: UIState,
+    visible_nodes: SortedNodeLayout,
+    graph_state: GraphState,
     visualisation_style: GVisualisationStyle,
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
@@ -103,16 +102,81 @@ pub struct PlayData {
 pub struct TypeStyle {
     pub color: egui::Color32,
     pub priority: u32,
-    pub label_index: IriIndex
+    pub label_index: IriIndex,
+    pub node_shape: NodeShape,
+    pub node_size: NodeSize,
+    pub width: f32,
+    pub height: f32,
+    pub border_width: f32,
+    pub border_color: egui::Color32,
+    pub corner_radius: f32,
+    pub max_lines: u16,
+    pub label_position: LabelPosition,
+    pub label_max_width: f32,
+    pub font_size: f32,
 }
 
-pub struct ReferenceStyle {
+impl Default for TypeStyle {
+    fn default() -> Self {
+        Self {
+            color: egui::Color32::WHITE,
+            priority: 0,
+            label_index: 0,
+            node_shape: NodeShape::Circle,
+            node_size: NodeSize::Fixed,
+            width: 10.0,
+            height: 10.0,
+            border_width: 1.0,
+            border_color: egui::Color32::BLACK,
+            corner_radius: 3.0,
+            max_lines: 1,
+            label_position: LabelPosition::Above,
+            label_max_width: 0.0,
+            font_size: 16.0,
+        }
+    }
+}
+
+#[derive(PartialEq, Copy, Clone)]
+pub enum NodeShape {
+    Rect,
+    Circle,
+    Elipse
+}
+
+#[derive(PartialEq)]
+pub enum NodeSize {
+    Fixed,
+    Label,   
+}
+
+#[derive(PartialEq)]
+pub enum LabelPosition {
+    Center,
+    Above,
+    Below,
+    Right,
+    Left   
+}
+
+pub struct EdgeStyle {
     pub color: egui::Color32,
+    pub width: f32,
+}
+
+impl Default for EdgeStyle {
+    fn default() -> Self {
+        Self {
+            color: egui::Color32::BLACK,
+            width: 2.0,
+        }
+    }
 }
 
 pub struct GVisualisationStyle {
-    type_styles: HashMap<IriIndex, TypeStyle>,
-    reference_styles: HashMap<IriIndex, ReferenceStyle>,
+    pub type_styles: HashMap<IriIndex, TypeStyle>,
+    pub default_type_style: TypeStyle,
+    pub reference_styles: HashMap<IriIndex, EdgeStyle>,
 }
 
 pub struct UIState {
@@ -120,12 +184,20 @@ pub struct UIState {
     context_menu_node: Option<IriIndex>,
     context_menu_pos: Pos2,
     node_to_drag: Option<IriIndex>,
-    visible_nodes: SortedNodeLayout,
+    // Set if dragging for difference to dragged node center
+    drag_diff: Pos2,
     hidden_predicates: SortedVec,
     compute_layout: bool,
     force_compute_layout: bool,
     display_language: LangIndex,
     language_sort: Vec<LangIndex>,
+    show_properties: bool,
+    show_labels: bool,
+    short_iri: bool,
+    type_style_edit: Option<IriIndex>,
+}
+
+pub struct GraphState {
     scene_rect: Rect,
 }
 
@@ -164,11 +236,9 @@ impl UIState {
         self.selected_node = None;
         self.context_menu_node = None;
         self.node_to_drag = None;
-        self.visible_nodes.nodes.clear();
         self.hidden_predicates.data.clear();
         self.compute_layout = true;
         self.force_compute_layout = false;
-        self.scene_rect = Rect::ZERO;
     }
 }
 
@@ -178,36 +248,50 @@ impl GVisualisationStyle {
         cache_statistics: &TypeInstanceIndex,
     ) {
         for (type_index, _type_desc) in cache_statistics.types.iter() {
-            let _color = self.get_predicate_color(*type_index);
+            let type_style = self.type_styles.get(type_index);
+            if type_style.is_none() {
+                let new_color = distinct_colors::next_distinct_color(self.type_styles.len(), 0.8, 0.8, 200);
+                self.type_styles.insert(*type_index, TypeStyle { 
+                    color: new_color,
+                    ..Default::default()
+                });
+            }
         }
     }
 
-    fn get_type_color(&mut self, types: &Vec<IriIndex>) -> egui::Color32 {
-        if types.is_empty() {
-            return egui::Color32::LIGHT_GRAY;
-        }
+    fn get_type_style(&self, types: &Vec<IriIndex>) -> &TypeStyle {
+        let mut style: Option<&TypeStyle> = None;
         for type_iri in types {
-            if let Some(type_style) = self.type_styles.get(type_iri) {
-                return type_style.color;
+            let type_style = self.type_styles.get(type_iri);
+            if let Some(type_style) = type_style {
+                if let Some(current_style) = style {
+                    if type_style.priority > current_style.priority {
+                        style = Some(type_style);
+                    }
+                } else {
+                    style = Some(type_style);
+                }
             }
         }
-        let first_type = types.first().unwrap();
-        let len = self.type_styles.len();
-        let new_color = distinct_colors::next_distinct_color(len, 0.8, 0.8);
-        self.type_styles.insert(*first_type, TypeStyle { 
-            color: new_color,
-            priority: 0,
-            label_index: 0,
-        });
-        new_color
+        style.unwrap_or(&self.default_type_style)
     }
 
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
         let len = self.reference_styles.len();
         self.reference_styles
             .entry(iri)
-            .or_insert_with(|| ReferenceStyle { 
-                color: distinct_colors::next_distinct_color(len, 0.5, 0.3)}).color
+            .or_insert_with(|| EdgeStyle { 
+                color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
+                ..EdgeStyle::default()}).color
+    }
+
+    fn get_edge_syle(&mut self, iri: IriIndex) -> &EdgeStyle {
+        let len = self.reference_styles.len();
+        self.reference_styles
+            .entry(iri)
+            .or_insert_with(|| EdgeStyle { 
+                color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
+                ..EdgeStyle::default()})
     }
 
     fn update_label(&mut self, iri: IriIndex, label_index: IriIndex) {
@@ -272,15 +356,13 @@ impl RdfGlanceApp {
             nav_pos: 0,
             nav_history: vec![],
             display_type: DisplayType::Table,
-            show_properties: true,
-            show_labels: true,
-            short_iri: true,
             sparql_dialog: None,
             status_message: String::new(),
             node_data: NodeData::new(),
             type_index: TypeInstanceIndex::new(),
             prefix_manager: PrefixManager::new(),
             system_message: SystemMessage::None,
+            visible_nodes: SortedNodeLayout::new(),
             persistent_data: presistentdata.unwrap_or(AppPersistentData {
                 last_files: vec![],
                 last_endpoints: vec![],
@@ -290,19 +372,26 @@ impl RdfGlanceApp {
             visualisation_style: GVisualisationStyle {
                 type_styles: HashMap::new(),
                 reference_styles: HashMap::new(),
+                default_type_style: TypeStyle::default(),
+            },
+            graph_state: GraphState {
+                scene_rect: Rect::ZERO,
             },
             ui_state: UIState {
                 selected_node: None,
                 node_to_drag: None,
                 context_menu_node: None,
                 context_menu_pos: Pos2::new(0.0, 0.0),
-                scene_rect: Rect::ZERO,
                 compute_layout: true,
                 force_compute_layout: false,
-                visible_nodes: SortedNodeLayout::new(),
                 hidden_predicates: SortedVec::new(),
                 display_language: 0,
                 language_sort: Vec::new(),
+                show_properties: true,
+                show_labels: true,
+                short_iri: true,
+                type_style_edit: None,
+                drag_diff: Pos2::ZERO,
             },
             play: PlayData {
                 row_count: 100,
@@ -374,7 +463,7 @@ impl RdfGlanceApp {
     fn load_object(&mut self, iri: &str) -> bool {
         let iri_index = self.node_data.get_node_index(iri);
         if let Some(iri_index) = iri_index {
-            self.ui_state.visible_nodes.add_by_index(iri_index);
+            self.visible_nodes.add_by_index(iri_index);
         } else {
             let new_object = self.rdfwrap.load_object(iri, &mut self.node_data);
             if let Some(new_object) = new_object {
@@ -390,7 +479,7 @@ impl RdfGlanceApp {
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,node)) = node {
             if node.has_subject {
-                return self.ui_state.visible_nodes.add_by_index(index);
+                return self.visible_nodes.add_by_index(index);
             } else {
                 let node_iri = node_iri.clone();
                 let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
@@ -440,12 +529,12 @@ impl RdfGlanceApp {
                 npos.insert(iri_index, ref_index);
             }
         }
-        npos.position(&mut self.ui_state.visible_nodes);
+        npos.position(&mut self.visible_nodes);
     }
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in &self.ui_state.visible_nodes.nodes {
+        for visible_index in &self.visible_nodes.nodes {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if refs_to_expand.insert(*ref_iri) {
@@ -461,11 +550,11 @@ impl RdfGlanceApp {
         }
         let mut npos = NeighbourPos::new();
         for (parent_index,ref_index) in parent_ref {
-            if !self.ui_state.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
+            if !self.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
                 npos.insert(parent_index, ref_index);
             }
         }
-        npos.position(&mut self.ui_state.visible_nodes);
+        npos.position(&mut self.visible_nodes);
     }
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
@@ -504,7 +593,6 @@ impl RdfGlanceApp {
                     dir_name, triples_count
                 ));
                 self.update_data_indexes();
-                self.visualisation_style.preset_styles(&self.type_index);
             }
         }
     }
@@ -616,6 +704,7 @@ impl RdfGlanceApp {
         self.current_iri = None;
         self.object_iri.clear();
         self.prefix_manager.clean();
+        self.visible_nodes.nodes.clear();
     }
 }
 
@@ -701,7 +790,7 @@ impl eframe::App for RdfGlanceApp {
                 }
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
-                    self.ui_state.visible_nodes.add_by_index(node_index);
+                    self.visible_nodes.add_by_index(node_index);
                     self.ui_state.selected_node = Some(node_index);
                 }
                 NodeAction::None => {}

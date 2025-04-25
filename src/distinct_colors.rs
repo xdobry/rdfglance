@@ -1,9 +1,9 @@
 use eframe::egui::Color32;
 
-pub fn next_distinct_color(taken_colors: usize, saturation: f32, lightness: f32) -> Color32 {
+pub fn next_distinct_color(taken_colors: usize, saturation: f32, lightness: f32, alpha: u8) -> Color32 {
     let hue = (taken_colors as f32 / PHI) * 360.0 % 360.0; // Golden ratio spacing
     let (r, g, b) = hsl_to_rgb(hue, saturation, lightness);
-    Color32::from_rgb(r, g, b)
+    Color32::from_rgba_premultiplied(r, g, b, alpha)
 }
 
 /// Convert HSL to RGB (values 0-255)
