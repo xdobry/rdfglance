@@ -14,7 +14,7 @@ use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
-use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp};
+use crate::{EdgeStyle, GVisualisationStyle, LabelPosition, NodeShape, NodeSize, RdfGlanceApp};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -530,8 +530,23 @@ impl GVisualisationStyle {
                 leb128::write::unsigned(writer, *type_index as u64)?;
                 leb128::write::unsigned(writer, style.label_index as u64)?;
                 leb128::write::unsigned(writer, style.priority as u64)?;
+                leb128::write::unsigned(writer, style.max_lines as u64)?;
                 let col = style.color.to_array();
                 writer.write(&col)?;
+                let col_border = style.border_color.to_array();
+                writer.write(&col_border)?;
+                let col_label = style.label_color.to_array();
+                writer.write(&col_label)?;
+                writer.write_u8(style.node_shape as u8)?;
+                writer.write_u8(style.label_position as u8)?;
+                writer.write_u8(style.node_size as u8)?;
+                writer.write_f32::<LittleEndian>(style.width)?;
+                writer.write_f32::<LittleEndian>(style.height)?;
+                writer.write_f32::<LittleEndian>(style.border_width)?;
+                writer.write_f32::<LittleEndian>(style.font_size)?;
+                writer.write_f32::<LittleEndian>(style.corner_radius)?;
+                writer.write_f32::<LittleEndian>(style.label_max_width)?;
+                // flexible field number
                 leb128::write::unsigned(writer, 0)?;
             }
             leb128::write::unsigned(writer, self.reference_styles.len() as u64)?;
@@ -539,6 +554,8 @@ impl GVisualisationStyle {
                 leb128::write::unsigned(writer, *reference_index as u64)?;
                 let col = style.color.to_array();
                 writer.write(&col)?;
+                writer.write_f32::<LittleEndian>(style.width)?;
+                // flexible field number
                 leb128::write::unsigned(writer, 0)?;
             }
             Ok(())
@@ -556,8 +573,25 @@ impl GVisualisationStyle {
             let type_index = leb128::read::unsigned(reader)? as IriIndex;
             let label_index = leb128::read::unsigned(reader)? as IriIndex;
             let priority = leb128::read::unsigned(reader)? as u32;
+            let max_lines = leb128::read::unsigned(reader)? as u16;
             let mut color = [0u8; 4];
             reader.read_exact(&mut color)?;
+            let mut color_border = [0u8; 4];
+            reader.read_exact(&mut color_border)?;
+            let mut color_label = [0u8; 4];
+            reader.read_exact(&mut color_label)?;
+            let node_shape = reader.read_u8()?;
+            let node_shape: NodeShape = node_shape.try_into().map_err(|_| anyhow::anyhow!("Invalid node shape value"))?;
+            let label_position = reader.read_u8()?;
+            let label_position: LabelPosition = label_position.try_into().map_err(|_| anyhow::anyhow!("Invalid label position value"))?;
+            let node_size = reader.read_u8()?;
+            let node_size: NodeSize = node_size.try_into().map_err(|_| anyhow::anyhow!("Invalid label size value"))?;
+            let width = reader.read_f32::<LittleEndian>()?;
+            let height = reader.read_f32::<LittleEndian>()?;
+            let border_width = reader.read_f32::<LittleEndian>()?;
+            let font_size = reader.read_f32::<LittleEndian>()?;
+            let corner_radius = reader.read_f32::<LittleEndian>()?;
+            let label_max_width = reader.read_f32::<LittleEndian>()?;
             let field_number = leb128::read::unsigned(reader)?;
             for _ in 0..field_number {
                 let (field_type, _field_index) = read_field_index(reader)?;
@@ -565,9 +599,20 @@ impl GVisualisationStyle {
             }
             let style = crate::TypeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
-                priority: priority, 
-                label_index: label_index, 
-                ..crate::TypeStyle::default()
+                border_color: egui::Color32::from_rgba_premultiplied(color_border[0], color_border[1], color_border[2], color_border[3]),
+                label_color: egui::Color32::from_rgba_premultiplied(color_label[0], color_label[1], color_label[2], color_label[3]),
+                priority, 
+                label_index, 
+                max_lines,
+                width,
+                height,
+                border_width,
+                font_size,
+                corner_radius,
+                label_max_width,
+                node_shape,
+                label_position,
+                node_size,
             };
             styles.type_styles.insert(type_index, style);
         }
@@ -576,9 +621,10 @@ impl GVisualisationStyle {
             let reference_index = leb128::read::unsigned(reader)? as IriIndex;
             let mut color = [0u8; 4];
             reader.read_exact(&mut color)?;
+            let width = reader.read_f32::<LittleEndian>()?;
             let style = EdgeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
-                ..EdgeStyle::default()
+                width,
             };
             let field_number = leb128::read::unsigned(reader)?;
             for _ in 0..field_number {

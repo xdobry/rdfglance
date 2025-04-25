@@ -84,7 +84,7 @@ pub fn draw_node_label(
         0.0,
         egui::TextFormat {
             font_id: font,
-            color: if highlighted { Color32::BLUE } else { Color32::BLACK},
+            color: if highlighted { Color32::BLUE } else { type_style.label_color},
             ..Default::default()
         },
     );
@@ -150,6 +150,9 @@ pub fn draw_node_label(
             }
             NodeShape::Rect => { 
                 painter.rect(node_rect,type_style.corner_radius,type_style.color, stroke,StrokeKind::Outside);
+            }
+            NodeShape::None => {
+                // No shape, just text
             }
         }
         node_rect

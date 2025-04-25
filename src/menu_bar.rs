@@ -120,6 +120,7 @@ impl RdfGlanceApp {
                 self.node_data = app_data.node_data;
                 self.prefix_manager = app_data.prefix_manager;
                 self.ui_state = app_data.ui_state;
+                self.visible_nodes = app_data.visible_nodes;
                 self.update_data_indexes();
                 if app_data.visualisation_style.type_styles.len()>0 {
                     self.visualisation_style = app_data.visualisation_style;
@@ -144,6 +145,14 @@ impl RdfGlanceApp {
                     self.system_message = SystemMessage::Error(format!("Can not save project: {}", e));
                 }
                 Ok(_) => {
+                    let file_name: Box<str> = Box::from(path.display().to_string());
+                    if !self
+                        .persistent_data
+                        .last_projects
+                        .iter().any(|f | *f == file_name)
+                    {
+                        self.persistent_data.last_projects.push(file_name);
+                    }
                     self.set_status_message("Project saved");
                 }
             }

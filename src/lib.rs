@@ -114,6 +114,7 @@ pub struct TypeStyle {
     pub label_position: LabelPosition,
     pub label_max_width: f32,
     pub font_size: f32,
+    pub label_color: egui::Color32,
 }
 
 impl Default for TypeStyle {
@@ -133,30 +134,76 @@ impl Default for TypeStyle {
             label_position: LabelPosition::Above,
             label_max_width: 0.0,
             font_size: 16.0,
+            label_color: egui::Color32::BLACK,
         }
     }
 }
 
 #[derive(PartialEq, Copy, Clone)]
+#[repr(u8)]
 pub enum NodeShape {
-    Rect,
-    Circle,
-    Elipse
+    None = 0,
+    Rect = 1,
+    Circle = 2,
+    Elipse = 3,
 }
 
-#[derive(PartialEq)]
+impl TryFrom<u8> for NodeShape {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(NodeShape::None),
+            1 => Ok(NodeShape::Rect),
+            2 => Ok(NodeShape::Circle),
+            3 => Ok(NodeShape::Elipse),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(PartialEq, Copy, Clone)]
+#[repr(u8)]
 pub enum NodeSize {
-    Fixed,
-    Label,   
+    Fixed = 1,
+    Label = 2,   
 }
 
-#[derive(PartialEq)]
+impl TryFrom<u8> for NodeSize {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(NodeSize::Fixed),
+            2 => Ok(NodeSize::Label),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(PartialEq, Copy, Clone)]
+#[repr(u8)]
 pub enum LabelPosition {
-    Center,
-    Above,
-    Below,
-    Right,
-    Left   
+    Center = 1,
+    Above = 2,
+    Below = 3,
+    Right = 4,
+    Left = 5,  
+}
+
+impl TryFrom<u8> for LabelPosition {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(LabelPosition::Center),
+            2 => Ok(LabelPosition::Above),
+            3 => Ok(LabelPosition::Below),
+            4 => Ok(LabelPosition::Right),
+            5 => Ok(LabelPosition::Left),
+            _ => Err(()),
+        }
+    }
 }
 
 pub struct EdgeStyle {
