@@ -23,6 +23,10 @@ Therefore, the program has been optimized to efficiently process and manage larg
 
 ![screenshot](documentation/screeshots/rdf-glance_anim.gif)
 
+Individualy styled visualisation of nodes and edges
+
+![screenshot](documentation/screeshots/milenium_falcon_pilot_movies.png)
+
 [Manual](documentation/manual.md)
 
 ## Features
