@@ -122,7 +122,7 @@ impl RdfGlanceApp {
                 self.ui_state = app_data.ui_state;
                 self.visible_nodes = app_data.visible_nodes;
                 self.update_data_indexes();
-                if app_data.visualisation_style.type_styles.len()>0 {
+                if app_data.visualisation_style.node_styles.len()>0 {
                     self.visualisation_style = app_data.visualisation_style;
                 }
                 let file_name: Box<str> = Box::from(path.display().to_string());

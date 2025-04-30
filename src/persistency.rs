@@ -10,11 +10,12 @@ use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
+use crate::graph_styles::{LabelPosition, NodeShape, NodeSize};
 use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
-use crate::{EdgeStyle, GVisualisationStyle, LabelPosition, NodeShape, NodeSize, RdfGlanceApp};
+use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -514,7 +515,7 @@ impl SortedNodeLayout {
                 node_index,
                 pos: egui::Pos2::new(x, y),
                 vel: Vec2::new(0.0, 0.0),
-                node_shape: crate::NodeShape::Circle,
+                node_shape: NodeShape::Circle,
                 size: Vec2::ZERO,
             });            
         }
@@ -525,8 +526,8 @@ impl SortedNodeLayout {
 impl GVisualisationStyle {
     pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
         with_header_len(writer, HeaderType::VisualStyles, &|writer| {
-            leb128::write::unsigned(writer, self.type_styles.len() as u64)?;
-            for (type_index, style) in self.type_styles.iter() {
+            leb128::write::unsigned(writer, self.node_styles.len() as u64)?;
+            for (type_index, style) in self.node_styles.iter() {
                 leb128::write::unsigned(writer, *type_index as u64)?;
                 leb128::write::unsigned(writer, style.label_index as u64)?;
                 leb128::write::unsigned(writer, style.priority as u64)?;
@@ -549,8 +550,8 @@ impl GVisualisationStyle {
                 // flexible field number
                 leb128::write::unsigned(writer, 0)?;
             }
-            leb128::write::unsigned(writer, self.reference_styles.len() as u64)?;
-            for (reference_index, style) in self.reference_styles.iter() {
+            leb128::write::unsigned(writer, self.edge_styles.len() as u64)?;
+            for (reference_index, style) in self.edge_styles.iter() {
                 leb128::write::unsigned(writer, *reference_index as u64)?;
                 let col = style.color.to_array();
                 writer.write(&col)?;
@@ -564,9 +565,9 @@ impl GVisualisationStyle {
 
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let mut styles = GVisualisationStyle {
-            type_styles: HashMap::new(),
-            reference_styles: HashMap::new(),
-            default_type_style: crate::TypeStyle::default(),
+            node_styles: HashMap::new(),
+            edge_styles: HashMap::new(),
+            default_node_style: crate::NodeStyle::default(),
         };
         let len_types = leb128::read::unsigned(reader)?;
         for _ in 0..len_types {
@@ -597,7 +598,7 @@ impl GVisualisationStyle {
                 let (field_type, _field_index) = read_field_index(reader)?;
                 skip_field(reader, field_type)?;
             }
-            let style = crate::TypeStyle { 
+            let style = crate::NodeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
                 border_color: egui::Color32::from_rgba_premultiplied(color_border[0], color_border[1], color_border[2], color_border[3]),
                 label_color: egui::Color32::from_rgba_premultiplied(color_label[0], color_label[1], color_label[2], color_label[3]),
@@ -613,8 +614,9 @@ impl GVisualisationStyle {
                 node_shape,
                 label_position,
                 node_size,
+                ..Default::default()
             };
-            styles.type_styles.insert(type_index, style);
+            styles.node_styles.insert(type_index, style);
         }
         let len_references = leb128::read::unsigned(reader)?;
         for _ in 0..len_references {
@@ -625,13 +627,14 @@ impl GVisualisationStyle {
             let style = EdgeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
                 width,
+                ..Default::default()
             };
             let field_number = leb128::read::unsigned(reader)?;
             for _ in 0..field_number {
                 let (field_type, _field_index) = read_field_index(reader)?;
                 skip_field(reader, field_type)?;
             }
-            styles.reference_styles.insert(reference_index, style);
+            styles.edge_styles.insert(reference_index, style);
         }
 
         Ok(styles)
@@ -726,7 +729,7 @@ mod tests {
         assert_eq!(vs.node_data.len(),restored.node_data.len());
         assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
         assert_eq!(vs.visible_nodes.nodes.len(),restored.visible_nodes.nodes.len());    
-        assert_eq!(vs.visualisation_style.type_styles.len(),restored.visualisation_style.type_styles.len());    
+        assert_eq!(vs.visualisation_style.node_styles.len(),restored.visualisation_style.node_styles.len());    
 
         Ok(())
     }

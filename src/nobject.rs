@@ -129,7 +129,7 @@ impl NObject {
 
     pub fn node_label_opt<'a>(&self, styles: &GVisualisationStyle, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
         for type_index in self.types.iter() {
-            if let Some(type_style) = styles.type_styles.get(type_index) {
+            if let Some(type_style) = styles.node_styles.get(type_index) {
                 let prop = self.get_property(type_style.label_index, language_index);
                 if let Some(prop) = prop {
                     return Some(prop.as_str_ref(indexers));

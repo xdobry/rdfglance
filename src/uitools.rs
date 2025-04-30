@@ -1,7 +1,7 @@
 use eframe::egui::{
     vec2, Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui,
 };
-use egui::{Response, Sense, Vec2, Widget};
+use egui::{Rect, Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(
     ui: &Ui,
@@ -53,6 +53,106 @@ pub fn strong_unselectable(ui: &mut Ui, text: impl Into<egui::RichText>) {
 }
 
 #[derive(Debug)]
+pub struct ScrollBar<'a> {
+    is_vertical: bool,
+    // Position is 0..(len-visible_len)
+    position: &'a mut f32,
+    // Drag position is the offset from the center of the bar, if dragging is started from inside the bar
+    // otherwise bar middle is set to clicked possition on the whole bar
+    drag_pos: &'a mut Option<f32>,
+    // The whole length of virtual area to scroll
+    len: f32,
+    // The visible area to scroll
+    visible_len: f32,
+}
+
+impl<'a> ScrollBar<'a> {
+    pub fn new(position: &'a mut f32,drag_pos: &'a mut Option<f32>, len: f32, visible_len: f32) -> Self {
+        ScrollBar {
+            is_vertical: true,
+            position,
+            drag_pos, 
+            len,
+            visible_len,
+        }
+    }
+}
+
+impl Widget for ScrollBar<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> Response {
+        let h = ui.available_height();
+        let desired_size = Vec2::new(20.0, h); // Box size
+        let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
+
+        let mut bar_len = (h * self.visible_len / self.len).max(20.0).min(h);
+        let bar_pos = *self.position * (h - bar_len) / (self.len - self.visible_len);
+        if bar_pos + bar_len > h {
+            bar_len = h - bar_pos;
+        }
+
+        let bar_rec = Rect::from_min_size(
+            Pos2::new(rect.min.x, rect.min.y + bar_pos),
+            Vec2::new(rect.width(), bar_len),   
+        );
+
+        if let Some(pointer_pos) = response.interact_pointer_pos() {
+            // if drag_pos is none so the is the beginning of the click or drag operation
+            if self.drag_pos.is_none() {
+                let pointer_pos = if self.is_vertical {
+                    pointer_pos.y - rect.min.y
+                } else {
+                    pointer_pos.x - rect.min.x
+                };
+                if pointer_pos < bar_pos || pointer_pos > bar_pos + bar_len {
+                    // Clicked outer bar
+                    *self.drag_pos = Some(0.0)
+                } else {
+                    // Clicked on bar so calculate the offset from the center
+                    *self.drag_pos = Some(bar_pos + bar_len/2.0 - pointer_pos);
+                }
+            }
+            if let Some(drag_pos) = *self.drag_pos {
+                let pointer_pos = if self.is_vertical {
+                    pointer_pos.y - rect.min.y + drag_pos
+                } else {
+                    pointer_pos.x - rect.min.x + drag_pos
+                };
+                if pointer_pos < bar_len/2.0 {
+                    *self.position = 0.0;
+                } else if pointer_pos > h - bar_len/2.0 {
+                    *self.position = self.len - self.visible_len;
+                } else {
+                    *self.position = (pointer_pos - bar_len/2.0) * (self.len - self.visible_len) / (h - bar_len);
+                }
+            }
+            if response.drag_stopped() {
+                *self.drag_pos = None;                
+            }
+        } else {
+            if self.drag_pos.is_some() {
+                *self.drag_pos = None;
+            }
+            let scroll = response.ctx.input(|i| i.smooth_scroll_delta.y);
+            if scroll!=0.0 && self.len>self.visible_len {
+                *self.position -= scroll;
+                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
+            }
+
+        }
+
+
+        // Draw the filled box
+        ui.painter()
+            .rect_filled(rect, 5.0, Color32::LIGHT_GRAY); // 5.0 is corner rounding
+
+        ui.painter().rect_filled(bar_rec, 5.0, Color32::DARK_GRAY);
+
+        response
+    }
+}
+
+
+#[derive(Debug)]
 pub struct ColorBox {
     color: Color32,
 }
@@ -69,9 +169,7 @@ impl Widget for ColorBox {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let desired_size = Vec2::new(20.0, 17.0); // Box size
         let (rect, response) = ui.allocate_at_least(desired_size, Sense::empty());
-
         ui.painter().rect_filled(rect, 3.0, self.color);
-
         response
     }
 }

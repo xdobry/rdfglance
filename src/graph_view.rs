@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing::{self, draw_node_label}, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::{popup_at, ColorBox}, ExpandType, GVisualisationStyle, LabelPosition, NodeAction, NodeShape, NodeSize, RdfGlanceApp, TypeStyle, UIState
+    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::{popup_at, ColorBox}, ExpandType, GVisualisationStyle, NodeAction, RdfGlanceApp, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -75,99 +75,31 @@ impl RdfGlanceApp {
                     });
             }
         });
-        if self.ui_state.type_style_edit.is_some() {
-            self.display_node_style(ui);
-        } else {
-            if self.ui_state.show_properties {
-                egui::SidePanel::right("right_panel")
-                    .exact_width(500.0)
-                    .show_inside(ui, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            node_to_click = self.display_node_details(ui);
+        match self.ui_state.style_edit {
+            StyleEdit::Node(type_style_edit) => {
+                self.display_node_style(ui, type_style_edit);
+            }
+            StyleEdit::Edge(edge_style_edit) => {
+                self.display_edge_style(ui, edge_style_edit);
+            }
+            StyleEdit::None => {
+                if self.ui_state.show_properties {
+                    egui::SidePanel::right("right_panel")
+                        .exact_width(500.0)
+                        .show_inside(ui, |ui| {
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                node_to_click = self.display_node_details(ui);
+                            });
                         });
+                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                        self.display_graph(ctx, ui);
                     });
-                egui::CentralPanel::default().show_inside(ui, |ui| {
+                } else {
                     self.display_graph(ctx, ui);
-                });
-            } else {
-                self.display_graph(ctx, ui);
+                }
             }
         }
         node_to_click
-    }
-
-    pub fn display_node_style(&mut self, ui: &mut egui::Ui) {
-        if let Some(type_style_edit) = self.ui_state.type_style_edit {
-            let type_style = self.visualisation_style.type_styles.get_mut(&type_style_edit);
-            if let Some(type_style) = type_style {
-                if ui.button("Close Style Edit").clicked() {
-                    self.ui_state.type_style_edit = None;
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Priority:");
-                    ui.add(Slider::new(&mut type_style.priority, 0..=1000));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Background Color:");
-                    ui.color_edit_button_srgba(&mut type_style.color);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Shape:");
-                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Circle, "Circle");
-                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Rect, "Rectangle");
-                    // ui.selectable_value(&mut type_style.node_shape, NodeShape::Elipse, "Ellipse");
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Rectangle Corner Radius:");
-                    ui.add(Slider::new(&mut type_style.corner_radius, 0.0..=20.0));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Sizing:");
-                    ui.selectable_value(&mut type_style.node_size, NodeSize::Fixed, "Fixed");
-                    ui.selectable_value(&mut type_style.node_size, NodeSize::Label, "Label Dependant");
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Width:");
-                    ui.add(Slider::new(&mut type_style.width, 3.0..=150.0));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Height:");
-                    ui.add(Slider::new(&mut type_style.height, 3.0..=150.0));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Border Width:");
-                    ui.add(Slider::new(&mut type_style.border_width, 0.0..=20.0));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Border Color:");
-                    ui.color_edit_button_srgba(&mut type_style.border_color);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Max Lines:");
-                    ui.add(Slider::new(&mut type_style.max_lines, 1..=10));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Font Size:");
-                    ui.add(Slider::new(&mut type_style.font_size, 5.0..=25.0));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Label Position:");
-                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Center, "Center");
-                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Above, "Above");
-                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Below, "Below");
-                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Right, "Right");
-                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Left, "Left");
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Label Max Width (0-unlimited):");
-                    ui.add(Slider::new(&mut type_style.label_max_width, 0.0..=300.0));
-                });
-                let desired_size = Vec2::new(800.0, 500.0); // width, height
-                let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
-                let node_label = "Test Label";
-                draw_node_label(&painter, node_label, type_style, response.rect.center(), false, false, true);
-            }
-        }
     }
 
     pub fn display_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -192,7 +124,7 @@ impl RdfGlanceApp {
                                 node_to_click = NodeAction::ShowType(*type_index);
                             }
                             if ui.button(ICON_WRENCH).clicked() {
-                                self.ui_state.type_style_edit = Some(*type_index);
+                                self.ui_state.style_edit = StyleEdit::Node(*type_index);
                             }
                         }
                     });
@@ -289,9 +221,11 @@ impl RdfGlanceApp {
                                     }
                                     npos.position( &mut self.visible_nodes);
                                 }
-                                ui.add(ColorBox::new(
-                                    self.visualisation_style.get_predicate_color(*reference_index),
-                                ));
+                                let edge_style_button = egui::Button::new(ICON_WRENCH)
+                                    .fill(self.visualisation_style.get_predicate_color(*reference_index));
+                                if ui.add(edge_style_button).clicked() {
+                                    self.ui_state.style_edit = StyleEdit::Edge(*reference_index);
+                                }
                                 let ext_button = ui.button("➕");
                                 // ext_button.show_tooltip_text("Extend this relation for all visible nodes");
                                 if ext_button.clicked() {
@@ -384,9 +318,11 @@ impl RdfGlanceApp {
                                     }
                                     npos.position( &mut self.visible_nodes);
                                 }
-                                ui.add(ColorBox::new(
-                                    self.visualisation_style.get_predicate_color(*reference_index),
-                                ));
+                                let edge_style_button = egui::Button::new(ICON_WRENCH)
+                                    .fill(self.visualisation_style.get_predicate_color(*reference_index));
+                                if ui.add(edge_style_button).clicked() {
+                                    self.ui_state.style_edit = StyleEdit::Edge(*reference_index);
+                                }
                                 if ui.button("➕").clicked() {
                                     self.ui_state.compute_layout = true;
                                     let mut nodes_to_add: Vec<(IriIndex,IriIndex)> = Vec::new();
@@ -701,7 +637,7 @@ impl RdfGlanceApp {
 
 fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape : NodeShape) -> bool {
     if node_rect.contains(pos) {
-        if node_shape == NodeShape::Circle {
+        if node_shape == NodeShape::Circle || node_shape == NodeShape::None {
             let center = node_rect.center();
             let radius = node_rect.width()/2.0;
             if (pos.x - center.x).powi(2) + (pos.y - center.y).powi(2) < radius.powi(2) {

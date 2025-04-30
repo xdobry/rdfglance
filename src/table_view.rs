@@ -5,7 +5,11 @@ use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, play_ground::ScrollBar, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable}, GVisualisationStyle, UIState, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, 
+    prefix_manager::PrefixManager, 
+    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, 
+    uitools::{popup_at, strong_unselectable, ScrollBar}, 
+    GVisualisationStyle, UIState, NodeAction
 };
 
 pub struct TypeInstanceIndex {

@@ -1,7 +1,7 @@
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
-use egui::{epaint::EllipseShape, text::LayoutJob, FontId, Rect, StrokeKind, Vec2};
+use egui::{epaint::EllipseShape, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2};
 
-use crate::{EdgeStyle, LabelPosition, NodeShape, NodeSize, TypeStyle};
+use crate::{graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize}, EdgeStyle, NodeStyle};
 
 const POS_SPACE: f32 = 3.0;
 const NODE_RADIUS: f32 = 10.0;
@@ -50,28 +50,61 @@ pub fn draw_edge(painter: &Painter, point_from: Pos2, size_from: Vec2, shape_fro
     
     // Draw arrow (line + head)
     let stroke = Stroke::new(edge_style.width, edge_style.color);
-    painter.line_segment([edge_from, edge_to], stroke);
+    match edge_style.line_style {
+        LineStyle::Solid => {
+            painter.line_segment([edge_from, edge_to], stroke);
+        },
+        LineStyle::Dashed => {
+            painter.add(Shape::dashed_line(&[edge_from, edge_to], stroke, edge_style.line_gap, edge_style.width*5.0));
+        },
+        LineStyle::Dotted => {
+            painter.add(Shape::dotted_line(&[edge_from, edge_to], edge_style.color, edge_style.line_gap, edge_style.width));
+        },
+    }
+
+    if !matches!(edge_style.arrow_location,ArrowLocation::None) {
+        // Draw arrowhead
+        let arrow_size = edge_style.arrow_size;  // Size of the arrowhead
+        let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
+
+        let arrow_pos = match edge_style.arrow_location {
+            ArrowLocation::Middle => {
+                (edge_from+edge_to.to_vec2())/2.0
+            }
+            _ => edge_to,
+        };
+
+        // Rotate vector by ±arrow_angle to get arrowhead points
+        let cos_theta = arrow_angle.cos();
+        let sin_theta = arrow_angle.sin();
+
+        let left = arrow_pos - arrow_size * Vec2::new(cos_theta * unit.x - sin_theta * unit.y,sin_theta * unit.x + cos_theta * unit.y);
+        let right = arrow_pos - arrow_size * Vec2::new(cos_theta * unit.x + sin_theta * unit.y, -sin_theta * unit.x + cos_theta * unit.y);
+
+        // Draw arrowhead lines
+        match edge_style.target_style {
+            ArrowStyle::Arrow => {
+                painter.line_segment([arrow_pos, left], stroke);
+                painter.line_segment([arrow_pos, right], stroke);
+            },
+            ArrowStyle::ArrorTriangle => {
+                painter.line_segment([arrow_pos, left], stroke);
+                painter.line_segment([arrow_pos, right], stroke);
+                painter.line_segment([left, right], stroke);
+            },
+            ArrowStyle::ArrorFilled => {
+                let shape = Shape::convex_polygon(vec![arrow_pos,left,right], edge_style.color, Stroke::NONE);
+                painter.add(shape);
+            }
+        }
+    }
     
-    // Draw arrowhead
-    let arrow_size = 8.0;  // Size of the arrowhead
-    let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
-    
-    // Rotate vector by ±arrow_angle to get arrowhead points
-    let cos_theta = arrow_angle.cos();
-    let sin_theta = arrow_angle.sin();
-    
-    let left = edge_to - arrow_size * Vec2::new(cos_theta * unit.x - sin_theta * unit.y,sin_theta * unit.x + cos_theta * unit.y);
-    let right = edge_to - arrow_size * Vec2::new(cos_theta * unit.x + sin_theta * unit.y, -sin_theta * unit.x + cos_theta * unit.y);
-    
-    // Draw arrowhead lines
-    painter.line_segment([edge_to, left], stroke);
-    painter.line_segment([edge_to, right], stroke);
 }
 
 pub fn draw_node_label(
     painter: &Painter,
     node_label: &str,
-    type_style: &TypeStyle,
+    type_style: &NodeStyle,
     pos: Pos2,
     selected: bool,
     highlighted: bool,
@@ -97,21 +130,22 @@ pub fn draw_node_label(
         };
     }                     
     let galley = painter.layout_job(job);
+    let text_rect = galley.rect;
     let text_pos = match type_style.label_position {
         LabelPosition::Center => {
-            pos-Vec2::new(galley.rect.width()/2.0,galley.rect.height()/2.0)
+            pos-Vec2::new(text_rect.width()/2.0,text_rect.height()/2.0)
         },
         LabelPosition::Above => {
-            pos+Vec2::new(-galley.rect.width()/2.0,-(galley.rect.height()+POS_SPACE+type_style.height/2.0))
+            pos+Vec2::new(-text_rect.width()/2.0,-(text_rect.height()+POS_SPACE+type_style.height/2.0))
         },
         LabelPosition::Below => {
-            pos+Vec2::new(-galley.rect.width()/2.0,POS_SPACE+type_style.height/2.0)
+            pos+Vec2::new(-text_rect.width()/2.0,POS_SPACE+type_style.height/2.0)
         },
         LabelPosition::Left => {
-            pos+Vec2::new(-(galley.rect.width()+type_style.width/2.0+POS_SPACE), -galley.rect.height()/2.0)
+            pos+Vec2::new(-(text_rect.width()+type_style.width/2.0+POS_SPACE), -text_rect.height()/2.0)
         },
         LabelPosition::Right => {
-            pos+Vec2::new(type_style.width/2.0+POS_SPACE, -galley.rect.height()/2.0)
+            pos+Vec2::new(type_style.width/2.0+POS_SPACE, -text_rect.height()/2.0)
         },
     };
     let node_rect = if show_labels {
@@ -161,6 +195,11 @@ pub fn draw_node_label(
             painter.circle_filled(pos, NODE_RADIUS + 3.0, egui::Color32::from_rgba_premultiplied(255, 255, 0, 170));
         }   
         painter.circle_filled(pos, NODE_RADIUS, type_style.color);
+        if let Some(icon_style) = &type_style.icon_style {
+            let icon_pos = pos;
+            let icon_font = FontId::proportional(icon_style.icon_size);
+            painter.text(icon_pos, Align2::CENTER_CENTER, icon_style.icon_character.to_string(), icon_font, icon_style.icon_color);
+        }
         Rect::from_center_size(pos, Vec2::new(NODE_RADIUS*2.0, NODE_RADIUS*2.0))
     };
     if highlighted {
@@ -169,6 +208,17 @@ pub fn draw_node_label(
     }
     if show_labels || highlighted {
         painter.galley(text_pos, galley, Color32::BLACK);
+        if let Some(icon_style) = &type_style.icon_style {
+            let icon_pos = match icon_style.icon_position {
+                IconPosition::Center => pos,
+                IconPosition::Above => text_pos + Vec2::new(text_rect.width()/2.0, -icon_style.icon_size/2.0),
+                IconPosition::Below => text_pos + Vec2::new(text_rect.width()/2.0, text_rect.height() + icon_style.icon_size/2.0),
+                IconPosition::Left => text_pos + Vec2::new(-icon_style.icon_size/2.0, text_rect.height()/2.0),
+                IconPosition::Right => text_pos + Vec2::new(text_rect.width()+ icon_style.icon_size/2.0, text_rect.height()/2.0),
+            };
+            let icon_font = FontId::proportional(icon_style.icon_size);
+            painter.text(icon_pos, Align2::CENTER_CENTER, icon_style.icon_character.to_string(), icon_font, icon_style.icon_color);
+        }
     }
     if type_style.node_shape == NodeShape::Circle {
         (Rect::from_center_size(node_rect.center(), Vec2::splat(node_rect.width())), NodeShape::Circle)

@@ -3,7 +3,7 @@ use egui::Pos2;
 use rand::Rng;
 use std::collections::HashMap;
 
-use crate::{config::Config, nobject::{IriIndex, NodeData}, NodeShape, SortedVec};
+use crate::{config::Config, graph_styles::NodeShape, nobject::{IriIndex, NodeData}, SortedVec};
 
 const MAX_DISTANCE: f32 = 200.0;
 const DUMPING : f32 = 0.2;
