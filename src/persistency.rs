@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::Result;
@@ -10,7 +10,7 @@ use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::graph_styles::{LabelPosition, NodeShape, NodeSize};
+use crate::graph_styles::{ArrowLocation, ArrowStyle, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize};
 use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
@@ -57,11 +57,13 @@ impl HeaderType {
 }
 
 #[repr(u8)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum FieldType {
     VARINT = 0x01,
     FIX64 = 0x02,
     FIX32 = 0x03,
-    LENGTHDELIMITED = 0x04,    
+    LENGTHDELIMITED = 0x04,
+    FLAG = 0x05,
 }
 
 impl FieldType {
@@ -71,6 +73,7 @@ impl FieldType {
             2 => Ok(FieldType::FIX64),
             3 => Ok(FieldType::FIX32),
             4 => Ok(FieldType::LENGTHDELIMITED),
+            5 => Ok(FieldType::FLAG),
             _ => Err(anyhow::anyhow!("Unknown field type")),
         }
     }
@@ -183,6 +186,17 @@ fn with_header_len(file: &mut BufWriter<File>, header_type: HeaderType, f: &dyn 
     file.seek(SeekFrom::Start(size_pos))?;
     file.write_u32::<LittleEndian>(size as u32)?;
     file.seek(SeekFrom::End(0))?;
+    Ok(())
+}
+
+fn write_var_field<W: Write>(file: &mut W, field_id: u32, f: &dyn Fn(&mut dyn Write) -> std::io::Result<()>) -> std::io::Result<()> {
+    let buffer: Vec<u8> = Vec::new();
+    let mut cursor = Cursor::new(buffer);
+    f(&mut cursor)?;
+    let written_data = cursor.into_inner();
+    write_field_index(file, FieldType::LENGTHDELIMITED, field_id)?;
+    leb128::write::unsigned(file, written_data.len() as u64)?;
+    file.write_all(&written_data)?;
     Ok(())
 }
 
@@ -382,6 +396,8 @@ fn skip_field(reader: &mut BufReader<&File>, field_type: FieldType) -> Result<()
             let len = leb128::read::unsigned(reader)?;
             reader.seek(SeekFrom::Current(len as i64))?;
         }
+        FieldType::FLAG => {
+        }
     }
     Ok(())
 }
@@ -547,8 +563,15 @@ impl GVisualisationStyle {
                 writer.write_f32::<LittleEndian>(style.font_size)?;
                 writer.write_f32::<LittleEndian>(style.corner_radius)?;
                 writer.write_f32::<LittleEndian>(style.label_max_width)?;
-                // flexible field number
-                leb128::write::unsigned(writer, 0)?;
+                if let Some(icon_style) = &style.icon_style {
+                    leb128::write::unsigned(writer, 1)?;
+                    write_var_field(writer, 1, &|file| {
+                        icon_style.store(file)?;
+                        Ok(())
+                    })?;
+                } else {
+                    leb128::write::unsigned(writer, 0)?;
+                }
             }
             leb128::write::unsigned(writer, self.edge_styles.len() as u64)?;
             for (reference_index, style) in self.edge_styles.iter() {
@@ -556,8 +579,28 @@ impl GVisualisationStyle {
                 let col = style.color.to_array();
                 writer.write(&col)?;
                 writer.write_f32::<LittleEndian>(style.width)?;
-                // flexible field number
-                leb128::write::unsigned(writer, 0)?;
+                writer.write_f32::<LittleEndian>(style.line_gap)?;
+                writer.write_f32::<LittleEndian>(style.arrow_size)?;
+                writer.write_u8(style.arrow_location as u8)?;
+                writer.write_u8(style.line_style as u8)?;
+                writer.write_u8(style.target_style as u8)?;
+                let mut field_count = 0; 
+                if style.icon_style.is_some() {
+                    field_count += 1;
+                }
+                if style.show_label {
+                    field_count += 1;
+                }
+                leb128::write::unsigned(writer, field_count)?;
+                if let Some(icon_style) = &style.icon_style {
+                    write_var_field(writer, 1, &|file| {
+                        icon_style.store(file)?;
+                        Ok(())
+                    })?;
+                }
+                if style.show_label {
+                    write_field_index(writer, FieldType::FLAG, 2)?;
+                }
             }
             Ok(())
         })
@@ -594,9 +637,21 @@ impl GVisualisationStyle {
             let corner_radius = reader.read_f32::<LittleEndian>()?;
             let label_max_width = reader.read_f32::<LittleEndian>()?;
             let field_number = leb128::read::unsigned(reader)?;
+            let mut icon_style: Option<IconStyle> = None;
             for _ in 0..field_number {
-                let (field_type, _field_index) = read_field_index(reader)?;
-                skip_field(reader, field_type)?;
+                let (field_type, field_index) = read_field_index(reader)?;
+                match field_index {
+                    1 => {
+                        if field_type == FieldType::LENGTHDELIMITED {
+                            icon_style = Some(IconStyle::restore(reader, field_index)?);
+                        } else {
+                            skip_field(reader, field_type)?;
+                        }
+                    }
+                    _ => {
+                        skip_field(reader, field_type)?;
+                    }
+                }
             }
             let style = crate::NodeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
@@ -614,6 +669,7 @@ impl GVisualisationStyle {
                 node_shape,
                 label_position,
                 node_size,
+                icon_style,
                 ..Default::default()
             };
             styles.node_styles.insert(type_index, style);
@@ -624,20 +680,89 @@ impl GVisualisationStyle {
             let mut color = [0u8; 4];
             reader.read_exact(&mut color)?;
             let width = reader.read_f32::<LittleEndian>()?;
+            let line_gap = reader.read_f32::<LittleEndian>()?;
+            let arrow_size = reader.read_f32::<LittleEndian>()?;
+            let arrow_location = reader.read_u8()?;
+            let arrow_location: ArrowLocation = arrow_location.try_into().map_err(|_| anyhow::anyhow!("Invalid arrow_location value"))?;
+            let line_style = reader.read_u8()?;
+            let line_style: LineStyle = line_style.try_into().map_err(|_| anyhow::anyhow!("Invalid line_style value"))?;
+            let target_style = reader.read_u8()?;
+            let target_style: ArrowStyle = target_style.try_into().map_err(|_| anyhow::anyhow!("Invalid target_style value"))?;
+            let mut icon_style: Option<IconStyle> = None;
+            let mut show_label = false;
+
+            let field_number = leb128::read::unsigned(reader)?;
+            for _ in 0..field_number {
+                let (field_type, field_index) = read_field_index(reader)?;
+                match field_index {
+                    1 => {
+                        if field_type == FieldType::LENGTHDELIMITED {
+                            icon_style = Some(IconStyle::restore(reader, field_index)?);
+                        } else {
+                            skip_field(reader, field_type)?;
+                        }
+                    }
+                    2 => {
+                        if field_type == FieldType::FLAG {
+                            show_label = true;
+                        } else {
+                            skip_field(reader, field_type)?;
+                        }
+                    }
+                    _ => {
+                        
+                        skip_field(reader, field_type)?;
+                    }
+                }
+            }
             let style = EdgeStyle { 
                 color: egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]),
                 width,
-                ..Default::default()
+                line_gap,
+                arrow_size,
+                line_style,
+                arrow_location,
+                target_style,
+                icon_style,
+                show_label,
             };
-            let field_number = leb128::read::unsigned(reader)?;
-            for _ in 0..field_number {
-                let (field_type, _field_index) = read_field_index(reader)?;
-                skip_field(reader, field_type)?;
-            }
+
             styles.edge_styles.insert(reference_index, style);
         }
 
         Ok(styles)
+    }
+}
+
+impl IconStyle {
+    pub fn store<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
+        leb128::write::unsigned(writer, self.icon_position as u64)?;
+        writer.write_f32::<LittleEndian>(self.icon_size)?;
+        let col = self.icon_color.to_array();
+        writer.write(&col)?;
+        let character = self.icon_character as u32;
+        leb128::write::unsigned(writer, character as u64)?;
+        leb128::write::unsigned(writer, 0)?;
+        Ok(())
+    }
+
+    pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
+        let _field_length = leb128::read::unsigned(reader)?;
+        let mut icon_style = IconStyle::default();
+        let icon_position = reader.read_u8()?;
+        icon_style.icon_position = icon_position.try_into().map_err(|_| anyhow::anyhow!("Invalid icon shape value"))?;
+        icon_style.icon_size = reader.read_f32::<LittleEndian>()?;
+        let mut color = [0u8; 4];
+        reader.read_exact(&mut color)?;
+        icon_style.icon_color = egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]);
+        let character = leb128::read::unsigned(reader)? as u32;;
+        icon_style.icon_character = char::from_u32(character).ok_or_else(|| anyhow::anyhow!("Invalid icon character value"))?;
+        let field_number = leb128::read::unsigned(reader)?;
+        for _ in 0..field_number {
+            let (field_type, _field_index) = read_field_index(reader)?;
+            skip_field(reader, field_type)?;
+        }
+        Ok(icon_style)
     }
 }
 
@@ -668,6 +793,10 @@ impl StringCache {
 mod tests {
     use std::{fs, path::PathBuf, time::Instant};
 
+    use egui::Color32;
+
+    use crate::graph_styles::{ArrowLocation, IconPosition, IconStyle, LineStyle};
+
     use super::*;
 
     fn get_test_file_path(filename: &str) -> PathBuf {
@@ -691,6 +820,55 @@ mod tests {
 
         let label_index = vs.node_data.indexers.predicate_indexer.get_index("rdfs:label");
         assert_eq!(0, label_index);
+
+        let node_index = vs.node_data.get_node_index("dbr:Rust_(programming_language)");
+        assert_eq!(true,node_index.is_some());
+        assert_eq!(true,vs.load_object_by_index(node_index.unwrap()));
+        vs.expand_all();
+        assert_eq!(true,vs.visible_nodes.nodes.len()>0);
+        let (node_iri, node_object) = vs.node_data.get_node_by_index(node_index.unwrap()).unwrap();
+        assert_eq!("dbr:Rust_(programming_language)", node_iri.to_string());
+        assert_eq!(1,node_object.types.len());
+        let type_index = node_object.types.get(0).unwrap();
+        let type_style = vs.visualisation_style.node_styles.get_mut(type_index).unwrap();
+        type_style.max_lines = 2;
+        type_style.node_shape = NodeShape::Rect;
+        type_style.label_position = LabelPosition::Above;
+        type_style.node_size = NodeSize::Label;
+        type_style.width = 100.0;
+        type_style.height = 50.0;
+        type_style.corner_radius = 4.0;
+        type_style.label_max_width = 80.0;
+        type_style.border_width = 4.0;
+        type_style.border_color = Color32::YELLOW;
+        type_style.color = Color32::RED;
+        type_style.label_color = Color32::GRAY;
+        type_style.icon_style = Some({
+            IconStyle {
+                icon_color: Color32::GRAY,
+                icon_character: 'R',
+                icon_size: 20.0,
+                icon_position: IconPosition::Above,
+            }
+        });
+        let edge_index = node_object.references.get(0).unwrap().0;
+        vs.visualisation_style.get_edge_syle(edge_index);
+        let edge = vs.visualisation_style.edge_styles.get_mut(&edge_index).unwrap();
+        edge.color = Color32::YELLOW;
+        edge.width = 3.0;
+        edge.line_style = LineStyle::Dashed;
+        edge.arrow_location = ArrowLocation::Middle;
+        edge.arrow_size = 10.0;
+        edge.line_gap = 4.0;
+        edge.show_label = true;
+        edge.icon_style = Some({
+            IconStyle {
+                icon_color: Color32::GRAY,
+                icon_character: 'R',
+                icon_size: 20.0,
+                icon_position: IconPosition::Above,
+            }
+        });
 
         vs.store(&store_path)?;
 
@@ -719,8 +897,48 @@ mod tests {
                 let lit_str = literal.as_str_ref(&restored.node_data.indexers);
                 assert!(lit_str.len()>1);
             });
+            assert_eq!(1,rust_node.types.len());
+            let type_index = rust_node.types.get(0).unwrap();
+            let type_style = restored.visualisation_style.node_styles.get_mut(type_index).unwrap();
+            assert_eq!(type_style.max_lines,2);
+            assert_eq!(type_style.node_shape,NodeShape::Rect);
+            assert_eq!(type_style.label_position,LabelPosition::Above);
+            assert_eq!(type_style.node_size,NodeSize::Label);
+            assert_eq!(type_style.width,100.0);
+            assert_eq!(type_style.height,50.0);
+            assert_eq!(type_style.corner_radius,4.0);
+            assert_eq!(type_style.label_max_width,80.0);
+            assert_eq!(type_style.border_width,4.0);
+            assert_eq!(type_style.border_color,Color32::YELLOW);
+            assert_eq!(type_style.color,Color32::RED);
+            assert_eq!(type_style.label_color,Color32::GRAY);
+            assert_eq!(type_style.icon_style.is_some(),true);
+            if let Some(icon_style) = type_style.icon_style.as_ref() {
+                assert_eq!(icon_style.icon_color,Color32::GRAY);
+                assert_eq!(icon_style.icon_character,'R');
+                assert_eq!(icon_style.icon_size,20.0);
+                assert_eq!(icon_style.icon_position,IconPosition::Above);
+            } else {
+                panic!("Icon style not found");
+            }
+            let edge = restored.visualisation_style.edge_styles.get_mut(&edge_index).unwrap();
+            assert_eq!(edge.color,Color32::YELLOW);
+            assert_eq!(edge.width,3.0);
+            assert_eq!(edge.line_style,LineStyle::Dashed);
+            assert_eq!(edge.arrow_location,ArrowLocation::Middle);
+            assert_eq!(edge.arrow_size,10.0);
+            assert_eq!(edge.line_gap,4.0);
+            assert_eq!(edge.show_label,true);
+            assert_eq!(edge.icon_style.is_some(),true);
+            if let Some(icon_style) = &edge.icon_style {
+                assert_eq!(icon_style.icon_color,Color32::GRAY);
+                assert_eq!(icon_style.icon_character,'R');
+                assert_eq!(icon_style.icon_size,20.0);
+                assert_eq!(icon_style.icon_position,IconPosition::Above);
+            } else {
+                panic!("Icon style not found");
+            }
         }
-
         let predicates = vec!["rdf:type"];
         for pred_val in &predicates {
             assert!(vs.node_data.indexers.get_predicate_index(pred_val)==restored.node_data.indexers.get_predicate_index(pred_val))
@@ -729,7 +947,8 @@ mod tests {
         assert_eq!(vs.node_data.len(),restored.node_data.len());
         assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
         assert_eq!(vs.visible_nodes.nodes.len(),restored.visible_nodes.nodes.len());    
-        assert_eq!(vs.visualisation_style.node_styles.len(),restored.visualisation_style.node_styles.len());    
+        assert_eq!(vs.visualisation_style.node_styles.len(),restored.visualisation_style.node_styles.len());
+        assert_eq!(true,vs.visible_nodes.nodes.len()>0);
 
         Ok(())
     }

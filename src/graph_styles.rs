@@ -22,13 +22,6 @@ pub struct NodeStyle {
     pub icon_style: Option<IconStyle>,
 }
 
-pub struct IconStyle {
-    pub icon_character: char,
-    pub icon_position: IconPosition,
-    pub icon_size: f32,
-    pub icon_color: egui::Color32,
-}
-
 impl Default for NodeStyle {
     fn default() -> Self {
         Self {
@@ -52,7 +45,25 @@ impl Default for NodeStyle {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+pub struct IconStyle {
+    pub icon_character: char,
+    pub icon_position: IconPosition,
+    pub icon_size: f32,
+    pub icon_color: egui::Color32,
+}
+
+impl Default for IconStyle {
+    fn default() -> Self {
+        Self {
+            icon_character: '\u{2606}',
+            icon_position: IconPosition::Center,
+            icon_size: 20.0,
+            icon_color: Color32::BLACK,
+        }
+    }
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum NodeShape {
     None = 0,
@@ -75,7 +86,7 @@ impl TryFrom<u8> for NodeShape {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum NodeSize {
     Fixed = 1,
@@ -94,7 +105,7 @@ impl TryFrom<u8> for NodeSize {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum LabelPosition {
     Center = 1,
@@ -119,7 +130,7 @@ impl TryFrom<u8> for LabelPosition {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum IconPosition {
     Center = 1,
@@ -172,7 +183,7 @@ impl Default for EdgeStyle {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum LineStyle {
     Solid,
@@ -214,7 +225,7 @@ impl TryFrom<u8> for ArrowStyle {
     }
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum ArrowLocation {
     Target = 0,
