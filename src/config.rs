@@ -33,7 +33,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             repulsion_constant: 1.5,
-            attraction_factor: 0.05,
+            attraction_factor: 0.0015,
             language_filter: "en".to_string(),
             supress_other_language_data: true,
             create_iri_prefixes_automatically: true,
