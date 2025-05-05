@@ -765,6 +765,7 @@ impl TypeInstanceIndex {
 
     pub fn update(&mut self, node_data: &NodeData) {
         self.clean();
+        #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
         let node_len = node_data.len();
         for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
@@ -833,12 +834,15 @@ impl TypeInstanceIndex {
             let b_data = self.types.get(b).unwrap();
             b_data.instances.len().cmp(&a_data.instances.len())
         });
-        let duration = start.elapsed();
-        println!("Time taken to index {} nodes: {:?}", node_len, duration);
-        println!(
-            "Nodes per second: {}",
-            node_len as f64 / duration.as_secs_f64()
-        );
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let duration = start.elapsed();
+            println!("Time taken to index {} nodes: {:?}", node_len, duration);
+            println!(
+                "Nodes per second: {}",
+                node_len as f64 / duration.as_secs_f64()
+            );
+        }
     }
 
     pub fn display(

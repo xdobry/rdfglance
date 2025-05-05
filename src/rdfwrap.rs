@@ -8,7 +8,7 @@ use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::BufReader;
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -106,8 +106,32 @@ impl RDFWrap {
             File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
+        Self::load_file_reader(file_extension, reader, node_data, language_filter, prefix_manager)
+    }
+
+    pub fn load_file_data(
+        file_name: &str,
+        data: &Vec<u8>,
+        node_data: &mut NodeData,
+        language_filter: &[String],
+        prefix_manager: &mut PrefixManager,
+    ) -> Result<u32> {
+        let file_name = Path::new(file_name);
+        let reader = Cursor::new(data);
+        let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
+        Self::load_file_reader(file_extension, reader, node_data, language_filter, prefix_manager)
+    }
+
+    pub fn load_file_reader<R: std::io::Read>(
+        file_extension: &str,
+        reader: R,
+        node_data: &mut NodeData,
+        language_filter: &[String],
+        prefix_manager: &mut PrefixManager,
+    ) -> Result<u32> {
         let mut triples_count = 0;
         let (indexer, cache) = node_data.split_mut();
+        #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
         let mut index_cache = IndexCache {
             index: 0,
@@ -223,15 +247,15 @@ impl RDFWrap {
                 ));
             }
         };
-        let duration = start.elapsed();
-        println!(
-            "Time taken to read the file '{}': {:?}",
-            file_name.display(), duration
-        );
-        println!(
-            "Triples read per second: {}",
-            triples_count as f64 / duration.as_secs_f64()
-        );
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let duration = start.elapsed();
+            println!("Time taken to read the file {:?}", duration);
+            println!(
+                "Triples read per second: {}",
+                triples_count as f64 / duration.as_secs_f64()
+            );
+        }
         Ok(triples_count)
     }
 

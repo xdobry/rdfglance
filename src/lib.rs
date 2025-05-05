@@ -17,10 +17,14 @@ use nobject::{IriIndex, LangIndex, NodeData};
 use layout::SortedNodeLayout;
 use prefix_manager::PrefixManager;
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use sparql_dialog::SparqlDialog;
 use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
+#[cfg(target_arch = "wasm32")]
+use poll_promise::Promise;
+
 
 pub mod browse_view;
 pub mod config;
@@ -31,7 +35,9 @@ pub mod layout;
 pub mod nobject;
 pub mod prefix_manager;
 pub mod rdfwrap;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod sparql;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod sparql_dialog;
 pub mod table_view;
 pub mod uitools;
@@ -63,6 +69,7 @@ pub struct RdfGlanceApp {
     visible_nodes: SortedNodeLayout,
     graph_state: GraphState,
     visualisation_style: GVisualisationStyle,
+    #[cfg(not(target_arch = "wasm32"))]
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
     system_message: SystemMessage,
@@ -70,6 +77,14 @@ pub struct RdfGlanceApp {
     type_index: TypeInstanceIndex,
     prefix_manager: PrefixManager,
     help_open: bool,
+    #[cfg(target_arch = "wasm32")]
+    file_upload: Option<Promise<Result<File, anyhow::Error>>>
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct File {
+    pub path: String,
+    pub data: Vec<u8>,
 }
 
 enum SystemMessage {
@@ -282,6 +297,7 @@ impl RdfGlanceApp {
             nav_pos: 0,
             nav_history: vec![],
             display_type: DisplayType::Table,
+            #[cfg(not(target_arch = "wasm32"))]
             sparql_dialog: None,
             status_message: String::new(),
             node_data: NodeData::new(),
@@ -321,6 +337,8 @@ impl RdfGlanceApp {
                 icon_name_filter: String::new(),
             },
             help_open: false,
+            #[cfg(target_arch = "wasm32")]
+            file_upload: None,
         }
     }
 }
@@ -480,6 +498,30 @@ impl RdfGlanceApp {
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);
+        match rdfttl {
+            Err(err) => {
+                self.system_message = SystemMessage::Error(format!("File not found: {}", err));
+            }
+            Ok(triples_count) => {
+                let load_message = format!(
+                    "Loaded: {} triples: {}",
+                    file_name, triples_count
+                );
+                self.set_status_message(&load_message);
+                if !self
+                    .persistent_data
+                    .last_files
+                    .iter().any(|f | *f == file_name.into())
+                {
+                    self.persistent_data.last_files.push(file_name.into());
+                }
+                self.update_data_indexes();
+            }
+        }
+    }
+    pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
+        let language_filter = self.persistent_data.config_data.language_filter();
+        let rdfttl = rdfwrap::RDFWrap::load_file_data(file_name, data, &mut self.node_data, &language_filter, &mut self.prefix_manager);
         match rdfttl {
             Err(err) => {
                 self.system_message = SystemMessage::Error(format!("File not found: {}", err));
@@ -708,6 +750,7 @@ impl eframe::App for RdfGlanceApp {
                 }
                 NodeAction::None => {}
             }
+            #[cfg(not(target_arch = "wasm32"))]
             if let Some(dialog) = &mut self.sparql_dialog {
                 let (close_dialog, result) = dialog.show(ctx, &self.persistent_data.last_endpoints);
                 if close_dialog {
@@ -730,6 +773,10 @@ impl eframe::App for RdfGlanceApp {
              */
 
         });
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.handle_files(ctx);
+        }
     }
 
     fn save(&mut self, _storage: &mut dyn Storage) {

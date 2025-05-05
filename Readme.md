@@ -78,6 +78,29 @@ To compile RDFGlance, you need to have Rust installed on your system. Follow the
 
 You may also pick the precompiled executable for windows from [github releases](https://github.com/xdobry/rdfglance/releases).
 
+## Wasm Web Application Build
+
+Prepare wasm
+
+  ```sh
+  rustup target add wasm32-unknown-unknown
+  cargo install trunk
+  ```
+
+
+
+  ```sh
+  $env:RUSTFLAGS = '--cfg getrandom_backend="wasm_js"'
+  cargo build --target wasm32-unknown-unknown
+  ```
+
+  ```sh
+  trunk serve
+  ```
+  
+
+  https://docs.rs/getrandom/latest/getrandom/#webassembly-support
+
 ## Usage
 
 After compiling the application, you can run it using the following command:
