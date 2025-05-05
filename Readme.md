@@ -61,7 +61,7 @@ You may use github issue system to report bug and feature wishes.
 
 ## Compilation
 
-To compile RDFGlance, you need to have Rust installed on your system. Follow these steps to compile the application:
+To compile RDFGlance, you need to have [Rust installed](https://www.rust-lang.org/tools/install) on your system. Follow these steps to compile the application:
 
 1. Clone the repository:
   ```sh

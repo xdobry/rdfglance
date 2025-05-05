@@ -10,7 +10,7 @@ use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::graph_styles::{ArrowLocation, ArrowStyle, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize};
+use crate::graph_styles::{ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize};
 use crate::layout::{NodeLayout, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
@@ -588,7 +588,7 @@ impl GVisualisationStyle {
                 if style.icon_style.is_some() {
                     field_count += 1;
                 }
-                if style.show_label {
+                if style.edge_font.is_some() {
                     field_count += 1;
                 }
                 leb128::write::unsigned(writer, field_count)?;
@@ -598,8 +598,11 @@ impl GVisualisationStyle {
                         Ok(())
                     })?;
                 }
-                if style.show_label {
-                    write_field_index(writer, FieldType::FLAG, 2)?;
+                if let Some(edge_font) = &style.edge_font {
+                    write_var_field(writer, 2, &|file| {
+                        edge_font.store(file)?;
+                        Ok(())
+                    })?;
                 }
             }
             Ok(())
@@ -689,7 +692,7 @@ impl GVisualisationStyle {
             let target_style = reader.read_u8()?;
             let target_style: ArrowStyle = target_style.try_into().map_err(|_| anyhow::anyhow!("Invalid target_style value"))?;
             let mut icon_style: Option<IconStyle> = None;
-            let mut show_label = false;
+            let mut edge_font: Option<EdgeFont> = None;
 
             let field_number = leb128::read::unsigned(reader)?;
             for _ in 0..field_number {
@@ -703,8 +706,8 @@ impl GVisualisationStyle {
                         }
                     }
                     2 => {
-                        if field_type == FieldType::FLAG {
-                            show_label = true;
+                        if field_type == FieldType::LENGTHDELIMITED {
+                            edge_font = Some(EdgeFont::restore(reader, field_index)?);
                         } else {
                             skip_field(reader, field_type)?;
                         }
@@ -724,7 +727,7 @@ impl GVisualisationStyle {
                 arrow_location,
                 target_style,
                 icon_style,
-                show_label,
+                edge_font,
             };
 
             styles.edge_styles.insert(reference_index, style);
@@ -755,7 +758,7 @@ impl IconStyle {
         let mut color = [0u8; 4];
         reader.read_exact(&mut color)?;
         icon_style.icon_color = egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]);
-        let character = leb128::read::unsigned(reader)? as u32;;
+        let character = leb128::read::unsigned(reader)? as u32;
         icon_style.icon_character = char::from_u32(character).ok_or_else(|| anyhow::anyhow!("Invalid icon character value"))?;
         let field_number = leb128::read::unsigned(reader)?;
         for _ in 0..field_number {
@@ -763,6 +766,32 @@ impl IconStyle {
             skip_field(reader, field_type)?;
         }
         Ok(icon_style)
+    }
+}
+
+impl EdgeFont {
+    pub fn store<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_f32::<LittleEndian>(self.font_size)?;
+        let col = self.font_color.to_array();
+        writer.write(&col)?;
+        // num of fields
+        leb128::write::unsigned(writer, 0)?;
+        Ok(())
+    }
+
+    pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
+        let _field_length = leb128::read::unsigned(reader)?;
+        let mut edge_font = EdgeFont::default();
+        edge_font.font_size = reader.read_f32::<LittleEndian>()?;
+        let mut color = [0u8; 4];
+        reader.read_exact(&mut color)?;
+        edge_font.font_color = egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]);
+        let field_number = leb128::read::unsigned(reader)?;
+        for _ in 0..field_number {
+            let (field_type, _field_index) = read_field_index(reader)?;
+            skip_field(reader, field_type)?;
+        }
+        Ok(edge_font)
     }
 }
 
@@ -860,7 +889,10 @@ mod tests {
         edge.arrow_location = ArrowLocation::Middle;
         edge.arrow_size = 10.0;
         edge.line_gap = 4.0;
-        edge.show_label = true;
+        edge.edge_font = Some(EdgeFont {
+            font_color: Color32::GRAY,
+            font_size: 20.0,
+        });
         edge.icon_style = Some({
             IconStyle {
                 icon_color: Color32::GRAY,
@@ -928,7 +960,6 @@ mod tests {
             assert_eq!(edge.arrow_location,ArrowLocation::Middle);
             assert_eq!(edge.arrow_size,10.0);
             assert_eq!(edge.line_gap,4.0);
-            assert_eq!(edge.show_label,true);
             assert_eq!(edge.icon_style.is_some(),true);
             if let Some(icon_style) = &edge.icon_style {
                 assert_eq!(icon_style.icon_color,Color32::GRAY);
@@ -937,6 +968,13 @@ mod tests {
                 assert_eq!(icon_style.icon_position,IconPosition::Above);
             } else {
                 panic!("Icon style not found");
+            }
+            assert_eq!(edge.edge_font.is_some(),true);
+            if let Some(edge_font) = &edge.edge_font {
+                assert_eq!(edge_font.font_color,Color32::GRAY);
+                assert_eq!(edge_font.font_size,20.0);
+            } else {
+                panic!("Edge font not found");
             }
         }
         let predicates = vec!["rdf:type"];

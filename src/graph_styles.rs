@@ -63,6 +63,20 @@ impl Default for IconStyle {
     }
 }
 
+pub struct EdgeFont {
+    pub font_size: f32,
+    pub font_color: Color32,
+}
+
+impl Default for EdgeFont {
+    fn default() -> Self {
+        Self {
+            font_size: 16.0,
+            font_color: Color32::BLACK,
+        }
+    }
+}
+
 #[derive(PartialEq, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum NodeShape {
@@ -163,8 +177,8 @@ pub struct EdgeStyle {
     pub target_style: ArrowStyle,
     pub arrow_location: ArrowLocation,
     pub arrow_size: f32,
-    pub show_label: bool,
     pub icon_style: Option<IconStyle>,
+    pub edge_font: Option<EdgeFont>,
 }
 
 impl Default for EdgeStyle {
@@ -173,7 +187,7 @@ impl Default for EdgeStyle {
             color: egui::Color32::BLACK,
             width: 2.0,
             icon_style: None,
-            show_label: false,
+            edge_font: None,
             line_style: LineStyle::Solid,
             target_style: ArrowStyle::Arrow,
             arrow_location: ArrowLocation::Target,
@@ -366,10 +380,6 @@ impl RdfGlanceApp {
                 });
             }
             ui.horizontal(|ui| {
-                ui.label("Width:");
-                ui.add(Slider::new(&mut edge_style.width, 1.0..=10.0));
-            });
-            ui.horizontal(|ui| {
                 ui.label("Arrow Location:");
                 ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Target, "Target");
                 ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Middle, "Middle");
@@ -387,11 +397,31 @@ impl RdfGlanceApp {
                 ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorFilled, "Filled Triangle");
                 ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorTriangle, "Triangle");
             });
-            ui.checkbox(&mut edge_style.show_label, "Show label");
+            if  edge_style.edge_font.is_some() {
+                if ui.button("Clear Label").clicked() {
+                    edge_style.edge_font = None;
+                }
+                if let Some(edge_font) = &mut edge_style.edge_font {
+                    ui.horizontal(|ui| {
+                        ui.label("Font Size:");
+                        ui.add(Slider::new(&mut edge_font.font_size, 5.0..=25.0));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Font Color:");
+                        ui.color_edit_button_srgba(&mut edge_font.font_color);
+                    });
+                }
+            } else if ui.button("Add Label").clicked() {
+                edge_style.edge_font = Some(EdgeFont::default());
+            }
+
             display_icon_style(ui, &mut edge_style.icon_style, &mut self.ui_state.icon_name_filter);
 
             let desired_size = Vec2::new(800.0, 80.0); // width, height
             let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
+            let node_label = || {
+                String::from("Test Label")
+            };
             draw_edge(&painter, 
             response.rect.min+Vec2::new(30.0,20.0), 
                 Vec2::new(5.0,5.0),
@@ -400,6 +430,7 @@ impl RdfGlanceApp {
                 Vec2::new(5.0,5.0),
                 NodeShape::Circle,
                 &edge_style,
+                node_label
             );
         }
     }

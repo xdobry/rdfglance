@@ -80,7 +80,4 @@ where {{
         };
         RDFWrap::load_from_triples(&triples, iri, node_data)
     }
-    fn iri2label<'a>(&mut self, iri: &'a str) -> &'a str {
-        RDFWrap::iri2label_fallback(iri)
-    }
 }

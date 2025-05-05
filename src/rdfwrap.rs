@@ -18,11 +18,9 @@ const SHORT_STR_LITERAL_LEN: usize = 32;
 
 pub trait RDFAdapter {
     fn load_object(&mut self, iri: &str, node_data: &mut NodeData) -> Option<NObject>;
-    fn iri2label<'a>(&mut self, iri: &'a str) -> &'a str;
 }
 
 pub struct RDFWrap {
-    file_name: String,
 }
 
 pub struct IndexCache {
@@ -33,7 +31,6 @@ pub struct IndexCache {
 impl RDFWrap {
     pub fn empty() -> Self {
         RDFWrap {
-            file_name: "empty".to_string(),
         }
     }
 
@@ -338,29 +335,6 @@ impl RDFWrap {
             is_blank_node: false,
         })
     }
-    pub fn iri2label_fallback(iri: &str) -> &str {
-        let last_index_slash = iri.rfind('/');
-        let last_index_hash = iri.rfind('#');
-        let last_index = if last_index_slash.is_none() && last_index_hash.is_none() {
-            0
-        } else if last_index_slash.is_none() {
-            last_index_hash.unwrap_or(0)
-        } else if last_index_hash.is_none() {
-            last_index_slash.unwrap_or(0)
-        } else {
-            std::cmp::max(last_index_slash.unwrap(), last_index_hash.unwrap())
-        };
-        if last_index == 0 {
-            let first_colon = iri.find(':');
-            if let Some(first_colon) = first_colon {
-                &iri[first_colon + 1..]
-            } else {
-                iri
-            }
-        } else {
-            &iri[last_index + 1..]
-        }
-    }
 }
 
 pub fn add_triple(
@@ -517,9 +491,6 @@ fn add_predicate_object(
 }
 
 impl RDFAdapter for RDFWrap {
-    fn iri2label<'a>(&mut self, iri: &'a str) -> &'a str {
-        RDFWrap::iri2label_fallback(iri)
-    }
     fn load_object(&mut self, _iri: &str, _node_data: &mut NodeData) -> Option<NObject> {
         None
     }
