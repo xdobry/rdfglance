@@ -21,7 +21,6 @@ pub trait RDFAdapter {
 }
 
 pub struct RDFWrap {
-    file_name: String,
 }
 
 pub struct IndexCache {
@@ -32,7 +31,6 @@ pub struct IndexCache {
 impl RDFWrap {
     pub fn empty() -> Self {
         RDFWrap {
-            file_name: "empty".to_string(),
         }
     }
 

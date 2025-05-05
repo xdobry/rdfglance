@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::{popup_at, ColorBox}, ExpandType, GVisualisationStyle, NodeAction, RdfGlanceApp, StyleEdit, UIState
+    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, RdfGlanceApp, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};

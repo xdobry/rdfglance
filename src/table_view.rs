@@ -28,13 +28,21 @@ pub struct TypeInstanceIndex {
 pub struct DataPropCharacteristics {
     pub count: u32,
     pub max_len: u32,
+    pub max_cardinality: u32,
+    pub min_cardinality: u32,
+}
+
+pub struct ReferenceCharacteristics {
+    pub count: u32,
+    pub max_cardinality: u32,
+    pub min_cardinality: u32,
 }
 
 pub struct TypeData {
     pub instances: Vec<IriIndex>,
     pub filtered_instances: Vec<IriIndex>,
     pub properties: HashMap<IriIndex, DataPropCharacteristics>,
-    pub references: HashMap<IriIndex, u32>,
+    pub references: HashMap<IriIndex, ReferenceCharacteristics>,
     pub rev_references: HashMap<IriIndex, u32>,
     pub instance_view: InstanceView,
 }
@@ -130,30 +138,7 @@ impl TypeData {
             },
         }
     }
-    pub fn count_property(&mut self, property_index: IriIndex, count_number: u32) {
-        let count = self
-            .properties
-            .entry(property_index)
-            .or_insert(DataPropCharacteristics {
-                count: 0,
-                max_len: 0,
-            });
-        count.count += count_number;
-    }
-    pub fn max_len_property(&mut self, property_index: IriIndex, len: u32) {
-        let count = self
-            .properties
-            .entry(property_index)
-            .or_insert(DataPropCharacteristics {
-                count: 0,
-                max_len: 0,
-            });
-        count.max_len = count.max_len.max(len);
-    }
-    pub fn count_reverence(&mut self, reference_index: IriIndex, count_number: u32) {
-        let count = self.references.entry(reference_index).or_insert(0);
-        *count += count_number;
-    }
+
     pub fn count_rev_reference(&mut self, reference_index: IriIndex, count_number: u32) {
         let count = self.rev_references.entry(reference_index).or_insert(0);
         *count += count_number;
@@ -782,12 +767,77 @@ impl TypeInstanceIndex {
                     .entry(*type_index)
                     .or_insert_with(|| TypeData::new(*type_index));
                 type_data.instances.push(node_index as IriIndex);
-                for (predicate_index, value) in &node.properties {
-                    type_data.count_property(*predicate_index, 1);
-                    type_data.max_len_property(*predicate_index, value.as_str_ref(&node_data.indexers).len() as u32);
+                for (property_index, property_stat) in type_data.properties.iter_mut() {
+                    let mut property_card = 0;
+                    for (predicate_index, value) in &node.properties {
+                        if *property_index == *predicate_index {
+                            property_stat.count += 1;
+                            property_card += 1;
+                            property_stat.max_len = property_stat.max_len.max(value.as_str_ref(&node_data.indexers).len() as u32);
+                        }
+                    }
+                    property_stat.max_cardinality = property_stat.max_cardinality.max(property_card);
+                    property_stat.min_cardinality = property_stat.min_cardinality.min(property_card);
                 }
+                let mut unknown_properties = vec![];
+                for (predicate_index, _value) in &node.properties {
+                    if !type_data.properties.contains_key(predicate_index) {
+                        unknown_properties.push(*predicate_index);
+                    }
+                }
+                for predicate_index in unknown_properties {
+                    let mut property_card = 0;
+                    let mut property_stat = DataPropCharacteristics {
+                        count: 0,
+                        max_len: 0,
+                        min_cardinality: u32::MAX,
+                        max_cardinality: 0,
+                    };
+                    for (property_index, value) in &node.properties {
+                        if *property_index == predicate_index {
+                            property_stat.count += 1;
+                            property_card += 1;
+                            property_stat.max_len = property_stat.max_len.max(value.as_str_ref(&node_data.indexers).len() as u32);
+                        }
+                    }
+                    property_stat.max_cardinality = property_card;
+                    property_stat.min_cardinality = property_card;
+                    type_data.properties.insert(predicate_index, property_stat);
+                }
+                let mut ref_counts: Vec<(IriIndex, u32)> = Vec::new();
                 for (predicate_index, _) in &node.references {
-                    type_data.count_reverence(*predicate_index, 1);
+                    let mut found = false;
+                    for (predicate_count_index, predicate_count) in ref_counts.iter_mut() {
+                        if *predicate_count_index == *predicate_index {
+                            *predicate_count += 1;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        ref_counts.push((*predicate_index, 1));
+                    }
+                }
+                for (predicate_index, count) in ref_counts {
+                    let reference_characteristics = type_data.references.get_mut(&predicate_index);
+                    if let Some(reference_characteristics) = reference_characteristics {
+                        reference_characteristics.count += count;
+                        reference_characteristics.max_cardinality = reference_characteristics
+                            .max_cardinality
+                            .max(count);
+                        reference_characteristics.min_cardinality = reference_characteristics
+                            .min_cardinality
+                            .min(count);
+                    } else {
+                        type_data.references.insert(
+                            predicate_index,
+                            ReferenceCharacteristics {
+                                count,
+                                min_cardinality: count,
+                                max_cardinality: count,
+                            },
+                        );
+                    }
                 }
                 for (predicate_index, _) in &node.reverse_references {
                     type_data.count_rev_reference(*predicate_index, 1);
@@ -959,6 +1009,8 @@ impl TypeInstanceIndex {
                                     ui.strong("Data Property");
                                     ui.strong("Count");
                                     ui.strong("Max Len");
+                                    ui.strong("Min Card.");
+                                    ui.strong("Max Card.");
                                     ui.end_row();
                                     let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                                     for (predicate_index, pcharecteristics) in &type_data.properties
@@ -971,6 +1023,8 @@ impl TypeInstanceIndex {
                                         ui.label(predicate_label.as_str());
                                         ui.label(pcharecteristics.count.to_string());
                                         ui.label(pcharecteristics.max_len.to_string());
+                                        ui.label(pcharecteristics.min_cardinality.to_string());
+                                        ui.label(pcharecteristics.max_cardinality.to_string());
                                         ui.end_row();
                                     }
                                 });
@@ -982,16 +1036,20 @@ impl TypeInstanceIndex {
                                 egui::Grid::new("referenced").show(ui, |ui| {
                                     ui.strong("Out Ref");
                                     ui.strong("Count");
+                                    ui.strong("Min Card.");
+                                    ui.strong("Max Card.");
                                     ui.end_row();
                                     let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                                    for (predicate_index, count) in &type_data.references {
+                                    for (predicate_index, reference_characteristics) in &type_data.references {
                                         let predicate_label = node_data.predicate_display(
                                             *predicate_index,
                                             &label_context,
                                             &node_data.indexers
                                         );
                                         ui.label(predicate_label.as_str());
-                                        ui.label(count.to_string());
+                                        ui.label(reference_characteristics.count.to_string());
+                                        ui.label(reference_characteristics.min_cardinality.to_string());
+                                        ui.label(reference_characteristics.max_cardinality.to_string());
                                         ui.end_row();
                                     }
                                 });
