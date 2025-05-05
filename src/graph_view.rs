@@ -428,7 +428,7 @@ impl RdfGlanceApp {
                 }
             });
 
-    
+            let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
             for node_layout in self.visible_nodes.nodes.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     for (pred_index, ref_iri) in &object.references {
@@ -436,6 +436,10 @@ impl RdfGlanceApp {
                             if let Some(ref_object) = self.visible_nodes.get(*ref_iri) {
                                 let pos1 = center + node_layout.pos.to_vec2();
                                 let pos2 = center + ref_object.pos.to_vec2();
+                                let node_label = || {
+                                    let reference_label = self.node_data.predicate_display(*pred_index, &label_context, &self.node_data.indexers);
+                                    reference_label.as_str().to_owned()
+                                };
                                 drawing::draw_edge(
                                     painter,
                                     pos1,
@@ -445,6 +449,7 @@ impl RdfGlanceApp {
                                     ref_object.size,
                                     ref_object.node_shape,
                                     self.visualisation_style.get_edge_syle(*pred_index),
+                                    node_label,
                                 );
                                 edge_count += 1;
                             }
