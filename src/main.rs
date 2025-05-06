@@ -41,7 +41,7 @@ fn main() {
             .start(
                 canvas, // matches id in index.html
                 eframe::WebOptions::default(),
-                Box::new(|_cc| Ok(Box::new(RdfGlanceApp::new(None)))),
+                Box::new(|cc| Ok(Box::new(RdfGlanceApp::new(cc.storage)))),
             )
             .await
             .expect("failed to start eframe");

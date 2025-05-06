@@ -535,13 +535,6 @@ impl RdfGlanceApp {
                     file_name, triples_count
                 );
                 self.set_status_message(&load_message);
-                if !self
-                    .persistent_data
-                    .last_files
-                    .iter().any(|f | *f == file_name.into())
-                {
-                    self.persistent_data.last_files.push(file_name.into());
-                }
                 self.update_data_indexes();
             }
         }
