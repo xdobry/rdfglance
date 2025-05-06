@@ -15,30 +15,33 @@ impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("Load Project").clicked() {
-                    self.load_project_dialog();
-                    ui.close_menu();
-                }
-                if ui.button("Save Project").clicked() {
-                    self.save_project_dialog();
-                    ui.close_menu();
-                }
-                if !self.persistent_data.last_projects.is_empty() {
-                    let mut last_project_clicked: Option<Box<str>> = None;
-                    ui.menu_button("Last Visited Projects:", |ui| {
-                        for last_file in &self.persistent_data.last_projects {
-                            if ui.button(last_file).clicked() {
-                                last_project_clicked = Some(last_file.clone());
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if ui.button("Load Project").clicked() {
+                        self.load_project_dialog();
+                        ui.close_menu();
+                    }
+                    if ui.button("Save Project").clicked() {
+                        self.save_project_dialog();
+                        ui.close_menu();
+                    }
+                    if !self.persistent_data.last_projects.is_empty() {
+                        let mut last_project_clicked: Option<Box<str>> = None;
+                        ui.menu_button("Last Visited Projects:", |ui| {
+                            for last_file in &self.persistent_data.last_projects {
+                                if ui.button(last_file).clicked() {
+                                    last_project_clicked = Some(last_file.clone());
+                                }
                             }
-                        }
-                        if let Some(last_project_clicked) = last_project_clicked {
-                            ui.close_menu();
-                            let last_project_path = Path::new(&*last_project_clicked);
-                            self.load_project(&last_project_path);
-                        }
-                    });
+                            if let Some(last_project_clicked) = last_project_clicked {
+                                ui.close_menu();
+                                let last_project_path = Path::new(&*last_project_clicked);
+                                self.load_project(&last_project_path);
+                            }
+                        });
+                    }
+                    ui.separator();
                 }
-                ui.separator();
                 if ui.button("Import RDF File").clicked() {
                     self.import_file_dialog(ui);
                     ui.close_menu();

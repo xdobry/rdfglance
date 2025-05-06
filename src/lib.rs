@@ -87,6 +87,9 @@ pub struct File {
     pub data: Vec<u8>,
 }
 
+#[cfg(target_arch = "wasm32")]
+const SAMPLE_DATA: &[u8] = include_bytes!("../sample-rdf-data/programming_languages.ttl");
+
 enum SystemMessage {
     None,
     Info(String),
@@ -585,11 +588,23 @@ impl RdfGlanceApp {
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
-        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER," Open RDF File")).size(16.0);
+        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER,"Open RDF File")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
             self.import_file_dialog(ui);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            ui.add_space(20.0);
+            ui.strong("0 React, 0 HTML, Full Power!");
+            ui.strong("Try Desktop version for full functionality!");
+            let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER,"Open Sample Data")).size(16.0);
+            let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+            let b_resp = ui.add(nav_but);
+            if b_resp.clicked() {
+                self.load_ttl_data("programming_languages.ttl",SAMPLE_DATA.to_vec().as_ref());
+            }
         }
         StripBuilder::new(ui)
             .size(egui_extras::Size::Relative { fraction: 0.5, range: Rangef::EVERYTHING })

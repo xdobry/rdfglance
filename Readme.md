@@ -11,6 +11,9 @@ RDFGlance is an open-source application designed to provide a visual representat
 - The self-contained executable is only 15MB!
 - Zero runtime needed
 
+Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
+The WASM version does not offer all functionality.
+
 ## Description
 
 RDFGlance allows users to easily visualize and interact with RDF data. 
@@ -44,7 +47,7 @@ The RDF Data can be loaded by using following formats:
 - rdf/xml
 - trig - namded graphs are ignored
 - nt (n-tuples)
-- nq (n-quads) - namded graphs are ignored
+- nq (n-quads) - named graphs are ignored
 
 Defined prefixes are taken from the input file if possible.
 
@@ -87,19 +90,21 @@ Prepare wasm
   cargo install trunk
   ```
 
-
-
   ```sh
-  $env:RUSTFLAGS = '--cfg getrandom_backend="wasm_js"'
   cargo build --target wasm32-unknown-unknown
   ```
+
+Run server in dev mode
 
   ```sh
   trunk serve
   ```
   
+Build static web content. Output in dist folder
 
-  https://docs.rs/getrandom/latest/getrandom/#webassembly-support
+  ```sh
+  trunk build
+  ```
 
 ## Usage
 
@@ -123,7 +128,6 @@ It is really difficult to achieve a good state.
 ## Technology
 
 RDFGlance leverages the `egui` library, a simple and fast GUI library for Rust that can create both desktop and web applications using WebAssembly (Wasm).
-Currently RDFGlance is programmed and tested only with desktop egui.
 Unlike traditional web applications that rely on HTML and React, `egui` allows for a more lightweight and efficient approach. This results in a smaller application size and improved performance, enabling RDFGlance to handle and display larger RDF datasets, up to 100,000 triples, without any delays.
 
 RDFGlance uses some oxigraph rust libraries. 
