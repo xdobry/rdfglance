@@ -342,7 +342,7 @@ impl RdfGlanceApp {
             let desired_size = Vec2::new(800.0, 300.0); // width, height
             let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
             let node_label = "Test Label";
-            draw_node_label(&painter, node_label, type_style, response.rect.center(), false, false, true);
+            draw_node_label(&painter, node_label, type_style, response.rect.center(), false, false, false, true);
         }
     }
 
@@ -430,7 +430,8 @@ impl RdfGlanceApp {
                 Vec2::new(5.0,5.0),
                 NodeShape::Circle,
                 &edge_style,
-                node_label
+                node_label,
+                false,
             );
         }
     }

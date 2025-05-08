@@ -59,6 +59,7 @@ impl RdfGlanceApp {
             ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.001..=0.2));
             ui.checkbox(&mut self.ui_state.show_labels, "Show Labels");
             ui.checkbox(&mut self.ui_state.short_iri, "Short Iri");
+            ui.checkbox(&mut self.ui_state.fade_unselected, "Fade unselected");
             let help_but = ui.button("\u{2753}");
             if help_but.clicked() {
                 self.help_open = true;
@@ -87,7 +88,7 @@ impl RdfGlanceApp {
                     egui::SidePanel::right("right_panel")
                         .exact_width(500.0)
                         .show_inside(ui, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
+                            egui::ScrollArea::both().show(ui, |ui| {
                                 node_to_click = self.display_node_details(ui);
                             });
                         });
@@ -427,10 +428,27 @@ impl RdfGlanceApp {
                     self.ui_state.node_to_drag = None;
                 }
             });
+            let mut selected_related_nodes = Vec::new();
+            if self.ui_state.fade_unselected {
+                if let Some(selected_node) = &self.ui_state.selected_node {
+                    selected_related_nodes.push(*selected_node);
+                    self.node_data.get_node_by_index(*selected_node).map(|(_node_iri,node)| {
+                        for (_predicate_index, ref_iri) in &node.references {
+                            selected_related_nodes.push(*ref_iri);
+                        }
+                        for (_predicate_index, ref_iri) in &node.reverse_references {
+                            selected_related_nodes.push(*ref_iri);
+                        }
+                    });
+                    selected_related_nodes.sort_unstable();
+                    selected_related_nodes.dedup();
+                }
+            }
 
             let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
             for node_layout in self.visible_nodes.nodes.iter() {
                 if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
+                    let fade_candidate = !selected_related_nodes.is_empty() && if Some(node_layout.node_index) == self.ui_state.selected_node { false } else { true };
                     for (pred_index, ref_iri) in &object.references {
                         if !self.ui_state.hidden_predicates.contains(*pred_index) && self.visible_nodes.contains(*ref_iri) {
                             if let Some(ref_object) = self.visible_nodes.get(*ref_iri) {
@@ -440,6 +458,7 @@ impl RdfGlanceApp {
                                     let reference_label = self.node_data.predicate_display(*pred_index, &label_context, &self.node_data.indexers);
                                     reference_label.as_str().to_owned()
                                 };
+                                let faded = fade_candidate && if Some(*ref_iri) == self.ui_state.selected_node { false } else { true };
                                 drawing::draw_edge(
                                     painter,
                                     pos1,
@@ -450,6 +469,7 @@ impl RdfGlanceApp {
                                     ref_object.node_shape,
                                     self.visualisation_style.get_edge_syle(*pred_index),
                                     node_label,
+                                    faded,
                                 );
                                 edge_count += 1;
                             }
@@ -465,9 +485,10 @@ impl RdfGlanceApp {
             for node_layout in self.visible_nodes.nodes.iter_mut() {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
                     let pos = center + node_layout.pos.to_vec2();
+                    let faded = !selected_related_nodes.is_empty() && !selected_related_nodes.binary_search(&node_layout.node_index).is_ok();
                     let (node_rect,node_shape) = draw_node(&self.visualisation_style, 
                         &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
-                        self.ui_state.selected_node == Some(node_layout.node_index), false);
+                        self.ui_state.selected_node == Some(node_layout.node_index), false, faded);
                     node_layout.node_shape = node_shape;
                     node_layout.size = node_rect.size();
                     if self.ui_state.context_menu_node.is_none() || was_action {
@@ -510,7 +531,7 @@ impl RdfGlanceApp {
                         let pos = center + node_layout.pos.to_vec2();
                         draw_node(&self.visualisation_style, 
                             &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
-                            self.ui_state.selected_node == Some(node_layout.node_index), true);
+                            self.ui_state.selected_node == Some(node_layout.node_index), true, false);
                     }
                 }
             }
@@ -673,6 +694,7 @@ fn draw_node(
     pos: Pos2,
     selected: bool,
     highlighted: bool,
+    faded: bool,
 ) -> (Rect, NodeShape) {
     let type_style = visualisation_style.get_type_style(&node_object.types);
     let node_label = node_object.node_label(object_iri, 
@@ -681,7 +703,7 @@ fn draw_node(
         ui_state.display_language,
         indexers
     );
-    draw_node_label(painter, node_label, type_style, pos, selected, highlighted, ui_state.show_labels)
+    draw_node_label(painter, node_label, type_style, pos, selected, highlighted, faded, ui_state.show_labels)
 }
 
 

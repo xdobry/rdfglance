@@ -131,6 +131,7 @@ pub struct UIState {
     show_properties: bool,
     show_labels: bool,
     short_iri: bool,
+    fade_unselected: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
 }
@@ -338,6 +339,7 @@ impl RdfGlanceApp {
                 style_edit: StyleEdit::None,
                 drag_diff: Pos2::ZERO,
                 icon_name_filter: String::new(),
+                fade_unselected: false,
             },
             help_open: false,
             #[cfg(target_arch = "wasm32")]

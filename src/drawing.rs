@@ -23,6 +23,7 @@ pub fn draw_edge<F>(
     shape_to: NodeShape,
     edge_style: &EdgeStyle,
     label_cb: F,
+    faded: bool,
 ) where
     F: Fn() -> String,
 {
@@ -87,7 +88,7 @@ pub fn draw_edge<F>(
     };
 
     // Draw arrow (line + head)
-    let stroke = Stroke::new(edge_style.width, edge_style.color);
+    let stroke = Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
     match edge_style.line_style {
         LineStyle::Solid => {
             painter.line_segment([edge_from, edge_to], stroke);
@@ -103,7 +104,7 @@ pub fn draw_edge<F>(
         LineStyle::Dotted => {
             painter.add(Shape::dotted_line(
                 &[edge_from, edge_to],
-                edge_style.color,
+                fade_color(edge_style.color, faded),
                 edge_style.line_gap,
                 edge_style.width,
             ));
@@ -149,7 +150,7 @@ pub fn draw_edge<F>(
                 painter.line_segment([left, right], stroke);
             }
             ArrowStyle::ArrorFilled => {
-                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], edge_style.color, Stroke::NONE);
+                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], fade_color(edge_style.color, faded), Stroke::NONE);
                 painter.add(shape);
             }
         }
@@ -167,7 +168,7 @@ pub fn draw_edge<F>(
             0.0,
             egui::TextFormat {
                 font_id: label_font,
-                color: edge_font.font_color,
+                color: fade_color(edge_font.font_color, faded),
                 ..Default::default()
             },
         );
@@ -199,8 +200,17 @@ pub fn draw_edge<F>(
             Align2::CENTER_CENTER,
             icon_style.icon_character.to_string(),
             icon_font,
-            icon_style.icon_color,
+            fade_color(icon_style.icon_color, faded),
         );
+    }
+}
+
+#[inline]
+fn fade_color(color: Color32, fade: bool) -> Color32 {
+    if fade {
+        color.gamma_multiply_u8(60)
+    } else {
+        color
     }
 }
 
@@ -211,6 +221,7 @@ pub fn draw_node_label(
     pos: Pos2,
     selected: bool,
     highlighted: bool,
+    faded: bool,
     show_labels: bool,
 ) -> (Rect, NodeShape) {
     let mut job = LayoutJob::default();
@@ -223,7 +234,7 @@ pub fn draw_node_label(
             color: if highlighted {
                 Color32::BLUE
             } else {
-                type_style.label_color
+                fade_color(type_style.label_color, faded)
             },
             ..Default::default()
         },
@@ -257,7 +268,7 @@ pub fn draw_node_label(
     };
     let node_rect = if show_labels {
         let stroke = if type_style.border_width > 0.0 {
-            Stroke::new(type_style.border_width, type_style.border_color)
+            Stroke::new(type_style.border_width, fade_color(type_style.color,faded))
         } else {
             Stroke::NONE
         };
@@ -285,13 +296,13 @@ pub fn draw_node_label(
         }
         match type_style.node_shape {
             NodeShape::Circle => {
-                painter.circle(pos, node_rect.width() / 2.0, type_style.color, stroke);
+                painter.circle(pos, node_rect.width() / 2.0, fade_color(type_style.color, faded), stroke);
             }
             NodeShape::Elipse => {
                 painter.add(egui::Shape::Ellipse(EllipseShape {
                     center: pos,
                     radius: Vec2::new(node_rect.width() / 2.0, node_rect.height() / 2.0),
-                    fill: type_style.color,
+                    fill: fade_color(type_style.color, faded),
                     stroke: stroke,
                 }));
             }
@@ -299,7 +310,7 @@ pub fn draw_node_label(
                 painter.rect(
                     node_rect,
                     type_style.corner_radius,
-                    type_style.color,
+                    fade_color(type_style.color, faded),
                     stroke,
                     StrokeKind::Outside,
                 );
@@ -317,7 +328,7 @@ pub fn draw_node_label(
                 egui::Color32::from_rgba_premultiplied(255, 255, 0, 170),
             );
         }
-        painter.circle_filled(pos, NODE_RADIUS, type_style.color);
+        painter.circle_filled(pos, NODE_RADIUS, fade_color(type_style.color, faded));
         if let Some(icon_style) = &type_style.icon_style {
             let icon_pos = pos;
             let icon_font = FontId::proportional(icon_style.icon_size);
@@ -326,7 +337,7 @@ pub fn draw_node_label(
                 Align2::CENTER_CENTER,
                 icon_style.icon_character.to_string(),
                 icon_font,
-                icon_style.icon_color,
+                fade_color(icon_style.icon_color, faded),
             );
         }
         Rect::from_center_size(pos, Vec2::new(NODE_RADIUS * 2.0, NODE_RADIUS * 2.0))
@@ -355,7 +366,7 @@ pub fn draw_node_label(
                 Align2::CENTER_CENTER,
                 icon_style.icon_character.to_string(),
                 icon_font,
-                icon_style.icon_color,
+                fade_color(icon_style.icon_color, faded),
             );
         }
     }

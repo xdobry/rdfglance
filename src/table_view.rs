@@ -22,7 +22,9 @@ pub struct TypeInstanceIndex {
     pub unresolved_references: usize,
     pub types: HashMap<IriIndex, TypeData>,
     pub types_order: Vec<IriIndex>,
+    pub types_filtered: Vec<IriIndex>,
     pub selected_type: Option<IriIndex>,
+    pub types_filter: String,
 }
 
 pub struct DataPropCharacteristics {
@@ -732,7 +734,9 @@ impl TypeInstanceIndex {
             unresolved_references: 0,
             types: HashMap::new(),
             types_order: Vec::new(),
+            types_filtered: Vec::new(),
             selected_type: None,
+            types_filter: String::new(),
         }
     }
 
@@ -884,6 +888,8 @@ impl TypeInstanceIndex {
             let b_data = self.types.get(b).unwrap();
             b_data.instances.len().cmp(&a_data.instances.len())
         });
+        self.types_filter.clear();
+        self.types_filtered = self.types_order.clone();
         #[cfg(not(target_arch = "wasm32"))]
         {
             let duration = start.elapsed();
@@ -892,6 +898,27 @@ impl TypeInstanceIndex {
                 "Nodes per second: {}",
                 node_len as f64 / duration.as_secs_f64()
             );
+        }
+    }
+
+    pub fn apply_filter(&mut self, node_data: &mut NodeData, label_context: &LabelContext) {
+        if self.types_filter.is_empty() {
+            self.types_filtered = self.types_order.clone();
+        } else {
+            let filter = self.types_filter.to_lowercase();
+            self.types_filtered = self
+                .types_order
+                .iter()                
+                .filter(|type_index| {
+                    let label = node_data.type_display(
+                        **type_index,
+                        label_context,
+                        &node_data.indexers,
+                    );
+                    label.as_str().to_lowercase().contains(&filter)
+                })
+                .cloned()
+                .collect();
         }
     }
 
@@ -942,6 +969,11 @@ impl TypeInstanceIndex {
                 });
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.push_id("types", |ui| {
+                        let type_filter_response = ui.text_edit_singleline(&mut self.types_filter);
+                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                        if type_filter_response.changed() {
+                            self.apply_filter(node_data, &label_context);
+                        }
                         let (selected_type, type_table_action) = self.show_types(
                             ui,
                             node_data,
@@ -955,8 +987,7 @@ impl TypeInstanceIndex {
                         }
                         match type_table_action {
                             TypeTableAction::SortByLabel => {
-                                let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                                self.types_order.sort_by(|a, b| {
+                                self.types_filtered.sort_by(|a, b| {
                                     let label_a = node_data.type_display(
                                         *a,
                                         &label_context,
@@ -971,28 +1002,28 @@ impl TypeInstanceIndex {
                                 });
                             },
                             TypeTableAction::SortByInstances => {
-                                self.types_order.sort_by(|a, b| {
+                                self.types_filtered.sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.instances.len().cmp(&a_data.instances.len())
                                 });
                             },
                             TypeTableAction::SortByDataProps => {
-                                self.types_order.sort_by(|a, b| {
+                                self.types_filtered.sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.properties.len().cmp(&a_data.properties.len())
                                 });
                             },
                             TypeTableAction::SortByOutRef => {
-                                self.types_order.sort_by(|a, b| {
+                                self.types_filtered.sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.references.len().cmp(&a_data.references.len())
                                 });
                             },
                             TypeTableAction::SortByInRef => {
-                                self.types_order.sort_by(|a, b| {
+                                self.types_filtered.sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.rev_references.len().cmp(&a_data.rev_references.len())
@@ -1091,6 +1122,7 @@ impl TypeInstanceIndex {
             if let Some(type_data) = self.types.get_mut(&selected_type) {
                 let mut table_action: TableAction = TableAction::None;
                 ui.horizontal(|ui| {
+                    let filter_immandiately = type_data.instances.len() < 2000;
                     let text_edit =
                         egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
@@ -1100,11 +1132,14 @@ impl TypeInstanceIndex {
                     {
                         text_edit_response.request_focus();
                     }
-                    if text_edit_response.lost_focus() {
-                        table_action = TableAction::Filter;
-                    }
-                    if ui.button(ICON_FILTER).clicked() {
-                        table_action = TableAction::Filter;
+                    if filter_immandiately {
+                        if text_edit_response.changed() {
+                            table_action = TableAction::Filter;
+                        }
+                    } else {
+                        if ui.button(ICON_FILTER).clicked() {
+                            table_action = TableAction::Filter;
+                        }
                     }
                     if ui.button(ICON_CLOSE).clicked() {
                         type_data.instance_view.instance_filter.clear();
@@ -1438,8 +1473,8 @@ impl TypeInstanceIndex {
             })
             .body(|body| {
                 let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                body.rows(text_height, self.types_order.len(), |mut row| {
-                    let type_index = self.types_order.get(row.index()).unwrap();
+                body.rows(text_height, self.types_filtered.len(), |mut row| {
+                    let type_index = self.types_filtered.get(row.index()).unwrap();
                     row.set_selected(self.selected_type == Some(*type_index));
                     let type_data = self.types.get(type_index).unwrap();
                     let type_label = node_data.type_display(
