@@ -500,6 +500,39 @@ impl RdfGlanceApp {
         }
         npos.position(&mut self.visible_nodes);
     }
+    fn expand_all_by_types(&mut self, types: &Vec<IriIndex>) {
+        let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
+        let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
+        for visible_index in &self.visible_nodes.nodes {
+            if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
+                for (_, ref_iri) in nnode.references.iter() {
+                    if let Some((_,nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                        if nnode.match_types(types) {
+                            if refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index,*ref_iri));
+                            }
+                        }
+                    }
+                }
+                for (_, ref_iri) in nnode.reverse_references.iter() {
+                    if let Some((_,nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                        if nnode.match_types(types) {
+                            if refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index,*ref_iri));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut npos = NeighbourPos::new();
+        for (parent_index,ref_index) in parent_ref {
+            if !self.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
+                npos.insert(parent_index, ref_index);
+            }
+        }
+        npos.position(&mut self.visible_nodes);
+    }
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);

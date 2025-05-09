@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
+use rand::rand_core::le;
 
 use crate::{config::IriDisplay, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, GVisualisationStyle};
 
@@ -168,12 +169,68 @@ impl NObject {
         None
     }
 
+    pub fn get_property_count(&self, predicate_index: IriIndex, language_index: LangIndex) -> Option<(&ObjectType,u32)> {
+        let mut no_lang: Option<&ObjectType> = None;
+        let mut fallback_lang: Option<&ObjectType> = None;
+        let mut lang_value: Option<&ObjectType> = None;
+        let mut count: u32 = 0;
+        for (predicate, value) in &self.properties {
+            if predicate == &predicate_index {
+                count += 1;
+                match value {
+                    ObjectType::LangString(lang, _) => {
+                        if *lang==language_index && lang_value.is_none() {
+                            lang_value = Some(value);
+                        }
+                        if *lang == 0 && fallback_lang.is_none() {
+                            fallback_lang = Some(value);
+                        }
+                    }
+                    ObjectType::String(_) | ObjectType::TypedString(_, _) | ObjectType::StringShort(_)=> {
+                        if no_lang.is_none() {
+                            no_lang = Some(value);
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(lang) = lang_value {
+            return Some((lang,count));
+        }
+        if let Some(fallback_lang) = fallback_lang {
+            return Some((fallback_lang,count));
+        }
+        if let Some(no_lang) = no_lang {
+            return Some((no_lang, count));
+        }
+        None
+    }
+
+
     pub fn apply_filter(&self, filter: &str, iri: &str, indexers: &Indexers) -> bool {
         if iri.contains(filter) {
             return true;
         }
         for (_predicate, value) in &self.properties {
             if value.as_str_ref(indexers).contains(filter) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn match_types(&self, types: &Vec<IriIndex>) -> bool {
+        for type_index in self.types.iter() {
+            if types.contains(type_index) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn has_property(&self, predicate_index: IriIndex) -> bool {
+        for (predicate, _value) in &self.properties {
+            if predicate == &predicate_index {
                 return true;
             }
         }

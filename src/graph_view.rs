@@ -16,6 +16,52 @@ struct ReferencesState {
     pub visible: u32,
 }
 
+enum NodeContextAction {
+    None,
+    Hide,
+    HideThisType,
+    HideOther,
+    HideOtherTypes,
+    HideUnrelated,
+    Expand,
+    ExpandReferenced,
+    ExpandReferencedBy,
+    ExpandThisType,
+}
+
+impl NodeContextAction {
+    fn show_menu(ui: &mut egui::Ui) -> NodeContextAction {
+        if ui.button("Hide").clicked() {
+            return NodeContextAction::Hide;
+        }
+        if ui.button("Hide this type").clicked() {
+            return NodeContextAction::HideThisType;
+        }
+        if ui.button("Hide other").clicked() {
+            return NodeContextAction::HideOther;
+        }
+        if ui.button("Hide other types").clicked() {
+            return NodeContextAction::HideOtherTypes;
+        }
+        if ui.button("Hide unrelated").clicked() {
+            return NodeContextAction::HideUnrelated;
+        }
+        if ui.button("Expand").clicked() {
+            return NodeContextAction::Expand;
+        }
+        if ui.button("Expand Referenced").clicked() {
+            return NodeContextAction::ExpandReferenced;
+        }
+        if ui.button("Expand Referenced By").clicked() {
+            return NodeContextAction::ExpandReferencedBy;
+        }
+        if ui.button("Expand this type").clicked() {
+            return NodeContextAction::ExpandThisType;
+        }
+        return NodeContextAction::None;
+    }
+}
+
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
@@ -562,54 +608,77 @@ impl RdfGlanceApp {
                     let mut close_menu = false;
                     let current_index = *node_index;
                     // TODO need to clone the types to release the mutable borrow from current_node (node_data)
-                    let types = current_node.types.clone();
-                    if ui.button("Hide").clicked() {
-                        self.visible_nodes.remove(current_index);
-                        self.ui_state.compute_layout = true;
-                        close_menu = true;
-                    }
-                    if ui.button("Hide this Type").clicked() {
-                        self.ui_state.compute_layout = true;
-                        self.visible_nodes.remove(current_index);
-                        self.visible_nodes.nodes.retain(|x| {
-                            let node = self.node_data.get_node_by_index(x.node_index);
-                            if let Some((_,node)) = node {
-                                !node.has_same_type(&types)
-                            } else {
-                                true
-                            }
-                        });
-                        close_menu = true;
-                    }
-                    if ui.button("Hide other").clicked() {
-                        self.ui_state.compute_layout = true;
-                        self.visible_nodes.nodes.clear();
-                        self.visible_nodes.add_by_index(current_index);
-                        close_menu = true;
-                    }
-                    if ui.button("Hide other Types").clicked() {
-                        self.ui_state.compute_layout = true;
-                        self.visible_nodes.nodes.retain(|x| {
-                            let node = self.node_data.get_node_by_index(x.node_index);
-                            if let Some((_,node)) = node {
-                                node.has_same_type(&types)
-                            } else {
-                                false
-                            }
-                        });
-                        close_menu = true;
-                    }
-                    if ui.button("Expand").clicked() {
-                        self.expand_node(current_index, ExpandType::Both);
-                        close_menu = true;
-                    }
-                    if ui.button("Expand Referenced").clicked() {
-                        self.expand_node(current_index, ExpandType::References);
-                        close_menu = true;
-                    }
-                    if ui.button("Expand Referenced By").clicked() {
-                        self.expand_node(current_index, ExpandType::ReverseReferences);
-                        close_menu = true;
+                    let node_action = NodeContextAction::show_menu(ui);
+                    match node_action {
+                        NodeContextAction::Hide => {
+                            self.visible_nodes.remove(current_index);
+                            self.ui_state.compute_layout = true;
+                            close_menu = true;
+                        },
+                        NodeContextAction::HideThisType => {
+                            let types = current_node.types.clone();
+                            self.ui_state.compute_layout = true;
+                            self.visible_nodes.remove(current_index);
+                            self.visible_nodes.nodes.retain(|x| {
+                                let node = self.node_data.get_node_by_index(x.node_index);
+                                if let Some((_,node)) = node {
+                                    !node.has_same_type(&types)
+                                } else {
+                                    true
+                                }
+                            });
+                            close_menu = true;
+                        },
+                        NodeContextAction::HideOther => {
+                            self.ui_state.compute_layout = true;
+                            self.visible_nodes.nodes.clear();
+                            self.visible_nodes.add_by_index(current_index);
+                            close_menu = true;
+                        },
+                        NodeContextAction::HideOtherTypes => {
+                            let types = current_node.types.clone();
+                            self.ui_state.compute_layout = true;
+                            self.visible_nodes.nodes.retain(|x| {
+                                let node = self.node_data.get_node_by_index(x.node_index);
+                                if let Some((_,node)) = node {
+                                    node.has_same_type(&types)
+                                } else {
+                                    false
+                                }
+                            });
+                            close_menu = true;
+                        },
+                        NodeContextAction::HideUnrelated => {
+                            self.visible_nodes.nodes.retain(|x| {
+                                if x.node_index == *node_index {
+                                    return true;
+                                }
+                                current_node.references.iter().any(| (_predicate_index, ref_iri)| *ref_iri == x.node_index) ||
+                                current_node.reverse_references.iter().any(| (_predicate_index, ref_iri)| *ref_iri == x.node_index)
+                            });
+                            self.ui_state.compute_layout = true;
+                            close_menu = true;
+                        },
+                        NodeContextAction::Expand => {
+                            self.expand_node(current_index, ExpandType::Both);
+                            close_menu = true;
+                        },
+                        NodeContextAction::ExpandReferenced => {
+                            self.expand_node(current_index, ExpandType::References);
+                            close_menu = true;
+                        },
+                        NodeContextAction::ExpandReferencedBy => {
+                            self.expand_node(current_index, ExpandType::ReverseReferences);
+                            close_menu = true;
+                        },
+                        NodeContextAction::ExpandThisType => {
+                            let types = current_node.types.clone();
+                            self.expand_all_by_types(&types);
+                            close_menu = true;
+                        },
+                        NodeContextAction::None => {
+                            // do nothing
+                        }
                     }
                     if close_menu {
                         self.ui_state.context_menu_node = None;

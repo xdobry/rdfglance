@@ -268,7 +268,7 @@ pub fn draw_node_label(
     };
     let node_rect = if show_labels {
         let stroke = if type_style.border_width > 0.0 {
-            Stroke::new(type_style.border_width, fade_color(type_style.color,faded))
+            Stroke::new(type_style.border_width, fade_color(type_style.border_color,faded))
         } else {
             Stroke::NONE
         };

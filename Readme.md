@@ -22,11 +22,11 @@ It provides a user-friendly interface to explore the relationships and propertie
 The application is suitable for developers, researchers, and anyone interested in working with semantic web technologies.
 
 My primary goal was to ensure the program runs as fast as possible and maintains high performance even when handling large datasets.
-Therefore, the program has been optimized to efficiently process and manage large amount of triples and records.
+Therefore, the program has been optimized to efficiently process and manage large number of triples and records.
 
 ![screenshot](documentation/screeshots/rdf-glance_anim.gif)
 
-Individualy styled visualisation of nodes and edges
+Individually styled visualization of nodes and edges
 
 ![screenshot](documentation/screeshots/milenium_falcon_pilot_movies.png)
 
@@ -45,7 +45,7 @@ The RDF Data can be loaded by using following formats:
 
 - ttl
 - rdf/xml
-- trig - namded graphs are ignored
+- trig - named graphs are ignored
 - nt (n-tuples)
 - nq (n-quads) - named graphs are ignored
 
@@ -118,7 +118,7 @@ For more information on how to use RDFGlance, refer to the documentation provide
 ## Known Problems
 
 - Some RDF files can not be read. You will see the error messages in the std output. It seems that the used oxrdf parser is quite sensitive.
-- If loading big rdf files the gui may freeze for a while. There is no seperate worker thread for it
+- If loading big rdf files the gui may freeze for a while. There is no separate worker thread for it
 - The is no limitations to shown size of elements in visual graph. If you have more than 10000 Elements the ui may be not very responsible
 
 I still hope that the application can be useful for others.
@@ -133,7 +133,7 @@ Unlike traditional web applications that rely on HTML and React, `egui` allows f
 RDFGlance uses some oxigraph rust libraries. 
 
 I have developed the application because my frustration about low performance of existing rdf solutions and I wanted to learn and test Rust and egui framework.
-It is learn and hobby project.
+It is a learning and hobby project.
 
 ## Releases
 

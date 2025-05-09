@@ -424,8 +424,8 @@ impl TypeData {
                     .skip(self.instance_view.column_pos as usize)
                 {
                     let property = node
-                        .get_property(column_desc.predicate_index, layout_data.display_language);
-                    if let Some(property) = property {
+                        .get_property_count(column_desc.predicate_index, layout_data.display_language);
+                    if let Some((property, count)) = property {
                         let value = property.as_str_ref(&node_data.indexers);
                         let cell_rect = egui::Rect::from_min_size(
                             available_rect.left_top() + Vec2::new(xpos, ypos),
@@ -434,6 +434,9 @@ impl TypeData {
                         let mut cell_hovered = false;
                         if cell_rect.contains(mouse_pos) {
                             cell_hovered = true;
+                        }
+                        if count>1 {
+                            painter.rect_filled(cell_rect, 0.0, Color32::LIGHT_YELLOW);
                         }
                         text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered);
                         if primary_clicked && cell_rect.contains(mouse_pos) {
@@ -547,18 +550,30 @@ impl TypeData {
                         ui.memory_mut(|mem| mem.close_popup());
                     }
                 }
-                TableContextMenu::ColumnMenu(_pos, _column_predictate) => {
+                TableContextMenu::ColumnMenu(_pos, column_predictate) => {
                     let mut close_menu = false;
                     if self.instance_view.visible_columns() > 0 && ui.button("Hide column").clicked() {
-                        *table_action = TableAction::HideColumn(_column_predictate);
+                        *table_action = TableAction::HideColumn(column_predictate);
                         close_menu = true;
                     }
                     if ui.button("Sort Asc").clicked() {
-                        *table_action = TableAction::SortColumnAsc(_column_predictate);
+                        *table_action = TableAction::SortColumnAsc(column_predictate);
                         close_menu = true;
                     }
                     if ui.button("Sort Desc").clicked() {
-                        *table_action = TableAction::SortColumnDesc(_column_predictate);
+                        *table_action = TableAction::SortColumnDesc(column_predictate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Value Exists").clicked() {
+                        *table_action = TableAction::HidePropExists(column_predictate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Value Not Exists").clicked() {
+                        *table_action = TableAction::HidePropNotExists(column_predictate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Mutivalue").clicked() {
+                        *table_action = TableAction::HidePropNonMulti(column_predictate);
                         close_menu = true;
                     }
                     let hidden_columns: Vec<&ColumnDesc> = self
@@ -1270,7 +1285,7 @@ impl TypeInstanceIndex {
                                             if let Some(b_value) = b_value {
                                                 let a_value = a_value.as_str_ref(&node_data.indexers);
                                                 let b_value = b_value.as_str_ref(&node_data.indexers);
-                                                return a_value.cmp(b_value);
+                                                return b_value.cmp(a_value);
                                             } else {
                                                 return std::cmp::Ordering::Less;
                                             }
@@ -1379,6 +1394,56 @@ impl TypeInstanceIndex {
                                 false
                             })
                             .collect();
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
+                            >= type_data.filtered_instances.len()
+                        {
+                            type_data.instance_view.pos = 0.0;
+                        }
+                    }
+                    TableAction::HidePropExists(predicate_to_hide) => {
+                        type_data.filtered_instances.retain(|&instance_index| {
+                            let node = node_data.get_node_by_index(instance_index);
+                            if let Some((_, node)) = node {
+                                return node.has_property(predicate_to_hide)
+                            }
+                            false
+                        });
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
+                            >= type_data.filtered_instances.len()
+                        {
+                            type_data.instance_view.pos = 0.0;
+                        }
+                    }
+                    TableAction::HidePropNonMulti(predicate_to_hide) => {
+                        type_data.filtered_instances.retain(|&instance_index| {
+                            let node = node_data.get_node_by_index(instance_index);
+                            if let Some((_, node)) = node {
+                                let mut found = false;
+                                for (predicate, _literal) in node.properties.iter() {
+                                    if *predicate == predicate_to_hide {
+                                        if found {
+                                            return true;
+                                        }
+                                        found = true;
+                                    }
+                                }
+                            }
+                            false
+                        });
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
+                            >= type_data.filtered_instances.len()
+                        {
+                            type_data.instance_view.pos = 0.0;
+                        }
+                    }
+                    TableAction::HidePropNotExists(predicate_to_hide) => {
+                        type_data.filtered_instances.retain(|&instance_index| {
+                            let node = node_data.get_node_by_index(instance_index);
+                            if let Some((_, node)) = node {
+                                return !node.has_property(predicate_to_hide)
+                            }
+                            false
+                        });
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize
                             >= type_data.filtered_instances.len()
                         {
@@ -1522,6 +1587,9 @@ pub enum TableAction {
     SortRefDesc(),
     SortIriAsc(),
     SortIriDesc(),
+    HidePropNotExists(IriIndex),
+    HidePropExists(IriIndex),
+    HidePropNonMulti(IriIndex),
     Filter,
 }
 
