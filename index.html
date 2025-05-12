@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>RDF Glance</title>
-    <base href="/" />
+    <base href="/rdfglance/" />
     <style>
       html {
           /* Remove touch delay: */
@@ -90,7 +90,7 @@
           }
       }
   </style>
-  <link rel="modulepreload" href="/rdfglance/rdf-glance-d6f721e946c04eea.js" crossorigin="anonymous" integrity="sha384-9SN0S0T0KD9RYn5PxeDog4sXHqAFZan8ZfTcPe+7kKUV4GFXrw0MvMi4JEHF8MpB"><link rel="preload" href="/rdfglance/rdf-glance-d6f721e946c04eea_bg.wasm" crossorigin="anonymous" integrity="sha384-C8wrJf2NPGNO5zbhhKvh1shpTthMu3HdYUQajnwE1U5DngRg+DVpgS1UTVkFO6eC" as="fetch" type="application/wasm"></head>
+  <link rel="modulepreload" href="/rdfglance/rdf-glance-cccd977c6c651fa2.js" crossorigin="anonymous" integrity="sha384-rQ/53k5VRftywC+eg5ZXFdE7fsiOfEbeeteh9IsgTs+suiiTURjupUtYCEY0QKpj"><link rel="preload" href="/rdfglance/rdf-glance-cccd977c6c651fa2_bg.wasm" crossorigin="anonymous" integrity="sha384-2aSV2QcgK6coxg9+njDSO4kJqUke1vIZc8ihqv59pQ1IYrxAsnZx8ASnJ2tOY6ND" as="fetch" type="application/wasm"></head>
   <body>
     <canvas id="the_canvas"></canvas>
     <script type="module">
@@ -99,8 +99,8 @@
     </script>
   
 <script type="module">
-import init, * as bindings from '/rdfglance/rdf-glance-d6f721e946c04eea.js';
-const wasm = await init({ module_or_path: '/rdfglance/rdf-glance-d6f721e946c04eea_bg.wasm' });
+import init, * as bindings from '/rdfglance/rdf-glance-cccd977c6c651fa2.js';
+const wasm = await init({ module_or_path: '/rdfglance/rdf-glance-cccd977c6c651fa2_bg.wasm' });
 
 
 window.wasmBindings = bindings;
