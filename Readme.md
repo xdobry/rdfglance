@@ -81,6 +81,15 @@ To compile RDFGlance, you need to have [Rust installed](https://www.rust-lang.or
 
 You may also pick the precompiled executable for windows from [github releases](https://github.com/xdobry/rdfglance/releases).
 
+## Usage
+
+After compiling the application, you can run it using the following command:
+```sh
+./target/release/rdf-glance
+```
+
+For more information on how to use RDFGlance, refer to the documentation provided in the [repository](documentation/manual.md).
+
 ## Wasm Web Application Build
 
 Prepare wasm
@@ -106,14 +115,7 @@ Build static web content. Output in dist folder
   trunk build
   ```
 
-## Usage
-
-After compiling the application, you can run it using the following command:
-```sh
-./target/release/rdf-glance
-```
-
-For more information on how to use RDFGlance, refer to the documentation provided in the [repository](documentation/manual.md).
+The last web release is avaiable here [Rdfglance WASM version](https://xdobry.github.io/rdfglance/)
 
 ## Known Problems
 

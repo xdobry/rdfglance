@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{self, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, RdfGlanceApp, StyleEdit, UIState
+    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{self, layout_graph_nodes, update_edges_groups, Edge, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, RdfGlanceApp, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -70,19 +70,26 @@ impl RdfGlanceApp {
             return NodeAction::None;
         }
         ui.horizontal(|ui| {
-            ui.checkbox(&mut self.ui_state.force_compute_layout, "Force Layout");
+            if ui.checkbox(&mut self.ui_state.force_compute_layout, "Force Layout").changed() {
+                if self.ui_state.force_compute_layout {
+                    self.ui_state.temperature = 100.0;
+                }
+            }
             if self.ui_state.compute_layout || self.ui_state.force_compute_layout {
-                let max_move = layout::layout_graph(
-                    &mut self.node_data,
-                    &mut self.visible_nodes,
-                    &self.ui_state.hidden_predicates,
+                let (max_move,positions) = layout_graph_nodes(
+                    &self.visible_nodes,
                     &self.persistent_data.config_data,
+                    self.ui_state.temperature,
                 );
-                if max_move < 0.8 && !self.ui_state.force_compute_layout {
-                    self.ui_state.compute_layout = false;
+                self.visible_nodes.positions = positions;
+                if !self.ui_state.force_compute_layout {
+                    self.ui_state.temperature *= 0.98;
+                }
+                if (max_move < 0.8 || self.ui_state.temperature<0.5) && !self.ui_state.force_compute_layout {
+                    self.ui_state.meta_compute_layout = false;
                 } 
-                if self.ui_state.compute_layout || self.ui_state.force_compute_layout {
-                    self.ui_state.compute_layout = true;
+                if self.ui_state.meta_compute_layout || self.ui_state.force_compute_layout {
+                    self.ui_state.meta_compute_layout = true;
                     ctx.request_repaint();
                 }
             }
@@ -100,9 +107,15 @@ impl RdfGlanceApp {
              */
             ui.checkbox(&mut self.ui_state.show_properties, "Show Properties");
             ui.label("nodes force");
+            ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
+            ui.label("edges force");
+            ui.add(Slider::new(&mut self.persistent_data.config_data.m_attraction_factor, 0.02..=3.0));
+            /*
+            ui.label("nodes force");
             ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
             ui.label("edges force");
             ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.001..=0.2));
+            */
             ui.checkbox(&mut self.ui_state.show_labels, "Show Labels");
             ui.checkbox(&mut self.ui_state.short_iri, "Short Iri");
             ui.checkbox(&mut self.ui_state.fade_unselected, "Fade unselected");
@@ -266,6 +279,7 @@ impl RdfGlanceApp {
                                             npos.add_by_index(&mut self.visible_nodes, *iri_index,*ref_iri);
                                         }
                                     }
+                                    update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
                                     npos.position( &mut self.visible_nodes);
                                 }
                                 let edge_style_button = egui::Button::new(ICON_WRENCH)
@@ -297,6 +311,7 @@ impl RdfGlanceApp {
                                     for (parent_index, node_index) in nodes_to_add.iter() {
                                         npos.add_by_index(&mut self.visible_nodes, *parent_index,*node_index);
                                     }
+                                    update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
                                     npos.position( &mut self.visible_nodes);
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
@@ -363,6 +378,7 @@ impl RdfGlanceApp {
                                             npos.add_by_index(&mut self.visible_nodes, *iri_index,*ref_iri);
                                         }
                                     }
+                                    update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
                                     npos.position( &mut self.visible_nodes);
                                 }
                                 let edge_style_button = egui::Button::new(ICON_WRENCH)
@@ -392,6 +408,7 @@ impl RdfGlanceApp {
                                     for (root_index,node_to_add) in nodes_to_add.iter() {
                                         npos.add_by_index(&mut self.visible_nodes,*root_index,*node_to_add);
                                     }
+                                    update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
                                     npos.position( &mut self.visible_nodes);
                                 }
                                 let reference_state = reference_state.get(reference_index).unwrap();
@@ -492,45 +509,47 @@ impl RdfGlanceApp {
             }
 
             let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
-            for node_layout in self.visible_nodes.nodes.iter() {
-                if let Some((_,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
-                    let fade_candidate = !selected_related_nodes.is_empty() && if Some(node_layout.node_index) == self.ui_state.selected_node { false } else { true };
-                    for (pred_index, ref_iri) in &object.references {
-                        if !self.ui_state.hidden_predicates.contains(*pred_index) && self.visible_nodes.contains(*ref_iri) {
-                            if let Some(ref_object) = self.visible_nodes.get(*ref_iri) {
-                                let pos1 = center + node_layout.pos.to_vec2();
-                                let pos2 = center + ref_object.pos.to_vec2();
-                                let node_label = || {
-                                    let reference_label = self.node_data.predicate_display(*pred_index, &label_context, &self.node_data.indexers);
-                                    reference_label.as_str().to_owned()
-                                };
-                                let faded = fade_candidate && if Some(*ref_iri) == self.ui_state.selected_node { false } else { true };
-                                drawing::draw_edge(
-                                    painter,
-                                    pos1,
-                                    node_layout.size,
-                                    node_layout.node_shape,
-                                    pos2,
-                                    ref_object.size,
-                                    ref_object.node_shape,
-                                    self.visualisation_style.get_edge_syle(*pred_index),
-                                    node_label,
-                                    faded,
-                                );
-                                edge_count += 1;
-                            }
-                        }
-                    }
+            edge_count += self.visible_nodes.edges.len() as u32;
+            for edge in self.visible_nodes.edges.iter() {
+                if self.ui_state.hidden_predicates.contains(edge.predicate) {
+                    continue;
+                }
+                let node_layout = &self.visible_nodes.nodes[edge.from];
+                let node_label = || {
+                    let reference_label = self.node_data.predicate_display(edge.predicate, &label_context, &self.node_data.indexers);
+                    reference_label.as_str().to_owned()
+                };
+                let pos1 = center + self.visible_nodes.positions[edge.from].pos.to_vec2();
+                if edge.from != edge.to {
+                    let ref_object = &self.visible_nodes.nodes[edge.to];
+                    let pos2 = center + self.visible_nodes.positions[edge.to].pos.to_vec2();
+                    drawing::draw_edge(
+                        painter,
+                        pos1,
+                        node_layout.size,
+                        node_layout.node_shape,
+                        pos2,
+                        ref_object.size,
+                        ref_object.node_shape,
+                        self.visualisation_style.get_edge_syle(edge.predicate),
+                        node_label,
+                        false,
+                        edge.bezier_distance,
+                    );
+                } else {
+                    drawing::draw_self_edge(painter, pos1, node_layout.size, edge.bezier_distance, 
+                        node_layout.node_shape, self.visualisation_style.get_edge_syle(edge.predicate), false, node_label);
                 }
             }
+            
             if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
-                if let Some(node_to_drag) = self.visible_nodes.get_mut(*node_to_drag_index) {
-                    node_to_drag.pos = (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
+                if let Some((_node_to_drag, node_pos)) = self.visible_nodes.get_pos(*node_to_drag_index) {
+                    self.visible_nodes.positions[node_pos].pos = (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
                 }
             }
-            for node_layout in self.visible_nodes.nodes.iter_mut() {
+            for (node_layout, node_position) in self.visible_nodes.nodes.iter_mut().zip(self.visible_nodes.positions.iter()) {
                 if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_layout.node_index) {
-                    let pos = center + node_layout.pos.to_vec2();
+                    let pos = center + node_position.pos.to_vec2();
                     let faded = !selected_related_nodes.is_empty() && !selected_related_nodes.binary_search(&node_layout.node_index).is_ok();
                     let (node_rect,node_shape) = draw_node(&self.visualisation_style, 
                         &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
@@ -571,10 +590,10 @@ impl RdfGlanceApp {
             }
             */
             if let Some(node_to_hover) = node_to_hover {
-                let node_layout = self.visible_nodes.get(node_to_hover);
-                if let Some(node_layout) = node_layout {
+                let node_layout = self.visible_nodes.get_pos(node_to_hover);
+                if let Some((node_layout, node_pos)) = node_layout {
                     if let Some((object_iri,object)) = self.node_data.get_node_by_index(node_to_hover) {
-                        let pos = center + node_layout.pos.to_vec2();
+                        let pos = center + self.visible_nodes.positions[node_pos].pos.to_vec2();
                         draw_node(&self.visualisation_style, 
                             &self.node_data.indexers, &self.ui_state, painter, object, object_iri, pos, 
                             self.ui_state.selected_node == Some(node_layout.node_index), true, false);
@@ -607,7 +626,6 @@ impl RdfGlanceApp {
                 if let Some((_,current_node)) = current_node {
                     let mut close_menu = false;
                     let current_index = *node_index;
-                    // TODO need to clone the types to release the mutable borrow from current_node (node_data)
                     let node_action = NodeContextAction::show_menu(ui);
                     match node_action {
                         NodeContextAction::Hide => {
@@ -619,7 +637,7 @@ impl RdfGlanceApp {
                             let types = current_node.types.clone();
                             self.ui_state.compute_layout = true;
                             self.visible_nodes.remove(current_index);
-                            self.visible_nodes.nodes.retain(|x| {
+                            self.visible_nodes.retain(|x| {
                                 let node = self.node_data.get_node_by_index(x.node_index);
                                 if let Some((_,node)) = node {
                                     !node.has_same_type(&types)
@@ -638,7 +656,7 @@ impl RdfGlanceApp {
                         NodeContextAction::HideOtherTypes => {
                             let types = current_node.types.clone();
                             self.ui_state.compute_layout = true;
-                            self.visible_nodes.nodes.retain(|x| {
+                            self.visible_nodes.retain(|x| {
                                 let node = self.node_data.get_node_by_index(x.node_index);
                                 if let Some((_,node)) = node {
                                     node.has_same_type(&types)
@@ -649,7 +667,7 @@ impl RdfGlanceApp {
                             close_menu = true;
                         },
                         NodeContextAction::HideUnrelated => {
-                            self.visible_nodes.nodes.retain(|x| {
+                            self.visible_nodes.retain(|x| {
                                 if x.node_index == *node_index {
                                     return true;
                                 }
@@ -730,7 +748,7 @@ impl RdfGlanceApp {
 
 }
 
-fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape : NodeShape) -> bool {
+pub fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape : NodeShape) -> bool {
     if node_rect.contains(pos) {
         if node_shape == NodeShape::Circle || node_shape == NodeShape::None {
             let center = node_rect.center();
@@ -753,7 +771,7 @@ fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape : NodeShape) -> bool {
     false
 }
 
-fn draw_node(
+pub fn draw_node(
     visualisation_style: &GVisualisationStyle,
     indexers: &Indexers,
     ui_state: &UIState,
@@ -775,6 +793,62 @@ fn draw_node(
     draw_node_label(painter, node_label, type_style, pos, selected, highlighted, faded, ui_state.show_labels)
 }
 
+pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNodeLayout,node_data: &NodeData) {
+    let mut visited_nodes: HashSet<IriIndex> = HashSet::new();
+    println!("add nodes: {}", new_nodes.nodes.len());
+    for node_index in new_nodes.iter_values() {
+        println!(" add node: {}", node_index);
+        if let Some((_node_layout,node_pos)) = layout_nodes.get_pos(*node_index) {
+            if let Some((_str, nobject)) = node_data.get_node_by_index(*node_index) {
+                for (pred_index, ref_iri) in nobject.references.iter() {
+                    if *ref_iri == *node_index {
+                        let edge = Edge {
+                            from: node_pos,
+                            to: node_pos,
+                            predicate: *pred_index,
+                            bezier_distance: 0.0,
+                        };
+                        layout_nodes.edges.push(edge);
+                    } else {
+                        if !visited_nodes.contains(ref_iri) {
+                            if let Some((_node,ref_pos)) = layout_nodes.get_pos(*ref_iri) {
+                                let edge = Edge {
+                                    from: node_pos,
+                                    to: ref_pos,
+                                    predicate: *pred_index,
+                                    bezier_distance: 0.0,
+                                };
+                                layout_nodes.edges.push(edge);
+                            }
+                        }
+                    }
+                }
+                for (pred_index, ref_iri) in nobject.reverse_references.iter() {
+                    if *ref_iri != *node_index  && !visited_nodes.contains(ref_iri) {
+                        if let Some((_node,ref_pos)) = layout_nodes.get_pos(*ref_iri) {
+                            let edge = Edge {
+                                from: ref_pos,
+                                to: node_pos,
+                                predicate: *pred_index,
+                                bezier_distance: 0.0,
+                            };
+                            layout_nodes.edges.push(edge);
+                        }
+                    }
+                }
+            }
+        }
+        visited_nodes.insert(*node_index);
+    }
+    /*
+    println!("Layout edges: {}", layout_nodes.edges.len());
+    for edge in layout_nodes.edges.iter_mut() {
+        println!("Edge: {} -> {}", edge.from, edge.to);
+    }
+     */
+    update_edges_groups(&mut layout_nodes.edges);
+}
+
 
 pub struct NeighbourPos {
     nodes: HashMap<IriIndex,Vec<IriIndex>>,
@@ -793,9 +867,12 @@ impl NeighbourPos {
         }
     }
 
-    pub fn add_by_index(&mut self, node_layout: &mut SortedNodeLayout, root_node: IriIndex, node_index: IriIndex) {
+    pub fn add_by_index(&mut self, node_layout: &mut SortedNodeLayout, root_node: IriIndex, node_index: IriIndex) -> bool {
         if node_layout.add_by_index(node_index) {
             self.insert(root_node, node_index);
+            true
+        } else {
+            false
         }
     }
 
@@ -808,21 +885,27 @@ impl NeighbourPos {
     }
 
     pub fn position(&self, node_layout: &mut SortedNodeLayout) {
-        for (root_node, neighbours) in self.nodes.iter() {
-            let root_node = node_layout.get(*root_node);
-            if let Some(root_node) = root_node {
+        for (root_node_index, neighbours) in self.nodes.iter() {
+            let root_node = node_layout.get_pos(*root_node_index);
+            if let Some((_root_node, root_pos)) = root_node {
                 let mut angle: f32 = rand::rng().random_range(0.0..std::f32::consts::TAU);
                 let angle_diff = std::f32::consts::TAU / neighbours.len() as f32;
-                let root_pos = root_node.pos;
+                let root_pos = node_layout.positions[root_pos].pos;
                 for node_iri in neighbours.iter() {
                     let x = root_pos.x + INITIAL_DISTANCE * angle.cos();
                     let y = root_pos.y + INITIAL_DISTANCE * angle.sin();
-                    if let Some(node_layout) = node_layout.get_mut(*node_iri) {
-                        node_layout.pos = Pos2::new(x, y);
+                    if let Some((_node_layout,node_pos)) = node_layout.get_pos(*node_iri) {
+                        node_layout.positions[node_pos].pos = Pos2::new(x, y);
                     }
                     angle += angle_diff;
                 }
             }
         }
+    }
+
+    pub fn iter_values(&self) -> impl Iterator<Item = &IriIndex> {
+        self.nodes
+            .values()                // -> Values<IriIndex, Vec<IriIndex>>
+            .flat_map(|vec| vec.iter()) // -> Iterator over &IriIndex
     }
 }

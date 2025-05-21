@@ -309,7 +309,7 @@ dbr:Anders_Hejlsberg a dbo:Person .
 
 dbr:Dan_Ingalls a dbo:Person .
 
-dbr:ECMAScript a dbo:Person, dbo:ProgrammingLanguage .
+dbr:ECMAScript a dbo:ProgrammingLanguage .
 
 dbr:Ecma_International a dbo:Person .
 

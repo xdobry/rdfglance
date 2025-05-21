@@ -432,6 +432,7 @@ impl RdfGlanceApp {
                 &edge_style,
                 node_label,
                 false,
+                0.0,
             );
         }
     }

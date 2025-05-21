@@ -19,6 +19,8 @@ pub struct TypeInstanceIndex {
     pub properties: usize,
     pub references: usize,
     pub blank_nodes: usize,
+    pub max_instance_type_count: usize,
+    pub min_instance_type_count: usize,
     pub unresolved_references: usize,
     pub types: HashMap<IriIndex, TypeData>,
     pub types_order: Vec<IriIndex>,
@@ -34,10 +36,12 @@ pub struct DataPropCharacteristics {
     pub min_cardinality: u32,
 }
 
+
 pub struct ReferenceCharacteristics {
     pub count: u32,
     pub max_cardinality: u32,
     pub min_cardinality: u32,
+    pub types: Vec<IriIndex>,
 }
 
 pub struct TypeData {
@@ -686,6 +690,70 @@ impl TypeData {
             },
         );
     }
+
+    pub fn display_data_props(&self, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+        egui::Grid::new("fields").show(ui, |ui| {
+            ui.strong("Data Property");
+            ui.strong("Count");
+            ui.strong("Max Len");
+            ui.strong("Min Card.");
+            ui.strong("Max Card.");
+            ui.end_row();
+            for (predicate_index, pcharecteristics) in &self.properties
+            {
+                let predicate_label = node_data.predicate_display(
+                    *predicate_index,
+                    &label_context,
+                    &node_data.indexers
+                );
+                ui.label(predicate_label.as_str());
+                ui.label(pcharecteristics.count.to_string());
+                ui.label(pcharecteristics.max_len.to_string());
+                ui.label(pcharecteristics.min_cardinality.to_string());
+                ui.label(pcharecteristics.max_cardinality.to_string());
+                ui.end_row();
+            }
+        });
+    }
+
+    pub fn display_references(&self, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+        egui::Grid::new("referenced").show(ui, |ui| {
+            ui.strong("Out Ref");
+            ui.strong("Count");
+            ui.strong("Min Card.");
+            ui.strong("Max Card.");
+            ui.end_row();
+            for (predicate_index, reference_characteristics) in &self.references {
+                let predicate_label = node_data.predicate_display(
+                    *predicate_index,
+                    &label_context,
+                    &node_data.indexers
+                );
+                ui.label(predicate_label.as_str());
+                ui.label(reference_characteristics.count.to_string());
+                ui.label(reference_characteristics.min_cardinality.to_string());
+                ui.label(reference_characteristics.max_cardinality.to_string());
+                ui.end_row();
+            }
+        });
+    }
+    pub fn display_reverse_references(&self, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+        egui::Grid::new("referenced by").show(ui, |ui| {
+            ui.strong("In Ref");
+            ui.strong("Count");
+            ui.end_row();
+            for (predicate_index, count) in &self.rev_references {
+                let predicate_label = node_data.predicate_display(
+                    *predicate_index,
+                    &label_context,
+                    &node_data.indexers
+                );
+                ui.label(predicate_label.as_str());
+                ui.label(count.to_string());
+                ui.end_row();
+            }
+        });
+    }
 }
 
 fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool) {
@@ -747,6 +815,8 @@ impl TypeInstanceIndex {
             references: 0,
             blank_nodes: 0,
             unresolved_references: 0,
+            max_instance_type_count: 0,
+            min_instance_type_count: 0,
             types: HashMap::new(),
             types_order: Vec::new(),
             types_filtered: Vec::new(),
@@ -763,6 +833,8 @@ impl TypeInstanceIndex {
         self.references = 0;
         self.blank_nodes = 0;
         self.unresolved_references = 0;
+        self.max_instance_type_count = 0;
+        self.min_instance_type_count = 0;
         self.types.clear();
         self.types_order.clear();
     }
@@ -824,21 +896,29 @@ impl TypeInstanceIndex {
                     property_stat.min_cardinality = property_card;
                     type_data.properties.insert(predicate_index, property_stat);
                 }
-                let mut ref_counts: Vec<(IriIndex, u32)> = Vec::new();
-                for (predicate_index, _) in &node.references {
-                    let mut found = false;
-                    for (predicate_count_index, predicate_count) in ref_counts.iter_mut() {
-                        if *predicate_count_index == *predicate_index {
-                            *predicate_count += 1;
-                            found = true;
-                            break;
+                let mut ref_counts: Vec<(IriIndex, u32, Vec<IriIndex>)> = Vec::new();
+                for (predicate_index, ref_index) in &node.references {
+                    let ref_node = node_data.get_node_by_index(*ref_index);
+                    if let Some((_str,ref_node)) = ref_node {
+                        let mut found = false;
+                        for (predicate_count_index, predicate_count, types) in ref_counts.iter_mut() {
+                            if *predicate_count_index == *predicate_index {
+                                *predicate_count += 1;
+                                found = true;
+                                for type_index in &ref_node.types {
+                                    if !types.contains(type_index) {
+                                        types.push(*type_index);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        if !found {
+                            ref_counts.push((*predicate_index, 1, ref_node.types.clone()));
                         }
                     }
-                    if !found {
-                        ref_counts.push((*predicate_index, 1));
-                    }
                 }
-                for (predicate_index, count) in ref_counts {
+                for (predicate_index, count, types) in ref_counts {
                     let reference_characteristics = type_data.references.get_mut(&predicate_index);
                     if let Some(reference_characteristics) = reference_characteristics {
                         reference_characteristics.count += count;
@@ -855,6 +935,7 @@ impl TypeInstanceIndex {
                                 count,
                                 min_cardinality: count,
                                 max_cardinality: count,
+                                types: types,
                             },
                         );
                     }
@@ -870,6 +951,15 @@ impl TypeInstanceIndex {
         self.unique_types = node_data.unique_types();
         for (type_index, type_data) in self.types.iter_mut() {
             self.types_order.push(*type_index);
+            if self.min_instance_type_count == 0 && self.max_instance_type_count == 0 {
+                self.min_instance_type_count = type_data.instances.len();
+                self.max_instance_type_count = type_data.instances.len();
+            } else {
+                self.min_instance_type_count =
+                    self.min_instance_type_count.min(type_data.instances.len());
+                self.max_instance_type_count =
+                    self.max_instance_type_count.max(type_data.instances.len());
+            }
             for (predicate_index, data_characteristics) in type_data.properties.iter() {
                 if type_data
                     .instance_view
@@ -1052,57 +1142,17 @@ impl TypeInstanceIndex {
                 });
                 if let Some(selected_type) = self.selected_type {
                     if let Some(type_data) = self.types.get_mut(&selected_type) {
+                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
-                                egui::Grid::new("fields").show(ui, |ui| {
-                                    ui.strong("Data Property");
-                                    ui.strong("Count");
-                                    ui.strong("Max Len");
-                                    ui.strong("Min Card.");
-                                    ui.strong("Max Card.");
-                                    ui.end_row();
-                                    let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                                    for (predicate_index, pcharecteristics) in &type_data.properties
-                                    {
-                                        let predicate_label = node_data.predicate_display(
-                                            *predicate_index,
-                                            &label_context,
-                                            &node_data.indexers
-                                        );
-                                        ui.label(predicate_label.as_str());
-                                        ui.label(pcharecteristics.count.to_string());
-                                        ui.label(pcharecteristics.max_len.to_string());
-                                        ui.label(pcharecteristics.min_cardinality.to_string());
-                                        ui.label(pcharecteristics.max_cardinality.to_string());
-                                        ui.end_row();
-                                    }
-                                });
+                                type_data.display_data_props(ui, &label_context, node_data);
                             });
                         });
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
-                                egui::Grid::new("referenced").show(ui, |ui| {
-                                    ui.strong("Out Ref");
-                                    ui.strong("Count");
-                                    ui.strong("Min Card.");
-                                    ui.strong("Max Card.");
-                                    ui.end_row();
-                                    let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                                    for (predicate_index, reference_characteristics) in &type_data.references {
-                                        let predicate_label = node_data.predicate_display(
-                                            *predicate_index,
-                                            &label_context,
-                                            &node_data.indexers
-                                        );
-                                        ui.label(predicate_label.as_str());
-                                        ui.label(reference_characteristics.count.to_string());
-                                        ui.label(reference_characteristics.min_cardinality.to_string());
-                                        ui.label(reference_characteristics.max_cardinality.to_string());
-                                        ui.end_row();
-                                    }
-                                });
+                                type_data.display_references(ui, &label_context, node_data);
                             });
                         });
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
@@ -1110,22 +1160,7 @@ impl TypeInstanceIndex {
                             egui::ScrollArea::vertical()
                                 .id_salt("refby")
                                 .show(ui, |ui| {
-                                    egui::Grid::new("referenced by").show(ui, |ui| {
-                                        ui.strong("In Ref");
-                                        ui.strong("Count");
-                                        ui.end_row();
-                                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                                        for (predicate_index, count) in &type_data.rev_references {
-                                            let predicate_label = node_data.predicate_display(
-                                                *predicate_index,
-                                                &label_context,
-                                                &node_data.indexers
-                                            );
-                                            ui.label(predicate_label.as_str());
-                                            ui.label(count.to_string());
-                                            ui.end_row();
-                                        }
-                                    });
+                                    type_data.display_reverse_references(ui, &label_context, node_data);
                                 });
                         });
                     }

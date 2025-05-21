@@ -1,8 +1,6 @@
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
-    Align2, FontId, Rect, Shape, StrokeKind, Vec2,
-    epaint::{EllipseShape, TextShape},
-    text::LayoutJob,
+    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
 };
 
 use crate::{
@@ -24,6 +22,7 @@ pub fn draw_edge<F>(
     edge_style: &EdgeStyle,
     label_cb: F,
     faded: bool,
+    bezier_distance: f32,
 ) where
     F: Fn() -> String,
 {
@@ -51,6 +50,7 @@ pub fn draw_edge<F>(
 
     // Normalize and scale to radius
     let unit = dir / length;
+    let mut arrow_unit = unit.clone();
 
     // Find intersection on shape surface
     let edge_to = match shape_to {
@@ -90,8 +90,22 @@ pub fn draw_edge<F>(
     // Draw arrow (line + head)
     let stroke = Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
     match edge_style.line_style {
-        LineStyle::Solid => {
-            painter.line_segment([edge_from, edge_to], stroke);
+        LineStyle::Solid =>{
+            if bezier_distance != 0.0 {
+                let middle = (edge_from + edge_to.to_vec2()) / 2.0;
+                let ctrl_pos = middle + unit.rot90() * bezier_distance;
+                painter.add(Shape::QuadraticBezier(
+                    QuadraticBezierShape::from_points_stroke(
+                        [edge_from, ctrl_pos, edge_to],
+                        false,
+                        Color32::TRANSPARENT,
+                        stroke,
+                    ),
+                ));
+                arrow_unit = (edge_to - ctrl_pos).normalized();
+            } else {
+                painter.line_segment([edge_from, edge_to], stroke);
+            }
         }
         LineStyle::Dashed => {
             painter.add(Shape::dashed_line(
@@ -128,14 +142,14 @@ pub fn draw_edge<F>(
         let left = arrow_pos
             - arrow_size
                 * Vec2::new(
-                    cos_theta * unit.x - sin_theta * unit.y,
-                    sin_theta * unit.x + cos_theta * unit.y,
+                    cos_theta * arrow_unit.x - sin_theta * arrow_unit.y,
+                    sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
                 );
         let right = arrow_pos
             - arrow_size
                 * Vec2::new(
-                    cos_theta * unit.x + sin_theta * unit.y,
-                    -sin_theta * unit.x + cos_theta * unit.y,
+                    cos_theta * arrow_unit.x + sin_theta * arrow_unit.y,
+                    -sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
                 );
 
         // Draw arrowhead lines
@@ -159,7 +173,7 @@ pub fn draw_edge<F>(
     if let Some(edge_font) = &edge_style.edge_font {
         let line_midle = (edge_from + edge_to.to_vec2()) / 2.0;
         let label_font = FontId::proportional(edge_font.font_size);
-        let unit_ort = -unit.rot90() * edge_font.font_size;
+        let unit_ort = -unit.rot90() * (edge_font.font_size + bezier_distance/2.0);
         let label_pos = line_midle + unit_ort;
         let label = label_cb();
         let mut job = LayoutJob::default();
@@ -203,6 +217,114 @@ pub fn draw_edge<F>(
             fade_color(icon_style.icon_color, faded),
         );
     }
+}
+
+pub fn draw_self_edge<F>(
+    painter: &Painter,
+    point: Pos2,
+    size: Vec2,
+    rotation: f32,
+    shape: NodeShape,
+    edge_style: &EdgeStyle,
+    faded: bool,
+    label_cb: F,
+) where
+F: Fn() -> String,
+{
+    let stroke = Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
+    let radius = size.x / 2.0;
+    let angle_1 = std::f32::consts::FRAC_PI_4 + rotation;
+    let angle_2 = angle_1 + std::f32::consts::FRAC_PI_2;
+    let direction_1 = Vec2::new(angle_1.sin(), -angle_1.cos());
+    let direction_2 = Vec2::new(angle_2.sin(), -angle_2.cos());
+    let pos1 = point + (direction_1 * radius);
+    let pos2 = point + (direction_2 * radius);
+    let ctrl_pos_distance = 100.0;
+    let ctrl_pos1 = point + direction_1 * (radius + ctrl_pos_distance);
+    let ctrl_pos2 = point +direction_2 * (radius + ctrl_pos_distance);
+    painter.add(Shape::CubicBezier(
+        CubicBezierShape::from_points_stroke([pos1, ctrl_pos1, ctrl_pos2, pos2], false, Color32::TRANSPARENT, stroke),
+    ));
+
+    if !matches!(edge_style.arrow_location, ArrowLocation::None) {
+        // Draw arrowhead
+        let arrow_size = edge_style.arrow_size; // Size of the arrowhead
+        let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
+
+        let arrow_pos = match edge_style.arrow_location {
+            ArrowLocation::Middle => bezier_middle_point(pos1, ctrl_pos1, ctrl_pos2, pos2),
+            _ => pos2,
+        };
+
+        let unit = (pos2 - ctrl_pos2).normalized();
+
+        // Rotate vector by ±arrow_angle to get arrowhead points
+        let cos_theta = arrow_angle.cos();
+        let sin_theta = arrow_angle.sin();
+
+        let left = arrow_pos
+            - arrow_size
+                * Vec2::new(
+                    cos_theta * unit.x - sin_theta * unit.y,
+                    sin_theta * unit.x + cos_theta * unit.y,
+                );
+        let right = arrow_pos
+            - arrow_size
+                * Vec2::new(
+                    cos_theta * unit.x + sin_theta * unit.y,
+                    -sin_theta * unit.x + cos_theta * unit.y,
+                );
+
+        // Draw arrowhead lines
+        match edge_style.target_style {
+            ArrowStyle::Arrow => {
+                painter.line_segment([arrow_pos, left], stroke);
+                painter.line_segment([arrow_pos, right], stroke);
+            }
+            ArrowStyle::ArrorTriangle => {
+                painter.line_segment([arrow_pos, left], stroke);
+                painter.line_segment([arrow_pos, right], stroke);
+                painter.line_segment([left, right], stroke);
+            }
+            ArrowStyle::ArrorFilled => {
+                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], fade_color(edge_style.color, faded), Stroke::NONE);
+                painter.add(shape);
+            }
+        }
+    }
+
+    if let Some(edge_font) = &edge_style.edge_font {
+        let curve_midle = bezier_middle_point(pos1, ctrl_pos1, ctrl_pos2, pos2);
+        let label_font = FontId::proportional(edge_font.font_size);
+        let label = label_cb();
+        let mut job = LayoutJob::default();
+        job.append(
+            label.as_str(),
+            0.0,
+            egui::TextFormat {
+                font_id: label_font,
+                color: fade_color(edge_font.font_color, faded),
+                ..Default::default()
+            },
+        );
+        let galley = painter.layout_job(job);
+        // change the direction if pointing to left side to ensure the text is left to right
+        painter.add(Shape::Text(
+            TextShape::new(curve_midle, galley, Color32::BLACK),
+        ));
+    }
+}
+
+fn bezier_middle_point(pos1: Pos2, ctrl_pos1: Pos2, ctrl_pos2: Pos2, pos2: Pos2) -> Pos2 {
+    let t = 0.5;
+    let u = 1.0 - t;
+
+    let p = pos1.to_vec2() * u * u * u
+        + ctrl_pos1.to_vec2() * 3.0 * u * u * t
+        + ctrl_pos2.to_vec2() * 3.0 * u * t * t
+        + pos2.to_vec2() * t * t * t;
+
+    p.to_pos2()
 }
 
 #[inline]

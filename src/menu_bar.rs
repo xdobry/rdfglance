@@ -104,6 +104,7 @@ impl RdfGlanceApp {
                                 }
                             }
                         });
+                    ui.label(format!("{:.4}",self.ui_state.cpu_usage));
                 });
             }
         });

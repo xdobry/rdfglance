@@ -8,6 +8,10 @@ pub struct Config {
     pub repulsion_constant: f32,
     // edges force
     pub attraction_factor: f32,
+    #[serde(default = "default_05")]
+    pub m_repulsion_constant: f32,
+    #[serde(default = "default_05")]
+    pub m_attraction_factor: f32,
     pub language_filter: String,
     #[serde(default = "default_true")]
     pub supress_other_language_data: bool,
@@ -39,6 +43,8 @@ impl Default for Config {
             create_iri_prefixes_automatically: true,
             iri_display: IriDisplay::LabelOrShorten,
             resolve_rdf_lists: true,
+            m_repulsion_constant: 0.5,
+            m_attraction_factor: 0.5,
         }
     }
 }
@@ -50,6 +56,11 @@ fn default_true() -> bool {
 fn default_iri_display() -> IriDisplay {
     IriDisplay::Full
 }
+
+fn default_05() -> f32 {
+    0.5
+}
+
 
 impl Config {
     pub fn language_filter(&self) -> Vec<String> {

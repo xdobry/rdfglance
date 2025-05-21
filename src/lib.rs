@@ -12,7 +12,7 @@ use eframe::{
 use egui::{Rangef, Rect};
 use egui_extras::StripBuilder;
 use graph_styles::{EdgeStyle, NodeStyle};
-use graph_view::NeighbourPos;
+use graph_view::{update_layout_edges, NeighbourPos};
 use nobject::{IriIndex, LangIndex, NodeData};
 use layout::SortedNodeLayout;
 use prefix_manager::PrefixManager;
@@ -46,6 +46,7 @@ pub mod persistency;
 pub mod menu_bar;
 pub mod string_indexer;
 pub mod graph_styles;
+pub mod meta_graph;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -54,6 +55,7 @@ pub enum DisplayType {
     Table,
     Prefixes,
     Configuration,
+    MetaGraph,
 }
 
 // Define the application structure
@@ -67,6 +69,7 @@ pub struct RdfGlanceApp {
     pub node_data: NodeData,
     ui_state: UIState,
     visible_nodes: SortedNodeLayout,
+    meta_nodes: SortedNodeLayout,
     graph_state: GraphState,
     visualisation_style: GVisualisationStyle,
     #[cfg(not(target_arch = "wasm32"))]
@@ -126,6 +129,9 @@ pub struct UIState {
     hidden_predicates: SortedVec,
     compute_layout: bool,
     force_compute_layout: bool,
+    meta_compute_layout: bool,
+    meta_force_compute_layout: bool,
+    meta_count_to_size: bool,
     display_language: LangIndex,
     language_sort: Vec<LangIndex>,
     show_properties: bool,
@@ -134,6 +140,8 @@ pub struct UIState {
     fade_unselected: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
+    temperature: f32,
+    cpu_usage: f32,
 }
 
 pub struct GraphState {
@@ -220,6 +228,22 @@ impl GVisualisationStyle {
         }
         style.unwrap_or(&self.default_node_style)
     }
+
+    fn get_type_style_one(&self, type_iri: IriIndex) -> &NodeStyle {
+        let mut style: Option<&NodeStyle> = None;
+        let type_style = self.node_styles.get(&type_iri);
+        if let Some(type_style) = type_style {
+            if let Some(current_style) = style {
+                if type_style.priority > current_style.priority {
+                    style = Some(type_style);
+                }
+            } else {
+                style = Some(type_style);
+            }
+        }
+        style.unwrap_or(&self.default_node_style)
+    }
+
 
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
         let len = self.edge_styles.len();
@@ -309,6 +333,7 @@ impl RdfGlanceApp {
             prefix_manager: PrefixManager::new(),
             system_message: SystemMessage::None,
             visible_nodes: SortedNodeLayout::new(),
+            meta_nodes: SortedNodeLayout::new(),
             persistent_data: presistentdata.unwrap_or(AppPersistentData {
                 last_files: vec![],
                 last_endpoints: vec![],
@@ -330,6 +355,8 @@ impl RdfGlanceApp {
                 context_menu_pos: Pos2::new(0.0, 0.0),
                 compute_layout: true,
                 force_compute_layout: false,
+                meta_compute_layout: true,
+                meta_force_compute_layout: false,
                 hidden_predicates: SortedVec::new(),
                 display_language: 0,
                 language_sort: Vec::new(),
@@ -340,6 +367,9 @@ impl RdfGlanceApp {
                 drag_diff: Pos2::ZERO,
                 icon_name_filter: String::new(),
                 fade_unselected: false,
+                meta_count_to_size: true,
+                temperature: 0.5,
+                cpu_usage: 0.0,
             },
             help_open: false,
             #[cfg(target_arch = "wasm32")]
@@ -473,7 +503,9 @@ impl RdfGlanceApp {
                 npos.insert(iri_index, ref_index);
             }
         }
+        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
         npos.position(&mut self.visible_nodes);
+
     }
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
@@ -498,6 +530,7 @@ impl RdfGlanceApp {
                 npos.insert(parent_index, ref_index);
             }
         }
+        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
         npos.position(&mut self.visible_nodes);
     }
     fn expand_all_by_types(&mut self, types: &Vec<IriIndex>) {
@@ -531,6 +564,7 @@ impl RdfGlanceApp {
                 npos.insert(parent_index, ref_index);
             }
         }
+        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
         npos.position(&mut self.visible_nodes);
     }
     pub fn load_ttl(&mut self, file_name: &str) {
@@ -710,13 +744,17 @@ impl RdfGlanceApp {
         self.current_iri = None;
         self.object_iri.clear();
         self.prefix_manager.clean();
-        self.visible_nodes.nodes.clear();
+        self.visible_nodes.clear();
+        self.meta_nodes.clear();
     }
 }
 
 impl eframe::App for RdfGlanceApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Some(cpu_usage) = frame.info().cpu_usage {
+            self.ui_state.cpu_usage = self.ui_state.cpu_usage * 0.95 + cpu_usage * 0.05;
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.system_message.has_message() {
                 egui::Window::new("System Message")
@@ -738,6 +776,7 @@ impl eframe::App for RdfGlanceApp {
                 ui.add_enabled_ui(!self.is_empty(), |ui| {
                     ui.selectable_value(&mut self.display_type, DisplayType::Graph, concatcp!(ICON_GRAPH," Visual Graph"));
                     ui.selectable_value(&mut self.display_type, DisplayType::Browse, concatcp!(ICON_BROWSE," Browse"));
+                    ui.selectable_value(&mut self.display_type, DisplayType::MetaGraph, concatcp!(ICON_METADATA," Meta Graph"));
                 });
                 ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, concatcp!(ICON_PREFIX," Prefixes"));
                 ui.selectable_value(&mut self.display_type, DisplayType::Configuration, concatcp!(ICON_CONFIG," Settings"));
@@ -769,7 +808,8 @@ impl eframe::App for RdfGlanceApp {
                                 }
                             },
                             DisplayType::Configuration => self.show_config(ctx, ui),
-                            DisplayType::Prefixes => self.show_prefixes(ctx, ui)
+                            DisplayType::Prefixes => self.show_prefixes(ctx, ui),
+                            DisplayType::MetaGraph => self.show_meta_graph(ctx, ui),
                         };
                     });
                     strip.cell(|ui| {

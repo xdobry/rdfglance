@@ -4,14 +4,14 @@ use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::Result;
-use egui::Vec2;
+use egui::{Pos2, Vec2};
 use flate2::read::ZlibDecoder;
 use leb128;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
 use crate::graph_styles::{ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize};
-use crate::layout::{NodeLayout, SortedNodeLayout};
+use crate::layout::{NodeLayout, NodePosition, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
@@ -504,10 +504,10 @@ impl SortedNodeLayout {
     pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
         with_header_len(writer, HeaderType::VisualNodes, &|writer| {
             leb128::write::unsigned(writer, self.nodes.len() as u64)?;
-            for node_layout in self.nodes.iter() {
+            for (node_layout, node_pos) in self.nodes.iter().zip(self.positions.iter()) {
                 leb128::write::unsigned(writer, node_layout.node_index as u64)?;
-                writer.write_f32::<LittleEndian>(node_layout.pos.x)?;
-                writer.write_f32::<LittleEndian>(node_layout.pos.y)?;
+                writer.write_f32::<LittleEndian>(node_pos.pos.x)?;
+                writer.write_f32::<LittleEndian>(node_pos.pos.y)?;
                 // Write number of fields
                 leb128::write::unsigned(writer, 0)?; 
             }
@@ -517,7 +517,11 @@ impl SortedNodeLayout {
 
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let len = leb128::read::unsigned(reader)?;
-        let mut index = SortedNodeLayout { nodes: Vec::with_capacity(len as usize) };
+        let mut index = SortedNodeLayout { 
+            nodes: Vec::with_capacity(len as usize),
+            positions: Vec::with_capacity(len as usize),
+            edges: Vec::new(),
+        };
         for _ in 0..len {
             let node_index = leb128::read::unsigned(reader)? as IriIndex;
             let x = reader.read_f32::<LittleEndian>()?;
@@ -529,11 +533,13 @@ impl SortedNodeLayout {
             }
             index.nodes.push(NodeLayout {
                 node_index,
-                pos: egui::Pos2::new(x, y),
-                vel: Vec2::new(0.0, 0.0),
                 node_shape: NodeShape::Circle,
                 size: Vec2::ZERO,
-            });            
+            });  
+            index.positions.push(NodePosition {
+                pos: Pos2::new(x, y),
+                vel: Vec2::ZERO,
+            });          
         }
         Ok(index)
     }
