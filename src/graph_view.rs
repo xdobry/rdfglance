@@ -795,9 +795,7 @@ pub fn draw_node(
 
 pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNodeLayout,node_data: &NodeData) {
     let mut visited_nodes: HashSet<IriIndex> = HashSet::new();
-    println!("add nodes: {}", new_nodes.nodes.len());
     for node_index in new_nodes.iter_values() {
-        println!(" add node: {}", node_index);
         if let Some((_node_layout,node_pos)) = layout_nodes.get_pos(*node_index) {
             if let Some((_str, nobject)) = node_data.get_node_by_index(*node_index) {
                 for (pred_index, ref_iri) in nobject.references.iter() {
