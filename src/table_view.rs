@@ -3,6 +3,9 @@ use std::{cmp::min, collections::HashMap, time::Instant, vec};
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
+use rayon::prelude::*;
+
+const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
     browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, 
@@ -844,6 +847,10 @@ impl TypeInstanceIndex {
         #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
         let node_len = node_data.len();
+        // TODO concurrent optimization
+        // 1. partion the instances in groups (count  rayon::current_num_threads()) in dependency to type
+        // 2. build hash map of each group (there are disjuct)
+        // 3. merge all hash maps
         for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
             if node.has_subject {
                 self.nodes += 1;
@@ -916,6 +923,12 @@ impl TypeInstanceIndex {
                         if !found {
                             ref_counts.push((*predicate_index, 1, ref_node.types.clone()));
                         }
+                    }
+                }
+                // Search unknown references (set count to 0)
+                for predicate_index in type_data.references.keys() {
+                    if !ref_counts.iter().any(|(index, _, _)| *index == *predicate_index) {
+                        ref_counts.push((*predicate_index, 0, vec![]));
                     }
                 }
                 for (predicate_index, count, types) in ref_counts {
@@ -1013,7 +1026,7 @@ impl TypeInstanceIndex {
             let filter = self.types_filter.to_lowercase();
             self.types_filtered = self
                 .types_order
-                .iter()                
+                .par_iter()                
                 .filter(|type_index| {
                     let label = node_data.type_display(
                         **type_index,
@@ -1092,7 +1105,7 @@ impl TypeInstanceIndex {
                         }
                         match type_table_action {
                             TypeTableAction::SortByLabel => {
-                                self.types_filtered.sort_by(|a, b| {
+                                self.types_filtered.par_sort_by(|a, b| {
                                     let label_a = node_data.type_display(
                                         *a,
                                         &label_context,
@@ -1107,28 +1120,28 @@ impl TypeInstanceIndex {
                                 });
                             },
                             TypeTableAction::SortByInstances => {
-                                self.types_filtered.sort_by(|a, b| {
+                                self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.instances.len().cmp(&a_data.instances.len())
                                 });
                             },
                             TypeTableAction::SortByDataProps => {
-                                self.types_filtered.sort_by(|a, b| {
+                                self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.properties.len().cmp(&a_data.properties.len())
                                 });
                             },
                             TypeTableAction::SortByOutRef => {
-                                self.types_filtered.sort_by(|a, b| {
+                                self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.references.len().cmp(&a_data.references.len())
                                 });
                             },
                             TypeTableAction::SortByInRef => {
-                                self.types_filtered.sort_by(|a, b| {
+                                self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.rev_references.len().cmp(&a_data.rev_references.len())
@@ -1172,7 +1185,7 @@ impl TypeInstanceIndex {
             if let Some(type_data) = self.types.get_mut(&selected_type) {
                 let mut table_action: TableAction = TableAction::None;
                 ui.horizontal(|ui| {
-                    let filter_immandiately = type_data.instances.len() < 2000;
+                    let filter_immandiately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit =
                         egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);

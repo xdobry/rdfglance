@@ -127,10 +127,6 @@ pub struct UIState {
     // Set if dragging for difference to dragged node center
     drag_diff: Pos2,
     hidden_predicates: SortedVec,
-    compute_layout: bool,
-    force_compute_layout: bool,
-    meta_compute_layout: bool,
-    meta_force_compute_layout: bool,
     meta_count_to_size: bool,
     display_language: LangIndex,
     language_sort: Vec<LangIndex>,
@@ -140,7 +136,6 @@ pub struct UIState {
     fade_unselected: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
-    temperature: f32,
     cpu_usage: f32,
 }
 
@@ -190,8 +185,6 @@ impl UIState {
         self.context_menu_node = None;
         self.node_to_drag = None;
         self.hidden_predicates.data.clear();
-        self.compute_layout = true;
-        self.force_compute_layout = false;
     }
 }
 
@@ -353,10 +346,6 @@ impl RdfGlanceApp {
                 node_to_drag: None,
                 context_menu_node: None,
                 context_menu_pos: Pos2::new(0.0, 0.0),
-                compute_layout: true,
-                force_compute_layout: false,
-                meta_compute_layout: true,
-                meta_force_compute_layout: false,
                 hidden_predicates: SortedVec::new(),
                 display_language: 0,
                 language_sort: Vec::new(),
@@ -368,7 +357,6 @@ impl RdfGlanceApp {
                 icon_name_filter: String::new(),
                 fade_unselected: false,
                 meta_count_to_size: true,
-                temperature: 0.5,
                 cpu_usage: 0.0,
             },
             help_open: false,
@@ -449,7 +437,7 @@ impl RdfGlanceApp {
         true
     }
     fn load_object_by_index(&mut self, index: IriIndex) -> bool {
-        self.ui_state.compute_layout = true;
+        // self.visible_nodes.start_layout(&self.persistent_data.config_data);
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri,node)) = node {
             if node.has_subject {
@@ -510,7 +498,7 @@ impl RdfGlanceApp {
     fn expand_all(&mut self) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in &self.visible_nodes.nodes {
+        for visible_index in self.visible_nodes.nodes.read().unwrap().iter() {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if refs_to_expand.insert(*ref_iri) {
@@ -536,7 +524,7 @@ impl RdfGlanceApp {
     fn expand_all_by_types(&mut self, types: &Vec<IriIndex>) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in &self.visible_nodes.nodes {
+        for visible_index in self.visible_nodes.nodes.read().unwrap().iter() {
             if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if let Some((_,nnode)) = self.node_data.get_node_by_index(*ref_iri) {

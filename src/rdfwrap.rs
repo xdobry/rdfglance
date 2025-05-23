@@ -8,7 +8,7 @@ use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{BufReader, Cursor, Read};
+use std::io::{BufReader, Cursor};
 use std::path::Path;
 
 use anyhow::{Context, Result};
