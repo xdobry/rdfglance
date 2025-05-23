@@ -24,6 +24,20 @@ impl NodeLayout {
     }
 }
 
+pub struct NodeShapeData {
+    pub size: Vec2,
+    pub node_shape: NodeShape,  
+}
+
+impl Default for NodeShapeData {
+    fn default() -> Self {
+        Self {
+            node_shape: NodeShape::Circle,
+            size: Vec2::new(10.0, 10.0),
+        }
+    }
+}
+
 pub struct Edge {
     pub from: usize,
     pub to: usize,
@@ -53,11 +67,12 @@ pub struct SortedNodeLayout {
     pub nodes: Arc<RwLock<Vec<NodeLayout>>>,
     pub edges: Arc<RwLock<Vec<Edge>>>,
     pub positions: Arc<RwLock<Vec<NodePosition>>>,
+    pub node_shapes: Arc<RwLock<Vec<NodeShape>>>,
     pub layout_temparature: f32,
     pub force_compute_layout: bool,
     pub compute_layout: bool,
     pub layout_handle: Option<JoinHandle<()>>,
-    pub is_background_layout: Arc<AtomicBool>,
+    pub background_layout_finished: Arc<AtomicBool>,
     pub stop_background_layout: Arc<AtomicBool>,
 }
 
@@ -67,11 +82,12 @@ impl Default for SortedNodeLayout {
             nodes: Arc::new(RwLock::new(Vec::new())),
             positions: Arc::new(RwLock::new(Vec::new())),
             edges: Arc::new(RwLock::new(Vec::new())),
+            node_shapes: Arc::new(RwLock::new(Vec::new())),
             compute_layout: true,
             force_compute_layout: false,
             layout_temparature: 0.5,
             layout_handle: None,
-            is_background_layout: Arc::new(AtomicBool::new(false)),
+            background_layout_finished: Arc::new(AtomicBool::new(false)),
             stop_background_layout: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -83,6 +99,7 @@ impl SortedNodeLayout {
     }
 
     fn add(&mut self, value: NodeLayout) -> bool {
+        self.stop_layout();
         if let Ok(mut nodes) = self.nodes.write() {
             if let Ok(mut positions) = self.positions.write() {
                 if let Ok(mut edges) = self.edges.write() {
@@ -118,6 +135,7 @@ impl SortedNodeLayout {
     }
 
     pub fn mut_nodes<R>(&mut self, mutator: impl Fn(&mut Vec<NodeLayout>, &mut Vec<NodePosition>, &mut Vec<Edge>) -> R) ->Option<R> {
+        self.stop_layout();
         if let Ok(mut nodes) = self.nodes.write() {
             if let Ok(mut positions) = self.positions.write() {
                 if let Ok(mut edges) = self.edges.write() {
@@ -204,26 +222,6 @@ impl SortedNodeLayout {
         None
     }
 
-
-    /*
-
-    pub fn get(&self, value: IriIndex) -> Option<&NodeLayout> {
-        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
-            return Some(&self.nodes[pos]);
-        }
-        None
-    }
-
-
-    pub fn get_mut(&mut self, value: IriIndex) -> Option<&mut NodeLayout> {
-        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
-            return Some(&mut self.nodes[pos]);
-        }
-        None
-    }
-
-     */
-
     pub fn to_center(&mut self) {
         let mut x = 0.0;
         let mut y = 0.0;
@@ -246,15 +244,11 @@ impl SortedNodeLayout {
     }
 
     pub fn clear(&mut self) {
-        if let Ok(mut nodes) = self.nodes.write() {
-            if let Ok(mut edges) = self.edges.write() {
-                if let Ok(mut positions) = self.positions.write() {
-                    positions.clear();
-                    nodes.clear();
-                    edges.clear();
-                }
-            }
-        }
+        self.mut_nodes(| nodes, positions, edges| {
+            positions.clear();
+            nodes.clear();
+            edges.clear();
+        });
     }
 
     pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
@@ -264,16 +258,15 @@ impl SortedNodeLayout {
             }
         }
         if self.layout_handle.is_some() {
-            if self.is_background_layout.load(Ordering::Acquire) {
+            if self.background_layout_finished.load(Ordering::Acquire) {
                 println!("Layout thread finished");
                 if let Some(layout_handle) = self.layout_handle.take() {
                     layout_handle.join().unwrap();
-                    ctx.request_repaint();
                 }
             }
             ctx.request_repaint();
         } else {
-            if (self.compute_layout || self.force_compute_layout) {
+            if self.compute_layout || self.force_compute_layout {
                 let config = LayoutConfig {
                     repulsion_constant: config.m_repulsion_constant,
                     attraction_factor: config.m_attraction_factor,
@@ -326,8 +319,9 @@ impl SortedNodeLayout {
             repulsion_constant: config.m_repulsion_constant,
             attraction_factor: config.m_attraction_factor,
         };
-        self.is_background_layout.store(false, Ordering::Relaxed);
-        let is_done = Arc::clone(&self.is_background_layout);
+        self.background_layout_finished.store(false, Ordering::Relaxed);
+        self.stop_background_layout.store(false, Ordering::Relaxed);
+        let is_done = Arc::clone(&self.background_layout_finished);
         let stop_layout = Arc::clone(&self.stop_background_layout);
 
         let handle = thread::spawn(move || {
