@@ -1,12 +1,12 @@
 use eframe::egui::Vec2;
 use egui::Pos2;
 use rand::Rng;
-use std::collections::HashMap;
-
-use crate::{config::Config, graph_styles::NodeShape, nobject::{IriIndex, NodeData}, SortedVec};
+use std::{collections::HashMap, sync::{atomic::{AtomicBool, Ordering}, Arc, RwLock}, thread::{self, JoinHandle}};
+use rayon::prelude::*;
+use crate::{config::Config, graph_styles::NodeShape, nobject::{IriIndex}};
+use atomic_float::AtomicF32;
 
 const MAX_DISTANCE: f32 = 2000.0;
-const DUMPING : f32 = 0.2;
 
 pub struct NodeLayout {
     pub node_index: IriIndex,
@@ -50,44 +50,63 @@ impl Default for NodePosition {
 }
 
 pub struct SortedNodeLayout {
-    pub nodes: Vec<NodeLayout>,
-    pub edges: Vec<Edge>,
-    pub positions: Vec<NodePosition>,
+    pub nodes: Arc<RwLock<Vec<NodeLayout>>>,
+    pub edges: Arc<RwLock<Vec<Edge>>>,
+    pub positions: Arc<RwLock<Vec<NodePosition>>>,
+    pub layout_temparature: f32,
+    pub force_compute_layout: bool,
+    pub compute_layout: bool,
+    pub layout_handle: Option<JoinHandle<()>>,
+    pub is_background_layout: Arc<AtomicBool>,
+    pub stop_background_layout: Arc<AtomicBool>,
 }
 
 impl Default for SortedNodeLayout {
     fn default() -> Self {
-        Self::new()
+        Self {
+            nodes: Arc::new(RwLock::new(Vec::new())),
+            positions: Arc::new(RwLock::new(Vec::new())),
+            edges: Arc::new(RwLock::new(Vec::new())),
+            compute_layout: true,
+            force_compute_layout: false,
+            layout_temparature: 0.5,
+            layout_handle: None,
+            is_background_layout: Arc::new(AtomicBool::new(false)),
+            stop_background_layout: Arc::new(AtomicBool::new(false)),
+        }
     }
 }
 
 impl SortedNodeLayout {
     pub fn new() -> Self {
-        Self { 
-            nodes: Vec::new(),
-            positions: Vec::new(),
-            edges: Vec::new(),
-        }
+        Self::default()
     }
 
     fn add(&mut self, value: NodeLayout) -> bool {
-        match self.nodes.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
-            Ok(_) => false,                              // Value already exists, do nothing
-            Err(pos) => {
-                 // Insert at correct position
-                self.nodes.insert(pos, value);
-                self.positions.insert(pos, NodePosition::default());
-                for i in 0..self.edges.len() {
-                    if self.edges[i].from >= pos {
-                        self.edges[i].from += 1;
-                    }
-                    if self.edges[i].to >= pos {
-                        self.edges[i].to += 1;
+        if let Ok(mut nodes) = self.nodes.write() {
+            if let Ok(mut positions) = self.positions.write() {
+                if let Ok(mut edges) = self.edges.write() {
+                    return match nodes.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
+                        Ok(_) => false,                              // Value already exists, do nothing
+                        Err(pos) => {
+                                // Insert at correct position
+                            nodes.insert(pos, value);
+                            positions.insert(pos, NodePosition::default());
+                            for i in 0..edges.len() {
+                                if edges[i].from >= pos {
+                                    edges[i].from += 1;
+                                }
+                                if edges[i].to >= pos {
+                                    edges[i].to += 1;
+                                }
+                            }
+                            true
+                        }
                     }
                 }
-                true
-             }
+            }
         }
+        return false;
     }
 
     pub fn add_by_index(&mut self, value: IriIndex) -> bool {
@@ -95,46 +114,98 @@ impl SortedNodeLayout {
     }
 
     pub fn contains(&self, value: IriIndex) -> bool {
-        self.nodes.binary_search_by(|e| e.node_index.cmp(&value)).is_ok()
+        self.get_pos(value).is_some()
+    }
+
+    pub fn mut_nodes<R>(&mut self, mutator: impl Fn(&mut Vec<NodeLayout>, &mut Vec<NodePosition>, &mut Vec<Edge>) -> R) ->Option<R> {
+        if let Ok(mut nodes) = self.nodes.write() {
+            if let Ok(mut positions) = self.positions.write() {
+                if let Ok(mut edges) = self.edges.write() {
+                   return Some(mutator(&mut nodes, &mut positions, &mut edges));
+                }
+            }
+        }
+        None
     }
 
     pub fn remove(&mut self, value: IriIndex) {
-        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
-            self.nodes.remove(pos);
-            if self.positions.len() > pos {
-                self.positions.remove(pos);
-            }
-            self.edges.retain(|e| e.from != pos && e.to != pos);
-            self.edges.iter_mut().for_each(|e| {
-                if e.from > pos {
-                    e.from -= 1;
+        self.mut_nodes(| nodes, positions, edges| {
+            if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+                nodes.remove(pos);
+                if positions.len() > pos {
+                    positions.remove(pos);
                 }
-                if e.to > pos {
-                    e.to -= 1;
-                }
-            });
-            update_edges_groups(&mut self.edges);
-        }
+                edges.retain(|e| e.from != pos && e.to != pos);
+                edges.iter_mut().for_each(|e| {
+                    if e.from > pos {
+                        e.from -= 1;
+                    }
+                    if e.to > pos {
+                        e.to -= 1;
+                    }
+                });
+                update_edges_groups(edges);
+           }
+        });
+    }
+
+    pub fn remove_all(&mut self, iris_to_remove: &Vec<IriIndex>) {
+        self.mut_nodes(| nodes, positions, edges| {
+            for value in iris_to_remove.iter() {
+                // Can be optimized if values are sorted
+                if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+                    nodes.remove(pos);
+                    if positions.len() > pos {
+                        positions.remove(pos);
+                    }
+                    edges.retain(|e| e.from != pos && e.to != pos);
+                    edges.iter_mut().for_each(|e| {
+                        if e.from > pos {
+                            e.from -= 1;
+                        }
+                        if e.to > pos {
+                            e.to -= 1;
+                        }
+                    });
+                    update_edges_groups(edges);
+               }
+           }
+        });
     }
 
     pub fn retain(&mut self, f: impl Fn(&NodeLayout) -> bool) {
-        while let Some(pos) = self.nodes.iter().position(|e| !f(e)) {
-            self.nodes.remove(pos);
-            if self.positions.len() > pos {
-                self.positions.remove(pos);
+        self.mut_nodes(| nodes, positions, edges| {
+            // Can be optimized to not check nodes multiple time always from begin
+            while let Some(pos) = nodes.iter().position(|e| !f(e)) {
+                nodes.remove(pos);
+                if positions.len() > pos {
+                    positions.remove(pos);
+                }
+                edges.retain(|e| e.from != pos && e.to != pos);
+                edges.iter_mut().for_each(|e| {
+                    if e.from > pos {
+                        e.from -= 1;
+                    }
+                    if e.to > pos {
+                        e.to -= 1;
+                    }
+                });
             }
-            self.edges.retain(|e| e.from != pos && e.to != pos);
-            self.edges.iter_mut().for_each(|e| {
-                if e.from > pos {
-                    e.from -= 1;
-                }
-                if e.to > pos {
-                    e.to -= 1;
-                }
-            });
-        }
-        update_edges_groups(&mut self.edges);
+            update_edges_groups(edges);
+        });
     }
+
+    pub fn get_pos(&self, value: IriIndex) -> Option<usize> {
+        if let Ok(nodes) = self.nodes.read() {
+            if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+                return Some(pos);
+            }
+        }
+        None
+    }
+
+
+    /*
 
     pub fn get(&self, value: IriIndex) -> Option<&NodeLayout> {
         if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
@@ -143,12 +214,6 @@ impl SortedNodeLayout {
         None
     }
 
-    pub fn get_pos(&self, value: IriIndex) -> Option<(&NodeLayout, usize)> {
-        if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
-            return Some((&self.nodes[pos],pos));
-        }
-        None
-    }
 
     pub fn get_mut(&mut self, value: IriIndex) -> Option<&mut NodeLayout> {
         if let Ok(pos) = self.nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
@@ -157,29 +222,159 @@ impl SortedNodeLayout {
         None
     }
 
+     */
+
     pub fn to_center(&mut self) {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut count = 0;
-        for node_pos in self.positions.iter() {
-            x += node_pos.pos.x;
-            y += node_pos.pos.y;
-            count += 1;
+        if let Ok(positions) = self.positions.read() {
+            for node_pos in positions.iter() {
+                x += node_pos.pos.x;
+                y += node_pos.pos.y;
+                count += 1;
+            }
         }
         x /= count as f32;
         y /= count as f32;
-        for node_pos in self.positions.iter_mut() {
-            node_pos.pos.x -= x;
-            node_pos.pos.y -= y;
+        if let Ok(mut positions) = self.positions.write() {
+            for node_pos in positions.iter_mut() {
+                node_pos.pos.x -= x;
+                node_pos.pos.y -= y;
+            }
         }
     }
 
     pub fn clear(&mut self) {
-        self.nodes.clear();
-        self.edges.clear();
-        self.positions.clear();
+        if let Ok(mut nodes) = self.nodes.write() {
+            if let Ok(mut edges) = self.edges.write() {
+                if let Ok(mut positions) = self.positions.write() {
+                    positions.clear();
+                    nodes.clear();
+                    edges.clear();
+                }
+            }
+        }
     }
 
+    pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
+        if ui.checkbox(&mut self.force_compute_layout, "Force Layout").changed() {
+            if self.force_compute_layout {
+                self.layout_temparature = 100.0;
+            }
+        }
+        if self.layout_handle.is_some() {
+            if self.is_background_layout.load(Ordering::Acquire) {
+                println!("Layout thread finished");
+                if let Some(layout_handle) = self.layout_handle.take() {
+                    layout_handle.join().unwrap();
+                    ctx.request_repaint();
+                }
+            }
+            ctx.request_repaint();
+        } else {
+            if (self.compute_layout || self.force_compute_layout) {
+                let config = LayoutConfig {
+                    repulsion_constant: config.m_repulsion_constant,
+                    attraction_factor: config.m_attraction_factor,
+                };
+                let (max_move,new_positions) = layout_graph_nodes(
+                    &self.nodes.read().unwrap(),
+                    &self.positions.read().unwrap(),
+                    &self.edges.read().unwrap(),
+                    &config,
+                    self.layout_temparature,
+                );
+                if let Ok(mut positions) = self.positions.write() {
+                    *positions = new_positions;
+                }
+                if !self.force_compute_layout {
+                    self.layout_temparature *= 0.98;
+                }
+                if (max_move < 0.8 || self.layout_temparature<0.5) && !self.force_compute_layout {
+                    self.compute_layout = false;
+                } 
+                if self.compute_layout || self.force_compute_layout {
+                    self.compute_layout = true;
+                    ctx.request_repaint();
+                }
+            }
+        }
+    }
+
+    pub fn start_layout(&mut self, config: &Config) {
+        // self.compute_layout = true;
+        // self.layout_temparature = 100.0;
+        self.start_background_layout(config, 100.0);
+    }
+
+    pub fn stop_layout(&mut self) {
+        self.stop_background_layout.store(true, Ordering::Relaxed);
+    }
+
+
+    pub fn start_background_layout(&mut self, config: &Config, temperature: f32) {
+        if self.layout_handle.is_some() {
+            return;
+        }
+        println!("Starting background layout thread");
+        let nodes_clone = Arc::clone(&self.nodes);
+        let edges_clone = Arc::clone(&self.edges);
+        let positions_clone = Arc::clone(&self.positions);
+        let force_compute_layout = self.force_compute_layout;
+        let layout_config = LayoutConfig {
+            repulsion_constant: config.m_repulsion_constant,
+            attraction_factor: config.m_attraction_factor,
+        };
+        self.is_background_layout.store(false, Ordering::Relaxed);
+        let is_done = Arc::clone(&self.is_background_layout);
+        let stop_layout = Arc::clone(&self.stop_background_layout);
+
+        let handle = thread::spawn(move || {
+            let mut temperature = temperature;
+            // let mut count = 0;
+            loop {
+                /*
+                if count % 20 == 0 {
+                    println!("   looping {}", count);
+                }
+                count += 1;
+                 */
+                if stop_layout.load(Ordering::Relaxed) {
+                    break;
+                }
+                let (max_move,new_positions) = {
+                    let positions = positions_clone.read().unwrap();
+                    let nodes = nodes_clone.read().unwrap();
+                    let edges = edges_clone.read().unwrap();
+                    layout_graph_nodes(
+                        &nodes,
+                        &positions,
+                        &edges,
+                        &layout_config,
+                        temperature,
+                    )
+                };
+                if stop_layout.load(Ordering::Relaxed) {
+                    break;
+                }
+                {
+                    if let Ok(mut positions) = positions_clone.write() {
+                        *positions = new_positions;
+                    }
+                }
+                if !force_compute_layout {
+                    temperature *= 0.98;
+                }
+                if (max_move < 0.8 || temperature < 0.5) && !force_compute_layout {
+                    break;
+                }
+            }
+            is_done.store(true, Ordering::Relaxed);
+        });
+        self.layout_handle = Some(handle);
+        println!("Background layout thread started");
+    }
 
 }    
 
@@ -218,20 +413,24 @@ pub fn update_edges_groups(edges: &mut Vec<Edge>) {
     }
 }
 
-pub fn layout_graph_nodes(layout_nodes: &SortedNodeLayout, config: &Config, temperature: f32) -> (f32,Vec<NodePosition>) {
-    let mut max_move = 0.0;
-    if layout_nodes.nodes.is_empty() {
-        return (max_move, Vec::new());
+pub struct LayoutConfig {
+    pub repulsion_constant: f32,
+    pub attraction_factor: f32,
+}
+
+pub fn layout_graph_nodes(nodes: &Vec<NodeLayout>, positions: &Vec<NodePosition>, edges: &Vec<Edge>, config: &LayoutConfig, temperature: f32) -> (f32,Vec<NodePosition>) {
+    if nodes.is_empty() {
+        return (0.0, Vec::new());
     }
-    let k = ((500.0*500.0) / (layout_nodes.nodes.len() as f32)).sqrt();
-    let repulsion_constant = config.m_repulsion_constant;
-    let attraction_constant = config.m_attraction_factor;
+    let k = ((500.0*500.0) / (nodes.len() as f32)).sqrt();
+    let repulsion_constant = config.repulsion_constant;
+    let attraction_constant = config.attraction_factor;
     let repulsion_factor: f32 = (repulsion_constant * k).powi(2);
     let attraction = k / attraction_constant;
 
-    let mut forces: Vec<Vec2> = layout_nodes.nodes.iter().zip(layout_nodes.positions.iter()).map(|(node_layout, node_position)| {
+    let mut forces: Vec<Vec2> = nodes.par_iter().zip(positions.par_iter()).map(|(node_layout, node_position)| {
         let mut f = Vec2::new(0.0, 0.0);
-        for (nnode_layout, nnode_position) in layout_nodes.nodes.iter().zip(layout_nodes.positions.iter()) {
+        for (nnode_layout, nnode_position) in nodes.iter().zip(positions.iter()) {
             if nnode_layout.node_index != node_layout.node_index {
                 let direction = node_position.pos - nnode_position.pos;
                 let distance = direction.length();
@@ -244,12 +443,12 @@ pub fn layout_graph_nodes(layout_nodes: &SortedNodeLayout, config: &Config, temp
         f
     }).collect();
 
-    for edge in layout_nodes.edges.iter() {
+    for edge in edges.iter() {
         if edge.from != edge.to {
-            let node_from = &layout_nodes.nodes[edge.from];
-            let node_to = &layout_nodes.nodes[edge.to];
-            let position_from = &layout_nodes.positions[edge.from];
-            let position_to = &layout_nodes.positions[edge.to];
+            let node_from = &nodes[edge.from];
+            let node_to = &nodes[edge.to];
+            let position_from = &positions[edge.from];
+            let position_to = &positions[edge.to];
             let direction = position_from.pos - position_to.pos;
             let distance = direction.length() - node_from.size.x / 2.0 - node_to.size.x / 2.0 - 4.0;
             let force = distance.powi(2) / attraction;
@@ -259,15 +458,15 @@ pub fn layout_graph_nodes(layout_nodes: &SortedNodeLayout, config: &Config, temp
         }
     }
 
-    let positions = forces.iter().zip(layout_nodes.positions.iter()).map(|(f, position)| {
+    let max_move = AtomicF32::new(0.0);
+
+    let positions = forces.par_iter().zip(positions.par_iter()).map(|(f, position)| {
         let mut v = position.vel;
         let pos = position.pos;
         v *= 0.4;
         v += *f * 0.01;
         let len = v.length();
-        if len > max_move {
-            max_move = len;
-        }
+        max_move.fetch_max(len, Ordering::Relaxed);
         if len > temperature {
             v = (v / len) * temperature;
         }
@@ -277,6 +476,6 @@ pub fn layout_graph_nodes(layout_nodes: &SortedNodeLayout, config: &Config, temp
         }
     }).collect();
 
-    (max_move, positions)
+    (max_move.load(Ordering::Relaxed), positions)
 }
 

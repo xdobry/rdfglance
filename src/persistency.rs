@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use anyhow::Result;
 use egui::{Pos2, Vec2};
@@ -503,25 +504,27 @@ impl PrefixManager {
 impl SortedNodeLayout {
     pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
         with_header_len(writer, HeaderType::VisualNodes, &|writer| {
-            leb128::write::unsigned(writer, self.nodes.len() as u64)?;
-            for (node_layout, node_pos) in self.nodes.iter().zip(self.positions.iter()) {
-                leb128::write::unsigned(writer, node_layout.node_index as u64)?;
-                writer.write_f32::<LittleEndian>(node_pos.pos.x)?;
-                writer.write_f32::<LittleEndian>(node_pos.pos.y)?;
-                // Write number of fields
-                leb128::write::unsigned(writer, 0)?; 
-            }
+            if let Ok(nodes) = self.nodes.read() {
+                leb128::write::unsigned(writer, nodes.len() as u64)?;
+                if let Ok(positions) = self.positions.read() {
+                    for (node_layout, node_pos) in nodes.iter().zip(positions.iter()) {
+                        leb128::write::unsigned(writer, node_layout.node_index as u64)?;
+                        writer.write_f32::<LittleEndian>(node_pos.pos.x)?;
+                        writer.write_f32::<LittleEndian>(node_pos.pos.y)?;
+                        // Write number of fields
+                        leb128::write::unsigned(writer, 0)?; 
+                    }
+                }
+                }
             Ok(())
         })
     }
 
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let len = leb128::read::unsigned(reader)?;
-        let mut index = SortedNodeLayout { 
-            nodes: Vec::with_capacity(len as usize),
-            positions: Vec::with_capacity(len as usize),
-            edges: Vec::new(),
-        };
+        let mut nodes = Vec::with_capacity(len as usize);
+        let mut positions = Vec::with_capacity(len as usize);
+        let edges = Vec::new();
         for _ in 0..len {
             let node_index = leb128::read::unsigned(reader)? as IriIndex;
             let x = reader.read_f32::<LittleEndian>()?;
@@ -531,17 +534,22 @@ impl SortedNodeLayout {
                 let (field_type, _field_index) = read_field_index(reader)?;
                 skip_field(reader, field_type)?;
             }
-            index.nodes.push(NodeLayout {
+            nodes.push(NodeLayout {
                 node_index,
                 node_shape: NodeShape::Circle,
                 size: Vec2::ZERO,
             });  
-            index.positions.push(NodePosition {
+            positions.push(NodePosition {
                 pos: Pos2::new(x, y),
                 vel: Vec2::ZERO,
             });          
         }
-        Ok(index)
+        Ok(SortedNodeLayout { 
+            nodes: Arc::new(RwLock::new(nodes)),
+            positions: Arc::new(RwLock::new(positions)),
+            edges: Arc::new(RwLock::new(edges)),
+            ..SortedNodeLayout::default()
+        })
     }
 }
 
@@ -860,7 +868,7 @@ mod tests {
         assert_eq!(true,node_index.is_some());
         assert_eq!(true,vs.load_object_by_index(node_index.unwrap()));
         vs.expand_all();
-        assert_eq!(true,vs.visible_nodes.nodes.len()>0);
+        assert_eq!(true,vs.visible_nodes.nodes.read().unwrap().len()>0);
         let (node_iri, node_object) = vs.node_data.get_node_by_index(node_index.unwrap()).unwrap();
         assert_eq!("dbr:Rust_(programming_language)", node_iri.to_string());
         assert_eq!(1,node_object.types.len());
@@ -990,9 +998,9 @@ mod tests {
 
         assert_eq!(vs.node_data.len(),restored.node_data.len());
         assert_eq!(vs.prefix_manager.prefixes.len(),restored.prefix_manager.prefixes.len());
-        assert_eq!(vs.visible_nodes.nodes.len(),restored.visible_nodes.nodes.len());    
+        assert_eq!(vs.visible_nodes.nodes.read().unwrap().len(),restored.visible_nodes.nodes.read().unwrap().len());    
         assert_eq!(vs.visualisation_style.node_styles.len(),restored.visualisation_style.node_styles.len());
-        assert_eq!(true,vs.visible_nodes.nodes.len()>0);
+        assert_eq!(true,vs.visible_nodes.nodes.read().unwrap().len()>0);
 
         Ok(())
     }
