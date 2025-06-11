@@ -148,11 +148,13 @@ impl RdfGlanceApp {
                 ui.heading("Prefix");
                 ui.heading("Iri");
                 ui.end_row();
-                for (iri, prefix) in &self.prefix_manager.prefixes {
-                    ui.label(prefix);
-                    ui.label(iri);
-                    ui.end_row();
-                }
+                self.read_rdf_data(|rdf_data| {
+                    for (iri, prefix) in &rdf_data.prefix_manager.prefixes {
+                        ui.label(prefix);
+                        ui.label(iri);
+                        ui.end_row();
+                    }
+                });
             });
         });
         NodeAction::None

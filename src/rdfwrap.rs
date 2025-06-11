@@ -6,6 +6,7 @@ use oxttl::TurtleParser;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
+use crate::RdfData;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufReader, Cursor};
@@ -36,9 +37,8 @@ impl RDFWrap {
 
     pub fn load_from_dir(
         dir_name: &str,
-        node_data: &mut NodeData,
+        rdf_data: &mut RdfData,
         language_filter: &Vec<String>,
-        prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
         let mut total_triples = 0;
         let mut seen_files: HashSet<String> = HashSet::new();
@@ -58,9 +58,8 @@ impl RDFWrap {
                         if path.is_dir() {
                             total_triples += RDFWrap::load_from_dir(
                                 path_name,
-                                node_data,
+                                rdf_data,
                                 language_filter,
-                                prefix_manager,
                             )?;
                         } else if let Some(extension) = path.extension() {
                             if ["ttl", "rdf", "xml", "nt", "nq", "trig"]
@@ -68,9 +67,8 @@ impl RDFWrap {
                             {
                                 match RDFWrap::load_file(
                                     path_name,
-                                    node_data,
+                                    rdf_data,
                                     language_filter,
-                                    prefix_manager,
                                 ) {
                                     Ok(triples) => {
                                         total_triples += triples;
@@ -94,40 +92,37 @@ impl RDFWrap {
 
     pub fn load_file<P: AsRef<Path>>(
         file_name: P,
-        node_data: &mut NodeData,
+        rdf_data: &mut RdfData,
         language_filter: &[String],
-        prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
         let file_name = file_name.as_ref();
         let file =
             File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        Self::load_file_reader(file_extension, reader, node_data, language_filter, prefix_manager)
+        Self::load_file_reader(file_extension, reader, rdf_data, language_filter)
     }
 
     pub fn load_file_data(
         file_name: &str,
         data: &Vec<u8>,
-        node_data: &mut NodeData,
+        rdf_data: &mut RdfData,
         language_filter: &[String],
-        prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
         let file_name = Path::new(file_name);
         let reader = Cursor::new(data);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        Self::load_file_reader(file_extension, reader, node_data, language_filter, prefix_manager)
+        Self::load_file_reader(file_extension, reader, rdf_data, language_filter)
     }
 
     pub fn load_file_reader<R: std::io::Read>(
         file_extension: &str,
         reader: R,
-        node_data: &mut NodeData,
+        rdf_data: &mut RdfData,
         language_filter: &[String],
-        prefix_manager: &mut PrefixManager,
     ) -> Result<u32> {
         let mut triples_count = 0;
-        let (indexer, cache) = node_data.split_mut();
+        let (indexer, cache) = rdf_data.node_data.split_mut();
         #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
         let mut index_cache = IndexCache {
@@ -141,7 +136,7 @@ impl RDFWrap {
                 while let Some(triple) = parser.next() {
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
-                            prefix_manager.add_prefix(prefix, iri);
+                            rdf_data.prefix_manager.add_prefix(prefix, iri);
                         }
                         prefix_read = true;
                     }
@@ -154,7 +149,7 @@ impl RDFWrap {
                                 triple,
                                 &mut index_cache,
                                 language_filter,
-                                prefix_manager,
+                                &rdf_data.prefix_manager,
                             );
                         }
                         Err(e) => {
@@ -169,7 +164,7 @@ impl RDFWrap {
                 while let Some(triple) = parser.next() {
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
-                            prefix_manager.add_prefix(prefix, iri);
+                            rdf_data.prefix_manager.add_prefix(prefix, iri);
                         }
                         prefix_read = true;
                     }
@@ -181,7 +176,7 @@ impl RDFWrap {
                         triple,
                         &mut index_cache,
                         language_filter,
-                        prefix_manager,
+                        &rdf_data.prefix_manager,
                     );
                 }
             }
@@ -196,7 +191,7 @@ impl RDFWrap {
                         triple,
                         &mut index_cache,
                         language_filter,
-                        prefix_manager,
+                        &rdf_data.prefix_manager,
                     );
                 }
             }
@@ -206,7 +201,7 @@ impl RDFWrap {
                 while let Some(quad) = parser.next() {
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
-                            prefix_manager.add_prefix(prefix, iri);
+                            rdf_data.prefix_manager.add_prefix(prefix, iri);
                         }
                         prefix_read = true;
                     }
@@ -218,7 +213,7 @@ impl RDFWrap {
                         Triple::from(quad),
                         &mut index_cache,
                         language_filter,
-                        prefix_manager,
+                        &rdf_data.prefix_manager,
                     );
                 }
             }
@@ -233,7 +228,7 @@ impl RDFWrap {
                         Triple::from(quad),
                         &mut index_cache,
                         language_filter,
-                        prefix_manager,
+                        &rdf_data.prefix_manager,
                     );
                 }
             }

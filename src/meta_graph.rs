@@ -101,220 +101,221 @@ impl RdfGlanceApp {
                         self.ui_state.node_to_drag = None;
                     }
                 });
-
-                let label_context = LabelContext::new(
-                    self.ui_state.display_language,
-                    self.persistent_data.config_data.iri_display,
-                    &self.prefix_manager,
-                );
-                let mut edge_style: EdgeStyle = EdgeStyle {
-                    edge_font: Some(EdgeFont {
-                        font_size: 14.0,
-                        font_color: Color32::BLACK,
-                    }),
-                    ..EdgeStyle::default()
-                };
-                edge_count += self.meta_nodes.edges.read().unwrap().len();
-                if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
-                    if let Some(node_pos) = self.meta_nodes.get_pos(*node_to_drag_index) {
-                        if let Ok(mut positions) = self.meta_nodes.positions.write() {
-                            positions[node_pos].pos =
-                                (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
-                        }
-                    }
-                }
-                if let Ok(positions) = self.meta_nodes.positions.read() {
-                    if let Ok(edges) = self.meta_nodes.edges.read() {
-                        if let Ok(node_shapes) = self.meta_nodes.node_shapes.read() {
-                            for edge in edges.iter() {
-                                let node_label = || {
-                                    let reference_label = self.node_data.predicate_display(
-                                        edge.predicate,
-                                        &label_context,
-                                        &self.node_data.indexers,
-                                    );
-                                    reference_label.as_str().to_owned()
-                                };
-                                let pos1 = center + positions[edge.from].pos.to_vec2();
-                                let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate);
-                                edge_style.color = p_edge_style.color;
-                                if edge.from != edge.to {
-                                    let node_shape_from = &node_shapes[edge.from];
-                                    let node_shape_to = &node_shapes[edge.to];
-                                    let pos2 = center + positions[edge.to].pos.to_vec2();
-                                    drawing::draw_edge(
-                                        painter,
-                                        pos1,
-                                        node_shape_from.size,
-                                        node_shape_from.node_shape,
-                                        pos2,
-                                        node_shape_to.size,
-                                        node_shape_to.node_shape,
-                                        &edge_style,
-                                        node_label,
-                                        false,
-                                        edge.bezier_distance,
-                                    );
-                                } else {
-                                    let node_shape_from = &node_shapes[edge.from];
-                                    drawing::draw_self_edge(
-                                        painter,
-                                        pos1,
-                                        node_shape_from.size,
-                                        edge.bezier_distance,
-                                        node_shape_from.node_shape,
-                                        &edge_style,
-                                        false,
-                                        node_label,
-                                    );
-                                }
+                if let Ok(rdf_data) = self.rdf_data.read() {
+                    let label_context = LabelContext::new(
+                        self.ui_state.display_language,
+                        self.persistent_data.config_data.iri_display,
+                        &rdf_data.prefix_manager,
+                    );
+                    let mut edge_style: EdgeStyle = EdgeStyle {
+                        edge_font: Some(EdgeFont {
+                            font_size: 14.0,
+                            font_color: Color32::BLACK,
+                        }),
+                        ..EdgeStyle::default()
+                    };
+                    edge_count += self.meta_nodes.edges.read().unwrap().len();
+                    if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
+                        if let Some(node_pos) = self.meta_nodes.get_pos(*node_to_drag_index) {
+                            if let Ok(mut positions) = self.meta_nodes.positions.write() {
+                                positions[node_pos].pos =
+                                    (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
                             }
                         }
                     }
-                    let mut node_style: NodeStyle = NodeStyle::default();
-                    if let Ok(nodes) = self.meta_nodes.nodes.read() {
-                        let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.meta_nodes.update_node_shapes {
-                            Some(Vec::with_capacity(nodes.len()))
-                        } else {
-                            None
-                        };
-                        for (node_layout, node_position) in nodes.iter().zip(positions.iter()) {
-                            let pos = center + node_position.pos.to_vec2();
-                            let type_style = self.visualisation_style.get_type_style_one(node_layout.node_index);
-                            node_style.color = type_style.color;
-                            if self.ui_state.meta_count_to_size
-                                && self.type_index.min_instance_type_count < self.type_index.max_instance_type_count
-                            {
-                                let type_data = self.type_index.types.get(&node_layout.node_index);
-                                if let Some(type_data) = type_data {
-                                    node_style.width = value_to_radius(
-                                        type_data.instances.len(),
-                                        self.type_index.min_instance_type_count,
-                                        self.type_index.max_instance_type_count,
-                                        NODE_RMIN,
-                                        NODE_RMAX,
-                                    );
-                                }
-                            } else {
-                                node_style.width = 15.0;
-                            }
-                            let type_display = self.node_data.type_display(
-                                node_layout.node_index,
-                                &label_context,
-                                &self.node_data.indexers,
-                            );
-                            let (node_rect, node_shape) = draw_node_label(
-                                painter,
-                                type_display.as_str(),
-                                &node_style,
-                                pos,
-                                self.ui_state.selected_node == Some(node_layout.node_index),
-                                false,
-                                false,
-                                true,
-                            );
-                            if let Some(new_node_shapes) = &mut new_node_shapes {
-                                new_node_shapes.push(NodeShapeData {
-                                    node_shape,
-                                    size: node_rect.size(),
-                                });
-                            }   
-                            if self.ui_state.context_menu_node.is_none() || was_action {
-                                if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                    self.ui_state.selected_node = Some(node_layout.node_index);
-                                    was_action = true;
-                                }
-                                if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                    self.ui_state.node_to_drag = Some(node_layout.node_index);
-                                    self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
-                                    was_action = true;
-                                }
-                                if double_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                    node_to_click = Some(node_layout.node_index);
-                                    was_action = true;
-                                }
-                                if secondary_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                    was_context_click = true;
-                                    self.ui_state.context_menu_pos = global_mouse_pos;
-                                    self.ui_state.context_menu_node = Some(node_layout.node_index);
-                                    was_action = true;
-                                }
-                                if !was_action && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                    node_to_hover = Some(node_layout.node_index);
-                                    ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
-                                }
-                            }
-                            node_count += 1;
-                        }
-                        if let Some(new_node_shapes) = new_node_shapes {
-                            if let Ok(mut node_shapes) = self.meta_nodes.node_shapes.write() {
-                                *node_shapes = new_node_shapes;
-                                self.meta_nodes.update_node_shapes = false;
-                            }
-                        }
-                    }
-                }
-
-                let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
-                if consume_events {
-                    // ui.max_rect does not give enough
-                    // so create a very big rect that capture all ares in scene
-                    let max_rect: Rect =
-                        Rect::from_min_max(Pos2::new(-5_000.0, -5_000.0), Pos2::new(10_000.0, 10_000.0));
-                    let _response = ui.interact(max_rect, id, Sense::click_and_drag());
-                }
-
-                let popup_id = ui.make_persistent_id("node_context_menu");
-                if was_context_click {
-                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                }
-
-                popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
-                    if let Some(node_index) = &self.ui_state.context_menu_node {
-                        let mut close_menu = false;
-                        let current_index = *node_index;
-                        let node_action = TypeNodeContextAction::show_menu(ui);
-                        match node_action {
-                            TypeNodeContextAction::Hide => {
-                                self.meta_nodes.remove(current_index);
-                                self.meta_nodes.start_layout(&self.persistent_data.config_data);
-                                close_menu = true;
-                            }
-                            TypeNodeContextAction::HideSameInstCount => {
-                                if let Some(current_node) = self.type_index.types.get(&current_index) {
-                                    let to_remove = self
-                                        .meta_nodes
-                                        .nodes
-                                        .read()
-                                        .unwrap()
-                                        .iter()
-                                        .filter(|node| {
-                                            if let Some(type_data) = self.type_index.types.get(&node.node_index) {
-                                                type_data.instances.len() <= current_node.instances.len()
-                                            } else {
-                                                false
-                                            }
-                                        })
-                                        .map(|node| node.node_index)
-                                        .collect::<Vec<IriIndex>>();
-                                    for node in to_remove.iter() {
-                                        self.meta_nodes.remove(*node);
+                    if let Ok(positions) = self.meta_nodes.positions.read() {
+                        if let Ok(edges) = self.meta_nodes.edges.read() {
+                            if let Ok(node_shapes) = self.meta_nodes.node_shapes.read() {
+                                for edge in edges.iter() {
+                                    let node_label = || {
+                                        let reference_label = rdf_data.node_data.predicate_display(
+                                            edge.predicate,
+                                            &label_context,
+                                            &rdf_data.node_data.indexers,
+                                        );
+                                        reference_label.as_str().to_owned()
+                                    };
+                                    let pos1 = center + positions[edge.from].pos.to_vec2();
+                                    let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate);
+                                    edge_style.color = p_edge_style.color;
+                                    if edge.from != edge.to {
+                                        let node_shape_from = &node_shapes[edge.from];
+                                        let node_shape_to = &node_shapes[edge.to];
+                                        let pos2 = center + positions[edge.to].pos.to_vec2();
+                                        drawing::draw_edge(
+                                            painter,
+                                            pos1,
+                                            node_shape_from.size,
+                                            node_shape_from.node_shape,
+                                            pos2,
+                                            node_shape_to.size,
+                                            node_shape_to.node_shape,
+                                            &edge_style,
+                                            node_label,
+                                            false,
+                                            edge.bezier_distance,
+                                        );
+                                    } else {
+                                        let node_shape_from = &node_shapes[edge.from];
+                                        drawing::draw_self_edge(
+                                            painter,
+                                            pos1,
+                                            node_shape_from.size,
+                                            edge.bezier_distance,
+                                            node_shape_from.node_shape,
+                                            &edge_style,
+                                            false,
+                                            node_label,
+                                        );
                                     }
                                 }
-                                close_menu = true;
-                            }
-                            TypeNodeContextAction::None => {
-                                // do nothing
                             }
                         }
-                        if close_menu {
-                            self.ui_state.context_menu_node = None;
-                            ui.memory_mut(|mem| mem.close_popup());
+                        let mut node_style: NodeStyle = NodeStyle::default();
+                        if let Ok(nodes) = self.meta_nodes.nodes.read() {
+                            let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.meta_nodes.update_node_shapes {
+                                Some(Vec::with_capacity(nodes.len()))
+                            } else {
+                                None
+                            };
+                            for (node_layout, node_position) in nodes.iter().zip(positions.iter()) {
+                                let pos = center + node_position.pos.to_vec2();
+                                let type_style = self.visualisation_style.get_type_style_one(node_layout.node_index);
+                                node_style.color = type_style.color;
+                                if self.ui_state.meta_count_to_size
+                                    && self.type_index.min_instance_type_count < self.type_index.max_instance_type_count
+                                {
+                                    let type_data = self.type_index.types.get(&node_layout.node_index);
+                                    if let Some(type_data) = type_data {
+                                        node_style.width = value_to_radius(
+                                            type_data.instances.len(),
+                                            self.type_index.min_instance_type_count,
+                                            self.type_index.max_instance_type_count,
+                                            NODE_RMIN,
+                                            NODE_RMAX,
+                                        );
+                                    }
+                                } else {
+                                    node_style.width = 15.0;
+                                }
+                                let type_display = rdf_data.node_data.type_display(
+                                    node_layout.node_index,
+                                    &label_context,
+                                    &rdf_data.node_data.indexers,
+                                );
+                                let (node_rect, node_shape) = draw_node_label(
+                                    painter,
+                                    type_display.as_str(),
+                                    &node_style,
+                                    pos,
+                                    self.ui_state.selected_node == Some(node_layout.node_index),
+                                    false,
+                                    false,
+                                    true,
+                                );
+                                if let Some(new_node_shapes) = &mut new_node_shapes {
+                                    new_node_shapes.push(NodeShapeData {
+                                        node_shape,
+                                        size: node_rect.size(),
+                                    });
+                                }   
+                                if self.ui_state.context_menu_node.is_none() || was_action {
+                                    if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        self.ui_state.selected_node = Some(node_layout.node_index);
+                                        was_action = true;
+                                    }
+                                    if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        self.ui_state.node_to_drag = Some(node_layout.node_index);
+                                        self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
+                                        was_action = true;
+                                    }
+                                    if double_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        node_to_click = Some(node_layout.node_index);
+                                        was_action = true;
+                                    }
+                                    if secondary_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        was_context_click = true;
+                                        self.ui_state.context_menu_pos = global_mouse_pos;
+                                        self.ui_state.context_menu_node = Some(node_layout.node_index);
+                                        was_action = true;
+                                    }
+                                    if !was_action && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        node_to_hover = Some(node_layout.node_index);
+                                        ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
+                                    }
+                                }
+                                node_count += 1;
+                            }
+                            if let Some(new_node_shapes) = new_node_shapes {
+                                if let Ok(mut node_shapes) = self.meta_nodes.node_shapes.write() {
+                                    *node_shapes = new_node_shapes;
+                                    self.meta_nodes.update_node_shapes = false;
+                                }
+                            }
                         }
-                    } else {
-                        ui.label("no node selected");
                     }
-                });
+    
+                    let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
+                    if consume_events {
+                        // ui.max_rect does not give enough
+                        // so create a very big rect that capture all ares in scene
+                        let max_rect: Rect =
+                            Rect::from_min_max(Pos2::new(-5_000.0, -5_000.0), Pos2::new(10_000.0, 10_000.0));
+                        let _response = ui.interact(max_rect, id, Sense::click_and_drag());
+                    }
+    
+                    let popup_id = ui.make_persistent_id("node_context_menu");
+                    if was_context_click {
+                        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                    }
+    
+                    popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
+                        if let Some(node_index) = &self.ui_state.context_menu_node {
+                            let mut close_menu = false;
+                            let current_index = *node_index;
+                            let node_action = TypeNodeContextAction::show_menu(ui);
+                            match node_action {
+                                TypeNodeContextAction::Hide => {
+                                    self.meta_nodes.remove(current_index);
+                                    self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                                    close_menu = true;
+                                }
+                                TypeNodeContextAction::HideSameInstCount => {
+                                    if let Some(current_node) = self.type_index.types.get(&current_index) {
+                                        let to_remove = self
+                                            .meta_nodes
+                                            .nodes
+                                            .read()
+                                            .unwrap()
+                                            .iter()
+                                            .filter(|node| {
+                                                if let Some(type_data) = self.type_index.types.get(&node.node_index) {
+                                                    type_data.instances.len() <= current_node.instances.len()
+                                                } else {
+                                                    false
+                                                }
+                                            })
+                                            .map(|node| node.node_index)
+                                            .collect::<Vec<IriIndex>>();
+                                        for node in to_remove.iter() {
+                                            self.meta_nodes.remove(*node);
+                                        }
+                                    }
+                                    close_menu = true;
+                                }
+                                TypeNodeContextAction::None => {
+                                    // do nothing
+                                }
+                            }
+                            if close_menu {
+                                self.ui_state.context_menu_node = None;
+                                ui.memory_mut(|mem| mem.close_popup());
+                            }
+                        } else {
+                            ui.label("no node selected");
+                        }
+                    });
+                }
             });
         });
         node_action
@@ -325,24 +326,26 @@ impl RdfGlanceApp {
         if let Some(iri_index) = &self.ui_state.selected_node {
             if self.meta_nodes.contains(*iri_index) {
                 if let Some(type_data) = self.type_index.types.get(iri_index) {
-                    let label_context = LabelContext::new(
-                        self.ui_state.display_language,
-                        self.persistent_data.config_data.iri_display,
-                        &self.prefix_manager,
-                    );
-                    let type_display =
-                        self.node_data
-                            .type_display(*iri_index, &label_context, &self.node_data.indexers);
-                    if ui.button(type_display.as_str()).clicked() {
-                        node_to_click = NodeAction::ShowType(*iri_index);
-                    }
-                    ui.label(format!("Instance count: {}", type_data.instances.len()));
-                    ui.add_space(5.0);
-                    type_data.display_data_props(ui, &label_context, &self.node_data);
-                    ui.add_space(5.0);
-                    type_data.display_references(ui, &label_context, &self.node_data);
-                    ui.add_space(5.0);
-                    type_data.display_reverse_references(ui, &label_context, &self.node_data);
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        let label_context = LabelContext::new(
+                            self.ui_state.display_language,
+                            self.persistent_data.config_data.iri_display,
+                            &rdf_data.prefix_manager,
+                        );
+                        let type_display =
+                            rdf_data.node_data
+                                .type_display(*iri_index, &label_context, &rdf_data.node_data.indexers);
+                        if ui.button(type_display.as_str()).clicked() {
+                            node_to_click = NodeAction::ShowType(*iri_index);
+                        }
+                        ui.label(format!("Instance count: {}", type_data.instances.len()));
+                        ui.add_space(5.0);
+                        type_data.display_data_props(ui, &label_context, &rdf_data.node_data);
+                        ui.add_space(5.0);
+                        type_data.display_references(ui, &label_context, &rdf_data.node_data);
+                        ui.add_space(5.0);
+                        type_data.display_reverse_references(ui, &label_context, &rdf_data.node_data);
+                    };
                 }
             }
         }

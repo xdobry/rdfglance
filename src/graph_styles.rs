@@ -1,7 +1,10 @@
-
 use egui::{Color32, RichText, Sense, Slider, Vec2};
 
-use crate::{drawing::{draw_edge, draw_node_label}, nobject::{IriIndex, LabelContext}, RdfGlanceApp, StyleEdit};
+use crate::{
+    RdfGlanceApp, StyleEdit,
+    drawing::{draw_edge, draw_node_label},
+    nobject::{IriIndex, LabelContext},
+};
 
 pub struct NodeStyle {
     pub color: egui::Color32,
@@ -104,7 +107,7 @@ impl TryFrom<u8> for NodeShape {
 #[repr(u8)]
 pub enum NodeSize {
     Fixed = 1,
-    Label = 2,   
+    Label = 2,
 }
 
 impl TryFrom<u8> for NodeSize {
@@ -126,7 +129,7 @@ pub enum LabelPosition {
     Above = 2,
     Below = 3,
     Right = 4,
-    Left = 5,  
+    Left = 5,
 }
 
 impl TryFrom<u8> for LabelPosition {
@@ -151,7 +154,7 @@ pub enum IconPosition {
     Above = 2,
     Below = 3,
     Right = 4,
-    Left = 5,  
+    Left = 5,
 }
 
 impl TryFrom<u8> for IconPosition {
@@ -264,178 +267,195 @@ impl RdfGlanceApp {
     pub fn display_node_style(&mut self, ui: &mut egui::Ui, type_style_edit: IriIndex) {
         let type_style = self.visualisation_style.node_styles.get_mut(&type_style_edit);
         if let Some(type_style) = type_style {
-            let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
-            let type_label = self.node_data.type_display(
-                type_style_edit,
-                &label_context,
-                &self.node_data.indexers
-            );
-            ui.heading(format!("Node Style for Type: {}",type_label.as_str()));
-            if ui.button("Close Style Edit").clicked() {
-                self.ui_state.style_edit = StyleEdit::None;
-                self.visible_nodes.update_node_shapes = true;
+            if let Ok(rdf_data) = self.rdf_data.read() {
+                let label_context = LabelContext::new(
+                    self.ui_state.display_language,
+                    self.persistent_data.config_data.iri_display,
+                    &rdf_data.prefix_manager,
+                );
+                let type_label = rdf_data
+                    .node_data
+                    .type_display(type_style_edit, &label_context, &rdf_data.node_data.indexers);
+                ui.heading(format!("Node Style for Type: {}", type_label.as_str()));
+                if ui.button("Close Style Edit").clicked() {
+                    self.ui_state.style_edit = StyleEdit::None;
+                    self.visible_nodes.update_node_shapes = true;
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Priority:");
+                    ui.add(Slider::new(&mut type_style.priority, 0..=1000));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Background Color:");
+                    ui.color_edit_button_srgba(&mut type_style.color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Shape:");
+                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Circle, "Circle");
+                    ui.selectable_value(&mut type_style.node_shape, NodeShape::Rect, "Rectangle");
+                    ui.selectable_value(&mut type_style.node_shape, NodeShape::None, "No Shape");
+                    // ui.selectable_value(&mut type_style.node_shape, NodeShape::Elipse, "Ellipse");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Rectangle Corner Radius:");
+                    ui.add(Slider::new(&mut type_style.corner_radius, 0.0..=20.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Sizing:");
+                    ui.selectable_value(&mut type_style.node_size, NodeSize::Fixed, "Fixed");
+                    ui.selectable_value(&mut type_style.node_size, NodeSize::Label, "Label Dependant");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Width:");
+                    ui.add(Slider::new(&mut type_style.width, 3.0..=150.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Height:");
+                    ui.add(Slider::new(&mut type_style.height, 3.0..=150.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Border Width:");
+                    ui.add(Slider::new(&mut type_style.border_width, 0.0..=20.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Border Color:");
+                    ui.color_edit_button_srgba(&mut type_style.border_color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max Lines:");
+                    ui.add(Slider::new(&mut type_style.max_lines, 1..=10));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Font Size:");
+                    ui.add(Slider::new(&mut type_style.font_size, 5.0..=25.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Label Position:");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Center, "Center");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Above, "Above");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Below, "Below");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Right, "Right");
+                    ui.selectable_value(&mut type_style.label_position, LabelPosition::Left, "Left");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Label Color:");
+                    ui.color_edit_button_srgba(&mut type_style.label_color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Label Max Width (0-unlimited):");
+                    ui.add(Slider::new(&mut type_style.label_max_width, 0.0..=300.0));
+                });
+                display_icon_style(ui, &mut type_style.icon_style, &mut self.ui_state.icon_name_filter);
+                let desired_size = Vec2::new(800.0, 300.0); // width, height
+                let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
+                let node_label = "Test Label";
+                draw_node_label(
+                    &painter,
+                    node_label,
+                    type_style,
+                    response.rect.center(),
+                    false,
+                    false,
+                    false,
+                    true,
+                );
             }
-            ui.horizontal(|ui| {
-                ui.label("Priority:");
-                ui.add(Slider::new(&mut type_style.priority, 0..=1000));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Background Color:");
-                ui.color_edit_button_srgba(&mut type_style.color);
-            });
-            ui.horizontal(|ui| {
-                ui.label("Shape:");
-                ui.selectable_value(&mut type_style.node_shape, NodeShape::Circle, "Circle");
-                ui.selectable_value(&mut type_style.node_shape, NodeShape::Rect, "Rectangle");
-                ui.selectable_value(&mut type_style.node_shape, NodeShape::None, "No Shape");
-                // ui.selectable_value(&mut type_style.node_shape, NodeShape::Elipse, "Ellipse");
-            });
-            ui.horizontal(|ui| {
-                ui.label("Rectangle Corner Radius:");
-                ui.add(Slider::new(&mut type_style.corner_radius, 0.0..=20.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Sizing:");
-                ui.selectable_value(&mut type_style.node_size, NodeSize::Fixed, "Fixed");
-                ui.selectable_value(&mut type_style.node_size, NodeSize::Label, "Label Dependant");
-            });
-            ui.horizontal(|ui| {
-                ui.label("Width:");
-                ui.add(Slider::new(&mut type_style.width, 3.0..=150.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Height:");
-                ui.add(Slider::new(&mut type_style.height, 3.0..=150.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Border Width:");
-                ui.add(Slider::new(&mut type_style.border_width, 0.0..=20.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Border Color:");
-                ui.color_edit_button_srgba(&mut type_style.border_color);
-            });
-            ui.horizontal(|ui| {
-                ui.label("Max Lines:");
-                ui.add(Slider::new(&mut type_style.max_lines, 1..=10));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Font Size:");
-                ui.add(Slider::new(&mut type_style.font_size, 5.0..=25.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Label Position:");
-                ui.selectable_value(&mut type_style.label_position, LabelPosition::Center, "Center");
-                ui.selectable_value(&mut type_style.label_position, LabelPosition::Above, "Above");
-                ui.selectable_value(&mut type_style.label_position, LabelPosition::Below, "Below");
-                ui.selectable_value(&mut type_style.label_position, LabelPosition::Right, "Right");
-                ui.selectable_value(&mut type_style.label_position, LabelPosition::Left, "Left");
-            });
-            ui.horizontal(|ui| {
-                ui.label("Label Color:");
-                ui.color_edit_button_srgba(&mut type_style.label_color);
-            });
-            ui.horizontal(|ui| {
-                ui.label("Label Max Width (0-unlimited):");
-                ui.add(Slider::new(&mut type_style.label_max_width, 0.0..=300.0));
-            });
-            display_icon_style(ui, &mut type_style.icon_style, &mut self.ui_state.icon_name_filter);
-            let desired_size = Vec2::new(800.0, 300.0); // width, height
-            let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
-            let node_label = "Test Label";
-            draw_node_label(&painter, node_label, type_style, response.rect.center(), false, false, false, true);
         }
     }
 
     pub fn display_edge_style(&mut self, ui: &mut egui::Ui, edge_style_edit: IriIndex) {
         let edge_style = self.visualisation_style.edge_styles.get_mut(&edge_style_edit);
         if let Some(edge_style) = edge_style {
-            let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
-            let predicate_label = self.node_data.predicate_display(
-                edge_style_edit,
-                &label_context,
-                &self.node_data.indexers
-            );
-            ui.heading(format!("Edge Style for: {}",predicate_label.as_str()));
-            if ui.button("Close Style Edit").clicked() {
-                self.ui_state.style_edit = StyleEdit::None;
-                self.visible_nodes.update_node_shapes = true;
-            }
-            ui.horizontal(|ui| {
-                ui.label("Color:");
-                ui.color_edit_button_srgba(&mut edge_style.color);
-            });
-            ui.horizontal(|ui| {
-                ui.label("Width:");
-                ui.add(Slider::new(&mut edge_style.width, 1.0..=10.0));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Line Style:");
-                ui.selectable_value(&mut edge_style.line_style, LineStyle::Solid, "Solid");
-                ui.selectable_value(&mut edge_style.line_style, LineStyle::Dotted, "Dotted");
-                ui.selectable_value(&mut edge_style.line_style, LineStyle::Dashed, "Dashed");
-            });
-            if !matches!(edge_style.line_style, LineStyle::Solid) {
-                ui.horizontal(|ui| {
-                    ui.label("Line Gap:");
-                    ui.add(Slider::new(&mut edge_style.line_gap, 2.0..=20.0));
-                });
-            }
-            ui.horizontal(|ui| {
-                ui.label("Arrow Location:");
-                ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Target, "Target");
-                ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Middle, "Middle");
-                ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::None, "None");
-            });
-            if !matches!(edge_style.arrow_location, ArrowLocation::None) {
-                ui.horizontal(|ui| {
-                    ui.label("Arrow Size:");
-                    ui.add(Slider::new(&mut edge_style.arrow_size, 2.0..=40.0));
-                });
-            }
-            ui.horizontal(|ui| {
-                ui.label("Arrow Style");
-                ui.selectable_value(&mut edge_style.target_style, ArrowStyle::Arrow, "Arrow");
-                ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorFilled, "Filled Triangle");
-                ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorTriangle, "Triangle");
-            });
-            if  edge_style.edge_font.is_some() {
-                if ui.button("Clear Label").clicked() {
-                    edge_style.edge_font = None;
+            if let Ok(rdf_data) = self.rdf_data.read() {
+                let label_context = LabelContext::new(
+                    self.ui_state.display_language,
+                    self.persistent_data.config_data.iri_display,
+                    &rdf_data.prefix_manager,
+                );
+                let predicate_label =
+                    rdf_data
+                        .node_data
+                        .predicate_display(edge_style_edit, &label_context, &rdf_data.node_data.indexers);
+                ui.heading(format!("Edge Style for: {}", predicate_label.as_str()));
+                if ui.button("Close Style Edit").clicked() {
+                    self.ui_state.style_edit = StyleEdit::None;
+                    self.visible_nodes.update_node_shapes = true;
                 }
-                if let Some(edge_font) = &mut edge_style.edge_font {
+                ui.horizontal(|ui| {
+                    ui.label("Color:");
+                    ui.color_edit_button_srgba(&mut edge_style.color);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Width:");
+                    ui.add(Slider::new(&mut edge_style.width, 1.0..=10.0));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Line Style:");
+                    ui.selectable_value(&mut edge_style.line_style, LineStyle::Solid, "Solid");
+                    ui.selectable_value(&mut edge_style.line_style, LineStyle::Dotted, "Dotted");
+                    ui.selectable_value(&mut edge_style.line_style, LineStyle::Dashed, "Dashed");
+                });
+                if !matches!(edge_style.line_style, LineStyle::Solid) {
                     ui.horizontal(|ui| {
-                        ui.label("Font Size:");
-                        ui.add(Slider::new(&mut edge_font.font_size, 5.0..=25.0));
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Font Color:");
-                        ui.color_edit_button_srgba(&mut edge_font.font_color);
+                        ui.label("Line Gap:");
+                        ui.add(Slider::new(&mut edge_style.line_gap, 2.0..=20.0));
                     });
                 }
-            } else if ui.button("Add Label").clicked() {
-                edge_style.edge_font = Some(EdgeFont::default());
+                ui.horizontal(|ui| {
+                    ui.label("Arrow Location:");
+                    ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Target, "Target");
+                    ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::Middle, "Middle");
+                    ui.selectable_value(&mut edge_style.arrow_location, ArrowLocation::None, "None");
+                });
+                if !matches!(edge_style.arrow_location, ArrowLocation::None) {
+                    ui.horizontal(|ui| {
+                        ui.label("Arrow Size:");
+                        ui.add(Slider::new(&mut edge_style.arrow_size, 2.0..=40.0));
+                    });
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Arrow Style");
+                    ui.selectable_value(&mut edge_style.target_style, ArrowStyle::Arrow, "Arrow");
+                    ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorFilled, "Filled Triangle");
+                    ui.selectable_value(&mut edge_style.target_style, ArrowStyle::ArrorTriangle, "Triangle");
+                });
+                if edge_style.edge_font.is_some() {
+                    if ui.button("Clear Label").clicked() {
+                        edge_style.edge_font = None;
+                    }
+                    if let Some(edge_font) = &mut edge_style.edge_font {
+                        ui.horizontal(|ui| {
+                            ui.label("Font Size:");
+                            ui.add(Slider::new(&mut edge_font.font_size, 5.0..=25.0));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Font Color:");
+                            ui.color_edit_button_srgba(&mut edge_font.font_color);
+                        });
+                    }
+                } else if ui.button("Add Label").clicked() {
+                    edge_style.edge_font = Some(EdgeFont::default());
+                }
+
+                display_icon_style(ui, &mut edge_style.icon_style, &mut self.ui_state.icon_name_filter);
+
+                let desired_size = Vec2::new(800.0, 80.0); // width, height
+                let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
+                let node_label = || String::from("Test Label");
+                draw_edge(
+                    &painter,
+                    response.rect.min + Vec2::new(30.0, 20.0),
+                    Vec2::new(5.0, 5.0),
+                    NodeShape::Circle,
+                    response.rect.min + Vec2::new(200.0, 50.0),
+                    Vec2::new(5.0, 5.0),
+                    NodeShape::Circle,
+                    &edge_style,
+                    node_label,
+                    false,
+                    0.0,
+                );
             }
-
-            display_icon_style(ui, &mut edge_style.icon_style, &mut self.ui_state.icon_name_filter);
-
-            let desired_size = Vec2::new(800.0, 80.0); // width, height
-            let (response, painter) = ui.allocate_painter(desired_size, Sense::empty());
-            let node_label = || {
-                String::from("Test Label")
-            };
-            draw_edge(&painter, 
-            response.rect.min+Vec2::new(30.0,20.0), 
-                Vec2::new(5.0,5.0),
-                NodeShape::Circle,
-                response.rect.min+Vec2::new(200.0,50.0),
-                Vec2::new(5.0,5.0),
-                NodeShape::Circle,
-                &edge_style,
-                node_label,
-                false,
-                0.0,
-            );
         }
     }
 }
@@ -475,9 +495,7 @@ fn display_icon_style(ui: &mut egui::Ui, icon_style: &mut Option<IconStyle>, ico
             });
         }
     }
-
 }
-
 
 // Chosing icon character
 // Code partly from egui demo
@@ -491,12 +509,7 @@ fn available_characters(ui: &egui::Ui, family: egui::FontFamily) -> Vec<(char, S
             .characters()
             .iter()
             .filter(|(chr, _fonts)| !chr.is_whitespace() && !chr.is_ascii_control())
-            .map(|(chr, _fonts)| {
-                (
-                    *chr,
-                    char_name(*chr),
-                )
-            })
+            .map(|(chr, _fonts)| (*chr, char_name(*chr)))
             .collect()
     })
 }
@@ -664,16 +677,19 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
                     let available_characters = available_characters(ui, egui::FontFamily::Proportional);
                     ui.allocate_ui(Vec2::new(ui.available_width(), 400.0), |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            for chunk in available_characters.iter()
+                            for chunk in available_characters
+                                .iter()
                                 .filter(|(_, name)| name.contains(font_filter.as_str()))
-                                .collect::<Vec<_>>().chunks(30) {
+                                .collect::<Vec<_>>()
+                                .chunks(30)
+                            {
                                 ui.horizontal(|ui| {
-                                    for (chr,_name) in chunk {
+                                    for (chr, _name) in chunk {
                                         if ui.button(chr.to_string()).clicked() {
                                             *icon = *chr;
                                             ui.memory_mut(|mem| mem.close_popup());
                                         }
-                                    };
+                                    }
                                 });
                             }
                         });
@@ -693,7 +709,4 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
     }
 
     button_response
-
-    
-    
 }

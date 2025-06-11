@@ -83,29 +83,31 @@ impl RdfGlanceApp {
                     ui.close_menu();
                 }
             });
-            let selected_language = self.node_data.get_language(self.ui_state.display_language);
-            if let Some(selected_language) = selected_language {
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    egui::ComboBox::from_label(concatcp!(ICON_LANG, " Data language"))
-                        .selected_text(selected_language)
-                        .show_ui(ui, |ui| {
-                            for language_index in self.ui_state.language_sort.iter() {
-                                let language_str = self.node_data.get_language(*language_index);
-                                if let Some(language_str) = language_str {
-                                    if ui
-                                        .selectable_label(
-                                            self.ui_state.display_language == *language_index,
-                                            language_str,
-                                        )
-                                        .clicked()
-                                    {
-                                        self.ui_state.display_language = *language_index;
+            if let Ok(rdf_data) = self.rdf_data.read() {
+                let selected_language = rdf_data.node_data.get_language(self.ui_state.display_language);
+                if let Some(selected_language) = selected_language {
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        egui::ComboBox::from_label(concatcp!(ICON_LANG, " Data language"))
+                            .selected_text(selected_language)
+                            .show_ui(ui, |ui| {
+                                for language_index in self.ui_state.language_sort.iter() {
+                                    let language_str = rdf_data.node_data.get_language(*language_index);
+                                    if let Some(language_str) = language_str {
+                                        if ui
+                                            .selectable_label(
+                                                self.ui_state.display_language == *language_index,
+                                                language_str,
+                                            )
+                                            .clicked()
+                                        {
+                                            self.ui_state.display_language = *language_index;
+                                        }
                                     }
                                 }
-                            }
-                        });
-                    ui.label(format!("{:.4}",self.ui_state.cpu_usage));
-                });
+                            });
+                        ui.label(format!("{:.4}",self.ui_state.cpu_usage));
+                    });
+                }
             }
         });
     }
@@ -188,8 +190,7 @@ impl RdfGlanceApp {
             }
             Ok(app_data) => {
                 self.clean_data();
-                self.node_data = app_data.node_data;
-                self.prefix_manager = app_data.prefix_manager;
+                self.rdf_data = app_data.rdf_data;
                 self.ui_state = app_data.ui_state;
                 self.visible_nodes = app_data.visible_nodes;
                 self.update_data_indexes();

@@ -1,6 +1,5 @@
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
-use rand::rand_core::le;
 
 use crate::{config::IriDisplay, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, GVisualisationStyle};
 

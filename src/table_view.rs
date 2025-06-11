@@ -8,11 +8,7 @@ use rayon::prelude::*;
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, 
-    prefix_manager::PrefixManager, 
-    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, 
-    uitools::{popup_at, strong_unselectable, ScrollBar}, 
-    GVisualisationStyle, UIState, NodeAction
+    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
 };
 
 pub struct TypeInstanceIndex {
@@ -1044,9 +1040,8 @@ impl TypeInstanceIndex {
         &mut self,
         ctx: &egui::Context,
         ui: &mut egui::Ui,
-        node_data: &mut NodeData,
+        rdf_data: &mut RdfData,
         layout_data: &mut UIState,
-        prefix_manager: &PrefixManager,
         color_cache: &GVisualisationStyle,
         iri_display: IriDisplay,
     ) -> NodeAction {
@@ -1067,11 +1062,11 @@ impl TypeInstanceIndex {
                     ui.label(format!("Unique Types: {}", self.unique_types));
                     ui.label(format!(
                         "Unique Languages: {}",
-                        node_data.unique_languages()
+                        rdf_data.node_data.unique_languages()
                     ));
                     ui.label(format!(
                         "Unique Data Types: {}",
-                        node_data.unique_data_types()
+                        rdf_data.node_data.unique_data_types()
                     ));
                     /*
                     ui.horizontal(|ui| {
@@ -1088,14 +1083,14 @@ impl TypeInstanceIndex {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.push_id("types", |ui| {
                         let type_filter_response = ui.text_edit_singleline(&mut self.types_filter);
-                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                        let label_context = LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         if type_filter_response.changed() {
-                            self.apply_filter(node_data, &label_context);
+                            self.apply_filter(&mut rdf_data.node_data, &label_context);
                         }
                         let (selected_type, type_table_action) = self.show_types(
                             ui,
-                            node_data,
-                            prefix_manager,
+                            &mut rdf_data.node_data,
+                            &rdf_data.prefix_manager,
                             layout_data,
                             iri_display,
                             200.0,
@@ -1106,15 +1101,15 @@ impl TypeInstanceIndex {
                         match type_table_action {
                             TypeTableAction::SortByLabel => {
                                 self.types_filtered.par_sort_by(|a, b| {
-                                    let label_a = node_data.type_display(
+                                    let label_a = rdf_data.node_data.type_display(
                                         *a,
                                         &label_context,
-                                        &node_data.indexers
+                                        &rdf_data.node_data.indexers
                                     );
-                                    let label_b = node_data.type_display(
+                                    let label_b = rdf_data.node_data.type_display(
                                         *b,
                                         &label_context,
-                                        &node_data.indexers
+                                        &rdf_data.node_data.indexers
                                     );
                                     label_a.as_str().cmp(label_b.as_str())
                                 });
@@ -1155,17 +1150,17 @@ impl TypeInstanceIndex {
                 });
                 if let Some(selected_type) = self.selected_type {
                     if let Some(type_data) = self.types.get_mut(&selected_type) {
-                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                        let label_context = LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
-                                type_data.display_data_props(ui, &label_context, node_data);
+                                type_data.display_data_props(ui, &label_context, &rdf_data.node_data);
                             });
                         });
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
-                                type_data.display_references(ui, &label_context, node_data);
+                                type_data.display_references(ui, &label_context, &rdf_data.node_data);
                             });
                         });
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
@@ -1173,7 +1168,7 @@ impl TypeInstanceIndex {
                             egui::ScrollArea::vertical()
                                 .id_salt("refby")
                                 .show(ui, |ui| {
-                                    type_data.display_reverse_references(ui, &label_context, node_data);
+                                    type_data.display_reverse_references(ui, &label_context, &rdf_data.node_data);
                                 });
                         });
                     }
@@ -1237,9 +1232,9 @@ impl TypeInstanceIndex {
                                 ctx,
                                 &mut table_action,
                                 &mut instance_action,
-                                node_data,
+                                &mut rdf_data.node_data,
                                 color_cache,
-                                prefix_manager,
+                                &rdf_data.prefix_manager,
                                 layout_data,
                                 iri_display,
                             );
@@ -1280,8 +1275,8 @@ impl TypeInstanceIndex {
                     TableAction::SortColumnAsc(predicate_to_sort) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
                                         let a_value = &node_a.get_property(
@@ -1294,8 +1289,8 @@ impl TypeInstanceIndex {
                                         );
                                         if let Some(a_value) = a_value {
                                             if let Some(b_value) = b_value {
-                                                let a_value = a_value.as_str_ref(&node_data.indexers);
-                                                let b_value = b_value.as_str_ref(&node_data.indexers);
+                                                let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
+                                                let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
                                                 return a_value.cmp(b_value);
                                             } else {
                                                 return std::cmp::Ordering::Less;
@@ -1317,8 +1312,8 @@ impl TypeInstanceIndex {
                     TableAction::SortColumnDesc(predicate_to_sort) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
                                         let a_value = &node_a.get_property(
@@ -1331,8 +1326,8 @@ impl TypeInstanceIndex {
                                         );
                                         if let Some(a_value) = a_value {
                                             if let Some(b_value) = b_value {
-                                                let a_value = a_value.as_str_ref(&node_data.indexers);
-                                                let b_value = b_value.as_str_ref(&node_data.indexers);
+                                                let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
+                                                let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
                                                 return b_value.cmp(a_value);
                                             } else {
                                                 return std::cmp::Ordering::Less;
@@ -1354,8 +1349,8 @@ impl TypeInstanceIndex {
                     TableAction::SortRefAsc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
                                         let a_value = node_a.references.len()
@@ -1375,8 +1370,8 @@ impl TypeInstanceIndex {
                     TableAction::SortRefDesc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
                                         let a_value = node_a.references.len()
@@ -1396,8 +1391,8 @@ impl TypeInstanceIndex {
                     TableAction::SortIriAsc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((iri_a, _)) = node_a {
                                     if let Some((iri_b, _)) = node_b {
                                         iri_a.cmp(iri_b)
@@ -1413,8 +1408,8 @@ impl TypeInstanceIndex {
                     TableAction::SortIriDesc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = node_data.get_node_by_index(*a);
-                                let node_b = node_data.get_node_by_index(*b);
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((iri_a, _)) = node_a {
                                     if let Some((iri_b, _)) = node_b {
                                         iri_b.cmp(iri_a)
@@ -1433,9 +1428,9 @@ impl TypeInstanceIndex {
                             .iter()
                             .cloned()
                             .filter(|&instance_index| {
-                                let node = node_data.get_node_by_index(instance_index);
+                                let node = rdf_data.node_data.get_node_by_index(instance_index);
                                 if let Some((node_iri, node)) = node {
-                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri, &node_data.indexers) {
+                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri, &rdf_data.node_data.indexers) {
                                         return true;
                                     }
                                 }
@@ -1450,7 +1445,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::HidePropExists(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
-                            let node = node_data.get_node_by_index(instance_index);
+                            let node = rdf_data.node_data.get_node_by_index(instance_index);
                             if let Some((_, node)) = node {
                                 return node.has_property(predicate_to_hide)
                             }
@@ -1464,7 +1459,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::HidePropNonMulti(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
-                            let node = node_data.get_node_by_index(instance_index);
+                            let node = rdf_data.node_data.get_node_by_index(instance_index);
                             if let Some((_, node)) = node {
                                 let mut found = false;
                                 for (predicate, _literal) in node.properties.iter() {
@@ -1486,7 +1481,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::HidePropNotExists(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
-                            let node = node_data.get_node_by_index(instance_index);
+                            let node = rdf_data.node_data.get_node_by_index(instance_index);
                             if let Some((_, node)) = node {
                                 return !node.has_property(predicate_to_hide)
                             }

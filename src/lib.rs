@@ -1,20 +1,25 @@
-
-
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{collections::{HashMap, HashSet}, path::Path};
 use const_format::concatcp;
+use oxrdf::vocab::rdf;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::{Arc, RwLock},
+};
 
 use eframe::{
-    egui::{self, Pos2},
     Storage,
+    egui::{self, Pos2},
 };
 use egui::{Rangef, Rect};
 use egui_extras::StripBuilder;
 use graph_styles::{EdgeStyle, NodeStyle};
-use graph_view::{update_layout_edges, NeighbourPos};
-use nobject::{IriIndex, LangIndex, NodeData};
+use graph_view::{NeighbourPos, update_layout_edges};
 use layout::SortedNodeLayout;
+use nobject::{IriIndex, LangIndex, NodeData};
+#[cfg(target_arch = "wasm32")]
+use poll_promise::Promise;
 use prefix_manager::PrefixManager;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
@@ -22,31 +27,28 @@ use sparql_dialog::SparqlDialog;
 use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
-#[cfg(target_arch = "wasm32")]
-use poll_promise::Promise;
-
 
 pub mod browse_view;
 pub mod config;
 pub mod distinct_colors;
 pub mod drawing;
+pub mod graph_styles;
 pub mod graph_view;
 pub mod layout;
+pub mod menu_bar;
+pub mod meta_graph;
 pub mod nobject;
+pub mod persistency;
 pub mod prefix_manager;
 pub mod rdfwrap;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sparql;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sparql_dialog;
+pub mod string_indexer;
+pub mod style;
 pub mod table_view;
 pub mod uitools;
-pub mod style;
-pub mod persistency;
-pub mod menu_bar;
-pub mod string_indexer;
-pub mod graph_styles;
-pub mod meta_graph;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -66,7 +68,6 @@ pub struct RdfGlanceApp {
     nav_pos: usize,
     nav_history: Vec<IriIndex>,
     display_type: DisplayType,
-    pub node_data: NodeData,
     ui_state: UIState,
     visible_nodes: SortedNodeLayout,
     meta_nodes: SortedNodeLayout,
@@ -76,12 +77,152 @@ pub struct RdfGlanceApp {
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
     system_message: SystemMessage,
-    persistent_data: AppPersistentData,
+    pub rdf_data: Arc<RwLock<RdfData>>,
     type_index: TypeInstanceIndex,
-    prefix_manager: PrefixManager,
+    persistent_data: AppPersistentData,
     help_open: bool,
     #[cfg(target_arch = "wasm32")]
-    file_upload: Option<Promise<Result<File, anyhow::Error>>>
+    file_upload: Option<Promise<Result<File, anyhow::Error>>>,
+}
+
+pub struct RdfData {
+    pub node_data: NodeData,
+    pub prefix_manager: PrefixManager,
+}
+
+pub struct NodeChangeContext<'a> {
+    pub rdfwrwap: &'a mut Box<dyn rdfwrap::RDFAdapter>,
+    pub visible_nodes: &'a mut SortedNodeLayout,
+}
+
+impl RdfData {
+    fn expand_node(
+        &mut self,
+        iri_index: IriIndex,
+        expand_type: ExpandType,
+        node_change_context: &mut NodeChangeContext,
+    ) {
+        let refs_to_expand = {
+            let nnode = self.node_data.get_node_by_index(iri_index);
+            if let Some((_, nnode)) = nnode {
+                let mut refs_to_expand = vec![];
+                match expand_type {
+                    ExpandType::References | ExpandType::Both => {
+                        for (_, ref_iri) in &nnode.references {
+                            refs_to_expand.push(*ref_iri);
+                        }
+                    }
+                    _ => {}
+                }
+                match expand_type {
+                    ExpandType::ReverseReferences | ExpandType::Both => {
+                        for (_, ref_iri) in &nnode.reverse_references {
+                            refs_to_expand.push(*ref_iri);
+                        }
+                    }
+                    _ => {}
+                }
+                refs_to_expand
+            } else {
+                vec![]
+            }
+        };
+        let mut npos = NeighbourPos::new();
+        for ref_index in refs_to_expand {
+            if self.load_object_by_index(ref_index, node_change_context) {
+                npos.insert(iri_index, ref_index);
+            }
+        }
+        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
+        npos.position(&mut node_change_context.visible_nodes);
+    }
+
+    fn expand_all_by_types(&mut self, types: &Vec<IriIndex>, node_change_context: &mut NodeChangeContext) {
+        let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
+        let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
+        for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
+            if let Some((_, nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
+                for (_, ref_iri) in nnode.references.iter() {
+                    if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                        if nnode.match_types(types) {
+                            if refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index, *ref_iri));
+                            }
+                        }
+                    }
+                }
+                for (_, ref_iri) in nnode.reverse_references.iter() {
+                    if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                        if nnode.match_types(types) {
+                            if refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index, *ref_iri));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut npos = NeighbourPos::new();
+        for (parent_index, ref_index) in parent_ref {
+            if !node_change_context.visible_nodes.contains(ref_index)
+                && self.load_object_by_index(ref_index, node_change_context)
+            {
+                npos.insert(parent_index, ref_index);
+            }
+        }
+        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
+        npos.position(&mut node_change_context.visible_nodes);
+    }
+
+    fn load_object_by_index(&mut self, index: IriIndex, node_change_context: &mut NodeChangeContext) -> bool {
+        // self.visible_nodes.start_layout(&self.persistent_data.config_data);
+        let node = self.node_data.get_node_by_index_mut(index);
+        if let Some((node_iri, node)) = node {
+            if node.has_subject {
+                return node_change_context.visible_nodes.add_by_index(index);
+            } else {
+                let node_iri = node_iri.clone();
+                let new_object = node_change_context.rdfwrwap.load_object(&node_iri, &mut self.node_data);
+                if let Some(new_object) = new_object {
+                    self.node_data.put_node_replace(&node_iri, new_object);
+                }
+            }
+        }
+        false
+    }
+
+    fn expand_all(&mut self, node_change_context: &mut NodeChangeContext) {
+        let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
+        let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
+        for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
+            if let Some((_, nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
+                for (_, ref_iri) in nnode.references.iter() {
+                    if refs_to_expand.insert(*ref_iri) {
+                        parent_ref.push((visible_index.node_index, *ref_iri));
+                    }
+                }
+                for (_, ref_iri) in nnode.reverse_references.iter() {
+                    if refs_to_expand.insert(*ref_iri) {
+                        parent_ref.push((visible_index.node_index, *ref_iri));
+                    }
+                }
+            }
+        }
+        let mut npos = NeighbourPos::new();
+        for (parent_index, ref_index) in parent_ref {
+            if !node_change_context.visible_nodes.contains(ref_index)
+                && self.load_object_by_index(ref_index, node_change_context)
+            {
+                npos.insert(parent_index, ref_index);
+            }
+        }
+        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
+        npos.position(&mut node_change_context.visible_nodes);
+    }
+
+    pub fn resolve_rdf_lists(&mut self) {
+        self.node_data.resolve_rdf_lists(&self.prefix_manager);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -111,7 +252,6 @@ impl SystemMessage {
         }
     }
 }
-
 
 pub struct GVisualisationStyle {
     pub node_styles: HashMap<IriIndex, NodeStyle>,
@@ -153,7 +293,6 @@ pub enum StyleEdit {
     None,
 }
 
-
 #[derive(Serialize, Deserialize)]
 struct AppPersistentData {
     last_files: Vec<Box<str>>,
@@ -189,18 +328,18 @@ impl UIState {
 }
 
 impl GVisualisationStyle {
-    pub fn preset_styles(
-        &mut self,
-        cache_statistics: &TypeInstanceIndex,
-    ) {
+    pub fn preset_styles(&mut self, cache_statistics: &TypeInstanceIndex) {
         for (type_index, _type_desc) in cache_statistics.types.iter() {
             let type_style = self.node_styles.get(type_index);
             if type_style.is_none() {
                 let new_color = distinct_colors::next_distinct_color(self.node_styles.len(), 0.8, 0.8, 200);
-                self.node_styles.insert(*type_index, NodeStyle { 
-                    color: new_color,
-                    ..Default::default()
-                });
+                self.node_styles.insert(
+                    *type_index,
+                    NodeStyle {
+                        color: new_color,
+                        ..Default::default()
+                    },
+                );
             }
         }
     }
@@ -237,23 +376,23 @@ impl GVisualisationStyle {
         style.unwrap_or(&self.default_node_style)
     }
 
-
     fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
         let len = self.edge_styles.len();
         self.edge_styles
             .entry(iri)
-            .or_insert_with(|| EdgeStyle { 
+            .or_insert_with(|| EdgeStyle {
                 color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
-                ..EdgeStyle::default()}).color
+                ..EdgeStyle::default()
+            })
+            .color
     }
 
     fn get_edge_syle(&mut self, iri: IriIndex) -> &EdgeStyle {
         let len = self.edge_styles.len();
-        self.edge_styles
-            .entry(iri)
-            .or_insert_with(|| EdgeStyle { 
-                color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
-                ..EdgeStyle::default()})
+        self.edge_styles.entry(iri).or_insert_with(|| EdgeStyle {
+            color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
+            ..EdgeStyle::default()
+        })
     }
 
     fn update_label(&mut self, iri: IriIndex, label_index: IriIndex) {
@@ -299,11 +438,8 @@ impl RdfGlanceApp {
                 let persistent_data_string = storage.get_string("persistent_data");
                 if let Some(persistent_data_string) = persistent_data_string {
                     let mut persistent_data: AppPersistentData =
-                        serde_json::from_str(&persistent_data_string)
-                            .expect("Failed to parse persistent data");
-                    persistent_data
-                        .last_endpoints
-                        .retain(|endpoint| !endpoint.is_empty());
+                        serde_json::from_str(&persistent_data_string).expect("Failed to parse persistent data");
+                    persistent_data.last_endpoints.retain(|endpoint| !endpoint.is_empty());
                     Some(persistent_data)
                 } else {
                     None
@@ -321,9 +457,7 @@ impl RdfGlanceApp {
             #[cfg(not(target_arch = "wasm32"))]
             sparql_dialog: None,
             status_message: String::new(),
-            node_data: NodeData::new(),
             type_index: TypeInstanceIndex::new(),
-            prefix_manager: PrefixManager::new(),
             system_message: SystemMessage::None,
             visible_nodes: SortedNodeLayout::new(),
             meta_nodes: SortedNodeLayout::new(),
@@ -333,14 +467,16 @@ impl RdfGlanceApp {
                 last_projects: vec![],
                 config_data: config::Config::default(),
             }),
+            rdf_data: Arc::new(RwLock::new(RdfData {
+                node_data: NodeData::new(),
+                prefix_manager: PrefixManager::new(),
+            })),
             visualisation_style: GVisualisationStyle {
                 node_styles: HashMap::new(),
                 edge_styles: HashMap::new(),
                 default_node_style: NodeStyle::default(),
             },
-            graph_state: GraphState {
-                scene_rect: Rect::ZERO,
-            },
+            graph_state: GraphState { scene_rect: Rect::ZERO },
             ui_state: UIState {
                 selected_node: None,
                 node_to_drag: None,
@@ -374,32 +510,29 @@ enum ExpandType {
 
 impl RdfGlanceApp {
     fn show_current(&mut self) -> bool {
-        let cached_object_index = self.node_data.get_node_index(&self.object_iri);
-        if let Some(cached_object_index) = cached_object_index {
-            let cached_object = self.node_data.get_node_by_index(cached_object_index);
-            if let Some((_,cached_object)) = cached_object {
-                if !cached_object.has_subject {
-                    let new_object = self
-                        .rdfwrap
-                        .load_object(&self.object_iri, &mut self.node_data);
-                    if let Some(new_object) = new_object {
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            let cached_object_index = rdf_data.node_data.get_node_index(&self.object_iri);
+            if let Some(cached_object_index) = cached_object_index {
+                let cached_object = rdf_data.node_data.get_node_by_index(cached_object_index);
+                if let Some((_, cached_object)) = cached_object {
+                    if !cached_object.has_subject {
+                        let new_object = self.rdfwrap.load_object(&self.object_iri, &mut rdf_data.node_data);
+                        if let Some(new_object) = new_object {
+                            self.current_iri = Some(cached_object_index);
+                            rdf_data.node_data.put_node_replace(&self.object_iri, new_object);
+                        }
+                    } else {
                         self.current_iri = Some(cached_object_index);
-                        self.node_data.put_node_replace(&self.object_iri, new_object);
                     }
-                } else {
-                    self.current_iri = Some(cached_object_index);
                 }
-            }
-        } else {
-            let new_object = self
-                .rdfwrap
-                .load_object(&self.object_iri, &mut self.node_data);
-            if let Some(new_object) = new_object {
-                self.current_iri = Some(self.node_data.put_node(&self.object_iri,new_object));
             } else {
-                self.system_message =
-                    SystemMessage::Info(format!("Object not found: {}", self.object_iri));
-                return false;
+                let new_object = self.rdfwrap.load_object(&self.object_iri, &mut rdf_data.node_data);
+                if let Some(new_object) = new_object {
+                    self.current_iri = Some(rdf_data.node_data.put_node(&self.object_iri, new_object));
+                } else {
+                    self.system_message = SystemMessage::Info(format!("Object not found: {}", self.object_iri));
+                    return false;
+                }
             }
         }
         true
@@ -410,43 +543,49 @@ impl RdfGlanceApp {
                 return;
             }
         }
-        let node = self.node_data.get_node_by_index_mut(index);
-        if let Some((node_iri,_node)) = node {
-            self.current_iri = Some(index);
-            self.object_iri = node_iri.to_string();
-            if add_history {
-                self.nav_history.truncate(self.nav_pos + 1);
-                self.nav_history.push(self.current_iri.unwrap());
-                self.nav_pos = self.nav_history.len() - 1;
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            let node = rdf_data.node_data.get_node_by_index_mut(index);
+            if let Some((node_iri, _node)) = node {
+                self.current_iri = Some(index);
+                self.object_iri = node_iri.to_string();
+                if add_history {
+                    self.nav_history.truncate(self.nav_pos + 1);
+                    self.nav_history.push(self.current_iri.unwrap());
+                    self.nav_pos = self.nav_history.len() - 1;
+                }
             }
         }
     }
 
     fn load_object(&mut self, iri: &str) -> bool {
-        let iri_index = self.node_data.get_node_index(iri);
-        if let Some(iri_index) = iri_index {
-            self.visible_nodes.add_by_index(iri_index);
-        } else {
-            let new_object = self.rdfwrap.load_object(iri, &mut self.node_data);
-            if let Some(new_object) = new_object {
-                self.node_data.put_node(iri,new_object);
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            let iri_index = rdf_data.node_data.get_node_index(iri);
+            if let Some(iri_index) = iri_index {
+                self.visible_nodes.add_by_index(iri_index);
             } else {
-                return false;
+                let new_object = self.rdfwrap.load_object(iri, &mut rdf_data.node_data);
+                if let Some(new_object) = new_object {
+                    rdf_data.node_data.put_node(iri, new_object);
+                } else {
+                    return false;
+                }
             }
         }
         true
     }
     fn load_object_by_index(&mut self, index: IriIndex) -> bool {
         // self.visible_nodes.start_layout(&self.persistent_data.config_data);
-        let node = self.node_data.get_node_by_index_mut(index);
-        if let Some((node_iri,node)) = node {
-            if node.has_subject {
-                return self.visible_nodes.add_by_index(index);
-            } else {
-                let node_iri = node_iri.clone();
-                let new_object = self.rdfwrap.load_object(&node_iri, &mut self.node_data);
-                if let Some(new_object) = new_object {
-                    self.node_data.put_node_replace(&node_iri,new_object);
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            let node = rdf_data.node_data.get_node_by_index_mut(index);
+            if let Some((node_iri, node)) = node {
+                if node.has_subject {
+                    return self.visible_nodes.add_by_index(index);
+                } else {
+                    let node_iri = node_iri.clone();
+                    let new_object = self.rdfwrap.load_object(&node_iri, &mut rdf_data.node_data);
+                    if let Some(new_object) = new_object {
+                        rdf_data.node_data.put_node_replace(&node_iri, new_object);
+                    }
                 }
             }
         }
@@ -459,156 +598,77 @@ impl RdfGlanceApp {
             self.nav_pos = self.nav_history.len() - 1;
         }
     }
-    fn expand_node(&mut self, iri_index: IriIndex, expand_type: ExpandType) {
-        let refs_to_expand = {
-            let nnode = self.node_data.get_node_by_index(iri_index);
-            if let Some((_,nnode)) = nnode {
-                let mut refs_to_expand = vec![];
-                match expand_type {
-                    ExpandType::References | ExpandType::Both => {
-                        for (_, ref_iri) in &nnode.references {
-                            refs_to_expand.push(*ref_iri);
-                        }
-                    }
-                    _ => {}
-                }
-                match expand_type {
-                    ExpandType::ReverseReferences | ExpandType::Both => {
-                        for (_, ref_iri) in &nnode.reverse_references {
-                            refs_to_expand.push(*ref_iri);
-                        }
-                    }
-                    _ => {}
-                }
-                refs_to_expand
-            } else {
-                vec![]
-            }
-        };
-        let mut npos = NeighbourPos::new();
-        for ref_index in refs_to_expand {
-            if self.load_object_by_index(ref_index) {
-                npos.insert(iri_index, ref_index);
-            }
-        }
-        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
-        npos.position(&mut self.visible_nodes);
 
-    }
-    fn expand_all(&mut self) {
-        let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
-        let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in self.visible_nodes.nodes.read().unwrap().iter() {
-            if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
-                for (_, ref_iri) in nnode.references.iter() {
-                    if refs_to_expand.insert(*ref_iri) {
-                        parent_ref.push((visible_index.node_index,*ref_iri));
-                    }
-                }
-                for (_, ref_iri) in nnode.reverse_references.iter() {
-                    if refs_to_expand.insert(*ref_iri) {
-                        parent_ref.push((visible_index.node_index,*ref_iri));
-                    }
-                }
-            }
-        }
-        let mut npos = NeighbourPos::new();
-        for (parent_index,ref_index) in parent_ref {
-            if !self.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
-                npos.insert(parent_index, ref_index);
-            }
-        }
-        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
-        npos.position(&mut self.visible_nodes);
-    }
-    fn expand_all_by_types(&mut self, types: &Vec<IriIndex>) {
-        let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
-        let mut parent_ref : Vec<(IriIndex,IriIndex)> = Vec::new();
-        for visible_index in self.visible_nodes.nodes.read().unwrap().iter() {
-            if let Some((_,nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
-                for (_, ref_iri) in nnode.references.iter() {
-                    if let Some((_,nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) {
-                            if refs_to_expand.insert(*ref_iri) {
-                                parent_ref.push((visible_index.node_index,*ref_iri));
-                            }
-                        }
-                    }
-                }
-                for (_, ref_iri) in nnode.reverse_references.iter() {
-                    if let Some((_,nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) {
-                            if refs_to_expand.insert(*ref_iri) {
-                                parent_ref.push((visible_index.node_index,*ref_iri));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        let mut npos = NeighbourPos::new();
-        for (parent_index,ref_index) in parent_ref {
-            if !self.visible_nodes.contains(ref_index) && self.load_object_by_index(ref_index) {
-                npos.insert(parent_index, ref_index);
-            }
-        }
-        update_layout_edges(&npos, &mut self.visible_nodes, &self.node_data);
-        npos.position(&mut self.visible_nodes);
-    }
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
-        let rdfttl = rdfwrap::RDFWrap::load_file(file_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);
-        match rdfttl {
-            Err(err) => {
-                self.system_message = SystemMessage::Error(format!("File not found: {}", err));
-            }
-            Ok(triples_count) => {
-                let load_message = format!(
-                    "Loaded: {} triples: {}",
-                    file_name, triples_count
-                );
-                self.set_status_message(&load_message);
-                if !self
-                    .persistent_data
-                    .last_files
-                    .iter().any(|f | *f == file_name.into())
-                {
-                    self.persistent_data.last_files.push(file_name.into());
+        let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
+            Some(rdfwrap::RDFWrap::load_file(file_name, &mut rdf_data, &language_filter))
+        } else {
+            None
+        };
+        if let Some(rdfttl) = rdfttl {
+            match rdfttl {
+                Err(err) => {
+                    self.system_message = SystemMessage::Error(format!("File not found: {}", err));
                 }
-                self.update_data_indexes();
+                Ok(triples_count) => {
+                    let load_message = format!("Loaded: {} triples: {}", file_name, triples_count);
+                    self.set_status_message(&load_message);
+                    if !self.persistent_data.last_files.iter().any(|f| *f == file_name.into()) {
+                        self.persistent_data.last_files.push(file_name.into());
+                    }
+                    self.update_data_indexes();
+                }
             }
         }
     }
+
     pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
         let language_filter = self.persistent_data.config_data.language_filter();
-        let rdfttl = rdfwrap::RDFWrap::load_file_data(file_name, data, &mut self.node_data, &language_filter, &mut self.prefix_manager);
-        match rdfttl {
-            Err(err) => {
-                self.system_message = SystemMessage::Error(format!("File not found: {}", err));
-            }
-            Ok(triples_count) => {
-                let load_message = format!(
-                    "Loaded: {} triples: {}",
-                    file_name, triples_count
-                );
-                self.set_status_message(&load_message);
-                self.update_data_indexes();
+        let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
+            Some(rdfwrap::RDFWrap::load_file_data(
+                file_name,
+                data,
+                &mut rdf_data,
+                &language_filter,
+            ))
+        } else {
+            None
+        };
+        if let Some(rdfttl) = rdfttl {
+            match rdfttl {
+                Err(err) => {
+                    self.system_message = SystemMessage::Error(format!("File not found: {}", err));
+                }
+                Ok(triples_count) => {
+                    let load_message = format!("Loaded: {} triples: {}", file_name, triples_count);
+                    self.set_status_message(&load_message);
+                    self.update_data_indexes();
+                }
             }
         }
     }
     fn load_ttl_dir(&mut self, dir_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
-        let rdfttl = rdfwrap::RDFWrap::load_from_dir(dir_name, &mut self.node_data, &language_filter, &mut self.prefix_manager);
-        match rdfttl {
-            Err(err) => {
-                self.system_message = SystemMessage::Error(format!("Directory not found: {}", err));
-            }
-            Ok(triples_count) => {
-                self.system_message = SystemMessage::Info(format!(
-                    "Loaded: {} triples: {}",
-                    dir_name, triples_count
-                ));
-                self.update_data_indexes();
+        let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
+            Some(rdfwrap::RDFWrap::load_from_dir(
+                dir_name,
+                &mut rdf_data,
+                &language_filter,
+            ))
+        } else {
+            None
+        };
+        if let Some(rdfttl) = rdfttl {
+            match rdfttl {
+                Err(err) => {
+                    self.system_message = SystemMessage::Error(format!("Directory not found: {}", err));
+                }
+                Ok(triples_count) => {
+                    self.system_message =
+                        SystemMessage::Info(format!("Loaded: {} triples: {}", dir_name, triples_count));
+                    self.update_data_indexes();
+                }
             }
         }
     }
@@ -618,27 +678,32 @@ impl RdfGlanceApp {
         self.status_message.push_str(message);
     }
     pub fn update_data_indexes(&mut self) {
-        self.ui_state.language_sort.clear();
-        for (index, _lang) in self.node_data.indexers.language_indexer.map.iter() {
-            self.ui_state.language_sort.push(index.to_usize() as LangIndex);
-        }
-        self.ui_state.language_sort.sort_by(|a,b| {
-            self.node_data.get_language(*a).cmp(&self.node_data.get_language(*b))
-        });
-        if self.persistent_data.config_data.resolve_rdf_lists {
-            self.node_data.resolve_rdf_lists(&self.prefix_manager);
-        }
-        self.type_index.update(&self.node_data);
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            self.ui_state.language_sort.clear();
+            for (index, _lang) in rdf_data.node_data.indexers.language_indexer.map.iter() {
+                self.ui_state.language_sort.push(index.to_usize() as LangIndex);
+            }
+            self.ui_state.language_sort.sort_by(|a, b| {
+                rdf_data
+                    .node_data
+                    .get_language(*a)
+                    .cmp(&rdf_data.node_data.get_language(*b))
+            });
+            if self.persistent_data.config_data.resolve_rdf_lists {
+                rdf_data.resolve_rdf_lists();
+            }
+            self.type_index.update(&rdf_data.node_data);
 
-        self.visualisation_style.preset_styles(&self.type_index);
-        self.node_data.indexers.predicate_indexer.map.shrink_to_fit();
-        self.node_data.indexers.type_indexer.map.shrink_to_fit();
-        self.node_data.indexers.language_indexer.map.shrink_to_fit();
-        self.node_data.indexers.datatype_indexer.map.shrink_to_fit();
+            self.visualisation_style.preset_styles(&self.type_index);
+            rdf_data.node_data.indexers.predicate_indexer.map.shrink_to_fit();
+            rdf_data.node_data.indexers.type_indexer.map.shrink_to_fit();
+            rdf_data.node_data.indexers.language_indexer.map.shrink_to_fit();
+            rdf_data.node_data.indexers.datatype_indexer.map.shrink_to_fit();
+        }
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
-        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER,"Open RDF File")).size(16.0);
+        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open RDF File")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
@@ -649,16 +714,22 @@ impl RdfGlanceApp {
             ui.add_space(20.0);
             ui.strong("0 React, 0 HTML, Full Power!");
             ui.strong("Try Desktop version for full functionality!");
-            let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER,"Open Sample Data")).size(16.0);
+            let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Sample Data")).size(16.0);
             let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
             let b_resp = ui.add(nav_but);
             if b_resp.clicked() {
-                self.load_ttl_data("programming_languages.ttl",SAMPLE_DATA.to_vec().as_ref());
+                self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref());
             }
         }
         StripBuilder::new(ui)
-            .size(egui_extras::Size::Relative { fraction: 0.5, range: Rangef::EVERYTHING })
-            .size(egui_extras::Size::Relative { fraction: 0.5, range: Rangef::EVERYTHING })
+            .size(egui_extras::Size::Relative {
+                fraction: 0.5,
+                range: Rangef::EVERYTHING,
+            })
+            .size(egui_extras::Size::Relative {
+                fraction: 0.5,
+                range: Rangef::EVERYTHING,
+            })
             .horizontal(|mut strip| {
                 strip.cell(|ui| {
                     if !self.persistent_data.last_files.is_empty() {
@@ -678,12 +749,14 @@ impl RdfGlanceApp {
                                     ui.end_row();
                                 }
                             });
-                       });
+                        });
                         if let Some(last_file_clicked) = last_file_clicked {
                             self.load_ttl(&last_file_clicked);
                         }
                         if let Some(last_file_forget) = last_file_forget {
-                            self.persistent_data.last_files.retain(|file| *file != last_file_forget.as_str().into());
+                            self.persistent_data
+                                .last_files
+                                .retain(|file| *file != last_file_forget.as_str().into());
                         }
                     }
                 });
@@ -705,35 +778,60 @@ impl RdfGlanceApp {
                                     ui.end_row();
                                 }
                             });
-                       });
+                        });
                         if let Some(last_file_clicked) = last_file_clicked {
                             let last_project_path = Path::new(&*last_file_clicked);
                             self.load_project(&last_project_path);
                         }
                         if let Some(last_file_forget) = last_file_forget {
-                            self.persistent_data.last_projects.retain(|file| *file != last_file_forget.as_str().into());
+                            self.persistent_data
+                                .last_projects
+                                .retain(|file| *file != last_file_forget.as_str().into());
                         }
                     }
                 });
             });
     }
     fn is_empty(&self) -> bool {
-        self.node_data.len() == 0
+        self.rdf_data.read().unwrap().node_data.len() == 0
     }
 
     fn clean_data(&mut self) {
-        self.node_data.clean();
         self.ui_state.clean();
         self.type_index.clean();
         self.visualisation_style.clean();
-        self.display_type = DisplayType::Table; 
+        self.display_type = DisplayType::Table;
         self.nav_history.clear();
         self.nav_pos = 0;
         self.current_iri = None;
         self.object_iri.clear();
-        self.prefix_manager.clean();
+        self.mut_rdf_data(|rdf_data| {
+            rdf_data.node_data.clean();
+            rdf_data.prefix_manager.clean();
+        });
         self.visible_nodes.clear();
         self.meta_nodes.clear();
+    }
+
+    pub fn mut_rdf_data<R>(&mut self, mut mutator: impl FnMut(&mut RdfData) -> R) -> Option<R> {
+        if let Ok(mut rdf_data) = self.rdf_data.write() {
+            return Some(mutator(&mut rdf_data));
+        }
+        None
+    }
+
+    pub fn read_rdf_data<R>(&mut self, mut mutator: impl FnMut(&RdfData) -> R) -> Option<R> {
+        if let Ok(rdf_data) = self.rdf_data.read() {
+            return Some(mutator(&rdf_data));
+        }
+        None
+    }
+
+    pub fn node_change_context(&mut self) -> NodeChangeContext {
+        NodeChangeContext {
+            rdfwrwap: &mut self.rdfwrap,
+            visible_nodes: &mut self.visible_nodes,
+        }
     }
 }
 
@@ -760,14 +858,38 @@ impl eframe::App for RdfGlanceApp {
             self.menu_bar(ui);
             ui.separator();
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.display_type, DisplayType::Table, concatcp!(ICON_TABLE," Tables"));
+                ui.selectable_value(
+                    &mut self.display_type,
+                    DisplayType::Table,
+                    concatcp!(ICON_TABLE, " Tables"),
+                );
                 ui.add_enabled_ui(!self.is_empty(), |ui| {
-                    ui.selectable_value(&mut self.display_type, DisplayType::Graph, concatcp!(ICON_GRAPH," Visual Graph"));
-                    ui.selectable_value(&mut self.display_type, DisplayType::Browse, concatcp!(ICON_BROWSE," Browse"));
-                    ui.selectable_value(&mut self.display_type, DisplayType::MetaGraph, concatcp!(ICON_METADATA," Meta Graph"));
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::Graph,
+                        concatcp!(ICON_GRAPH, " Visual Graph"),
+                    );
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::Browse,
+                        concatcp!(ICON_BROWSE, " Browse"),
+                    );
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::MetaGraph,
+                        concatcp!(ICON_METADATA, " Meta Graph"),
+                    );
                 });
-                ui.selectable_value(&mut self.display_type, DisplayType::Prefixes, concatcp!(ICON_PREFIX," Prefixes"));
-                ui.selectable_value(&mut self.display_type, DisplayType::Configuration, concatcp!(ICON_CONFIG," Settings"));
+                ui.selectable_value(
+                    &mut self.display_type,
+                    DisplayType::Prefixes,
+                    concatcp!(ICON_PREFIX, " Prefixes"),
+                );
+                ui.selectable_value(
+                    &mut self.display_type,
+                    DisplayType::Configuration,
+                    concatcp!(ICON_CONFIG, " Settings"),
+                );
             });
             ui.separator();
             let mut node_action = NodeAction::None;
@@ -784,17 +906,20 @@ impl eframe::App for RdfGlanceApp {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
                                 } else {
-                                    self.type_index.display(
-                                        ctx,
-                                        ui,
-                                        &mut self.node_data,
-                                        &mut self.ui_state,
-                                        &self.prefix_manager,
-                                        &self.visualisation_style,
-                                        self.persistent_data.config_data.iri_display,
-                                    )
+                                    if let Ok(mut rdf_data) = self.rdf_data.write() {
+                                        self.type_index.display(
+                                            ctx,
+                                            ui,
+                                            &mut rdf_data,
+                                            &mut self.ui_state,
+                                            &self.visualisation_style,
+                                            self.persistent_data.config_data.iri_display,
+                                        )
+                                    } else {
+                                        NodeAction::None
+                                    }
                                 }
-                            },
+                            }
                             DisplayType::Configuration => self.show_config(ctx, ui),
                             DisplayType::Prefixes => self.show_prefixes(ctx, ui),
                             DisplayType::MetaGraph => self.show_meta_graph(ctx, ui),
@@ -827,7 +952,12 @@ impl eframe::App for RdfGlanceApp {
                 if close_dialog {
                     if let Some(endpoint) = result {
                         self.rdfwrap = Box::new(sparql::SparqlAdapter::new(&endpoint));
-                        if !endpoint.is_empty() && !self.persistent_data.last_endpoints.iter().any(|e| *e == endpoint.as_str().into())
+                        if !endpoint.is_empty()
+                            && !self
+                                .persistent_data
+                                .last_endpoints
+                                .iter()
+                                .any(|e| *e == endpoint.as_str().into())
                         {
                             self.persistent_data.last_endpoints.push(endpoint.into());
                         }
@@ -842,7 +972,6 @@ impl eframe::App for RdfGlanceApp {
                 });
             }
              */
-
         });
         #[cfg(target_arch = "wasm32")]
         {
@@ -857,5 +986,3 @@ impl eframe::App for RdfGlanceApp {
         }
     }
 }
-
-
