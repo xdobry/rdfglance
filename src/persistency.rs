@@ -12,7 +12,7 @@ use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
 use crate::graph_styles::{ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize};
-use crate::layout::{NodeLayout, NodePosition, SortedNodeLayout};
+use crate::layout::{NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
 use crate::prefix_manager::PrefixManager;
@@ -523,6 +523,7 @@ impl SortedNodeLayout {
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let len = leb128::read::unsigned(reader)?;
         let mut nodes = Vec::with_capacity(len as usize);
+        let mut node_shapes = Vec::with_capacity(len as usize);
         let mut positions = Vec::with_capacity(len as usize);
         let edges = Vec::new();
         for _ in 0..len {
@@ -536,9 +537,8 @@ impl SortedNodeLayout {
             }
             nodes.push(NodeLayout {
                 node_index,
-                node_shape: NodeShape::Circle,
-                size: Vec2::ZERO,
-            });  
+            });
+            node_shapes.push(NodeShapeData::default());
             positions.push(NodePosition {
                 pos: Pos2::new(x, y),
                 vel: Vec2::ZERO,

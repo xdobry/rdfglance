@@ -273,6 +273,7 @@ impl RdfGlanceApp {
             ui.heading(format!("Node Style for Type: {}",type_label.as_str()));
             if ui.button("Close Style Edit").clicked() {
                 self.ui_state.style_edit = StyleEdit::None;
+                self.visible_nodes.update_node_shapes = true;
             }
             ui.horizontal(|ui| {
                 ui.label("Priority:");
@@ -358,6 +359,7 @@ impl RdfGlanceApp {
             ui.heading(format!("Edge Style for: {}",predicate_label.as_str()));
             if ui.button("Close Style Edit").clicked() {
                 self.ui_state.style_edit = StyleEdit::None;
+                self.visible_nodes.update_node_shapes = true;
             }
             ui.horizontal(|ui| {
                 ui.label("Color:");

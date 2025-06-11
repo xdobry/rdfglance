@@ -1,9 +1,10 @@
-
 use std::sync::{Arc, RwLock};
 
 use egui::{Color32, Pos2, Rect, Sense, Slider, Vec2};
 
-use crate::{drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp};
+use crate::{
+    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp
+};
 
 const NODE_RMIN: f32 = 4.0;
 const NODE_RMAX: f32 = 80.0;
@@ -18,16 +19,27 @@ impl RdfGlanceApp {
                 for (type_index, _type_node) in self.type_index.types.iter() {
                     self.meta_nodes.add_by_index(*type_index);
                 }
-                self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(&self.meta_nodes, &self.type_index)));
+                self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
+                    &self.meta_nodes,
+                    &self.type_index,
+                )));
                 self.meta_nodes.start_layout(&self.persistent_data.config_data);
             }
-            self.meta_nodes.show_handle_layout_ui(ctx, ui,&self.persistent_data.config_data);
-            ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size");
+            self.meta_nodes
+                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
+            if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
+                self.meta_nodes.update_node_shapes = true;
+            }
             ui.label("nodes force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
+            ui.add(Slider::new(
+                &mut self.persistent_data.config_data.m_repulsion_constant,
+                0.1..=8.0,
+            ));
             ui.label("edges force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.m_attraction_factor, 0.02..=3.0));
-
+            ui.add(Slider::new(
+                &mut self.persistent_data.config_data.m_attraction_factor,
+                0.02..=3.0,
+            ));
         });
 
         egui::SidePanel::right("right_panel")
@@ -35,11 +47,11 @@ impl RdfGlanceApp {
             .show_inside(ui, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
                     let detail_node_action = self.display_type_node_details(ui);
-                    if matches!(node_action , NodeAction::None) {
+                    if matches!(node_action, NodeAction::None) {
                         node_action = detail_node_action;
                     }
                 });
-        });
+            });
         egui::CentralPanel::default().show_inside(ui, |ui| {
             let mut node_count = 0;
             let mut edge_count = 0;
@@ -52,32 +64,31 @@ impl RdfGlanceApp {
             let mut node_to_click: Option<IriIndex> = None;
             let mut node_to_hover: Option<IriIndex> = None;
             let mut was_action = false;
-    
+
             let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
-    
+
             let scene = egui::Scene::new().zoom_range(0.3..=4.0);
             scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
                 let available_width = ui.available_width();
                 let available_height = ui.available_height();
                 let size = Vec2::new(available_width, available_height);
-    
+
                 let (id, rect) = ui.allocate_space(size);
                 let painter = ui.painter();
-        
+
                 let center = rect.center();
-    
+
                 // The code is complicated because of event handling, especially for click and dragging
                 // If node is clicked/dragged the event sould not be probagated to scene layer
                 // so we need to handle events manually by input and if input are consumed
                 // after it create big interact area that consume all events
-    
-                
+
                 let transform = ctx.layer_transform_to_global(ui.layer_id());
                 let mouse_pos = if let Some(transform) = transform {
                     let local_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
                     transform.inverse() * local_mouse_pos
                 } else {
-                    Pos2::new(0.0,0.0)
+                    Pos2::new(0.0, 0.0)
                 };
                 ctx.input(|input| {
                     single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
@@ -90,9 +101,13 @@ impl RdfGlanceApp {
                         self.ui_state.node_to_drag = None;
                     }
                 });
-    
-                let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
-                let mut edge_style : EdgeStyle = EdgeStyle {
+
+                let label_context = LabelContext::new(
+                    self.ui_state.display_language,
+                    self.persistent_data.config_data.iri_display,
+                    &self.prefix_manager,
+                );
+                let mut edge_style: EdgeStyle = EdgeStyle {
                     edge_font: Some(EdgeFont {
                         font_size: 14.0,
                         font_color: Color32::BLACK,
@@ -103,66 +118,107 @@ impl RdfGlanceApp {
                 if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
                     if let Some(node_pos) = self.meta_nodes.get_pos(*node_to_drag_index) {
                         if let Ok(mut positions) = self.meta_nodes.positions.write() {
-                            positions[node_pos].pos = (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
+                            positions[node_pos].pos =
+                                (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
                         }
                     }
                 }
                 if let Ok(positions) = self.meta_nodes.positions.read() {
                     if let Ok(edges) = self.meta_nodes.edges.read() {
-                        if let Ok(nodes) = self.meta_nodes.nodes.read() {
+                        if let Ok(node_shapes) = self.meta_nodes.node_shapes.read() {
                             for edge in edges.iter() {
-                                let node_layout = &nodes[edge.from];
                                 let node_label = || {
-                                    let reference_label = self.node_data.predicate_display(edge.predicate, &label_context, &self.node_data.indexers);
+                                    let reference_label = self.node_data.predicate_display(
+                                        edge.predicate,
+                                        &label_context,
+                                        &self.node_data.indexers,
+                                    );
                                     reference_label.as_str().to_owned()
                                 };
                                 let pos1 = center + positions[edge.from].pos.to_vec2();
                                 let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate);
                                 edge_style.color = p_edge_style.color;
                                 if edge.from != edge.to {
-                                    let ref_object = &nodes[edge.to];
+                                    let node_shape_from = &node_shapes[edge.from];
+                                    let node_shape_to = &node_shapes[edge.to];
                                     let pos2 = center + positions[edge.to].pos.to_vec2();
                                     drawing::draw_edge(
                                         painter,
                                         pos1,
-                                        node_layout.size,
-                                        node_layout.node_shape,
+                                        node_shape_from.size,
+                                        node_shape_from.node_shape,
                                         pos2,
-                                        ref_object.size,
-                                        ref_object.node_shape,
+                                        node_shape_to.size,
+                                        node_shape_to.node_shape,
                                         &edge_style,
                                         node_label,
                                         false,
                                         edge.bezier_distance,
                                     );
                                 } else {
-                                    drawing::draw_self_edge(painter, pos1, node_layout.size, edge.bezier_distance, node_layout.node_shape, &edge_style, false, node_label);
+                                    let node_shape_from = &node_shapes[edge.from];
+                                    drawing::draw_self_edge(
+                                        painter,
+                                        pos1,
+                                        node_shape_from.size,
+                                        edge.bezier_distance,
+                                        node_shape_from.node_shape,
+                                        &edge_style,
+                                        false,
+                                        node_label,
+                                    );
                                 }
                             }
                         }
                     }
-                    let mut node_style : NodeStyle = NodeStyle::default();
+                    let mut node_style: NodeStyle = NodeStyle::default();
                     if let Ok(nodes) = self.meta_nodes.nodes.read() {
+                        let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.meta_nodes.update_node_shapes {
+                            Some(Vec::with_capacity(nodes.len()))
+                        } else {
+                            None
+                        };
                         for (node_layout, node_position) in nodes.iter().zip(positions.iter()) {
                             let pos = center + node_position.pos.to_vec2();
                             let type_style = self.visualisation_style.get_type_style_one(node_layout.node_index);
                             node_style.color = type_style.color;
-                            if self.ui_state.meta_count_to_size && self.type_index.min_instance_type_count<self.type_index.max_instance_type_count {
+                            if self.ui_state.meta_count_to_size
+                                && self.type_index.min_instance_type_count < self.type_index.max_instance_type_count
+                            {
                                 let type_data = self.type_index.types.get(&node_layout.node_index);
                                 if let Some(type_data) = type_data {
-                                    node_style.width = value_to_radius(type_data.instances.len(), 
-                                        self.type_index.min_instance_type_count, 
-                                        self.type_index.max_instance_type_count, NODE_RMIN, NODE_RMAX);
+                                    node_style.width = value_to_radius(
+                                        type_data.instances.len(),
+                                        self.type_index.min_instance_type_count,
+                                        self.type_index.max_instance_type_count,
+                                        NODE_RMIN,
+                                        NODE_RMAX,
+                                    );
                                 }
                             } else {
                                 node_style.width = 15.0;
                             }
-                            let type_display = self.node_data.type_display(node_layout.node_index, &label_context, &self.node_data.indexers);
-                            let (node_rect,node_shape) = draw_node_label(painter, type_display.as_str(), &node_style, 
-                                pos, self.ui_state.selected_node == Some(node_layout.node_index), false, false, true);
-                            // TODO
-                            // node_layout.node_shape = node_shape;
-                            // node_layout.size = node_rect.size();
+                            let type_display = self.node_data.type_display(
+                                node_layout.node_index,
+                                &label_context,
+                                &self.node_data.indexers,
+                            );
+                            let (node_rect, node_shape) = draw_node_label(
+                                painter,
+                                type_display.as_str(),
+                                &node_style,
+                                pos,
+                                self.ui_state.selected_node == Some(node_layout.node_index),
+                                false,
+                                false,
+                                true,
+                            );
+                            if let Some(new_node_shapes) = &mut new_node_shapes {
+                                new_node_shapes.push(NodeShapeData {
+                                    node_shape,
+                                    size: node_rect.size(),
+                                });
+                            }   
                             if self.ui_state.context_menu_node.is_none() || was_action {
                                 if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                     self.ui_state.selected_node = Some(node_layout.node_index);
@@ -190,26 +246,29 @@ impl RdfGlanceApp {
                             }
                             node_count += 1;
                         }
+                        if let Some(new_node_shapes) = new_node_shapes {
+                            if let Ok(mut node_shapes) = self.meta_nodes.node_shapes.write() {
+                                *node_shapes = new_node_shapes;
+                                self.meta_nodes.update_node_shapes = false;
+                            }
+                        }
                     }
                 }
-    
+
                 let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
                 if consume_events {
                     // ui.max_rect does not give enough
                     // so create a very big rect that capture all ares in scene
-                    let max_rect: Rect = Rect::from_min_max(
-                        Pos2::new(-5_000.0, -5_000.0),
-                        Pos2::new(10_000.0, 10_000.0),
-                    );
+                    let max_rect: Rect =
+                        Rect::from_min_max(Pos2::new(-5_000.0, -5_000.0), Pos2::new(10_000.0, 10_000.0));
                     let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                 }
-    
+
                 let popup_id = ui.make_persistent_id("node_context_menu");
                 if was_context_click {
                     ui.memory_mut(|mem| mem.toggle_popup(popup_id));
                 }
-        
-        
+
                 popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
                     if let Some(node_index) = &self.ui_state.context_menu_node {
                         let mut close_menu = false;
@@ -220,22 +279,30 @@ impl RdfGlanceApp {
                                 self.meta_nodes.remove(current_index);
                                 self.meta_nodes.start_layout(&self.persistent_data.config_data);
                                 close_menu = true;
-                            },
+                            }
                             TypeNodeContextAction::HideSameInstCount => {
                                 if let Some(current_node) = self.type_index.types.get(&current_index) {
-                                    let to_remove = self.meta_nodes.nodes.read().unwrap().iter().filter(|node| {
-                                        if let Some(type_data) = self.type_index.types.get(&node.node_index) {
-                                            type_data.instances.len() <= current_node.instances.len()
-                                        } else {
-                                            false
-                                        }
-                                    }).map(|node| node.node_index).collect::<Vec<IriIndex>>();
+                                    let to_remove = self
+                                        .meta_nodes
+                                        .nodes
+                                        .read()
+                                        .unwrap()
+                                        .iter()
+                                        .filter(|node| {
+                                            if let Some(type_data) = self.type_index.types.get(&node.node_index) {
+                                                type_data.instances.len() <= current_node.instances.len()
+                                            } else {
+                                                false
+                                            }
+                                        })
+                                        .map(|node| node.node_index)
+                                        .collect::<Vec<IriIndex>>();
                                     for node in to_remove.iter() {
                                         self.meta_nodes.remove(*node);
                                     }
                                 }
                                 close_menu = true;
-                            },
+                            }
                             TypeNodeContextAction::None => {
                                 // do nothing
                             }
@@ -248,7 +315,6 @@ impl RdfGlanceApp {
                         ui.label("no node selected");
                     }
                 });
-        
             });
         });
         node_action
@@ -259,8 +325,14 @@ impl RdfGlanceApp {
         if let Some(iri_index) = &self.ui_state.selected_node {
             if self.meta_nodes.contains(*iri_index) {
                 if let Some(type_data) = self.type_index.types.get(iri_index) {
-                    let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &self.prefix_manager);
-                    let type_display = self.node_data.type_display(*iri_index, &label_context, &self.node_data.indexers);
+                    let label_context = LabelContext::new(
+                        self.ui_state.display_language,
+                        self.persistent_data.config_data.iri_display,
+                        &self.prefix_manager,
+                    );
+                    let type_display =
+                        self.node_data
+                            .type_display(*iri_index, &label_context, &self.node_data.indexers);
                     if ui.button(type_display.as_str()).clicked() {
                         node_to_click = NodeAction::ShowType(*iri_index);
                     }
@@ -281,7 +353,7 @@ impl RdfGlanceApp {
 enum TypeNodeContextAction {
     None,
     Hide,
-    HideSameInstCount
+    HideSameInstCount,
 }
 
 impl TypeNodeContextAction {
@@ -295,7 +367,6 @@ impl TypeNodeContextAction {
         return TypeNodeContextAction::None;
     }
 }
-
 
 /// Maps a value in [min, max] to a circle radius in [rmin, rmax],
 /// such that the area of the resulting circle is proportional to the value.
@@ -318,9 +389,7 @@ fn value_to_radius(value: usize, min: usize, max: usize, rmin: f32, rmax: f32) -
     (area / std::f32::consts::PI).sqrt()
 }
 
-
-
-fn create_types_layout_edges(layout_nodes: &SortedNodeLayout,type_index: &TypeInstanceIndex) -> Vec<Edge> {
+fn create_types_layout_edges(layout_nodes: &SortedNodeLayout, type_index: &TypeInstanceIndex) -> Vec<Edge> {
     let mut edges = Vec::new();
     for (node_pos, node_layout) in layout_nodes.nodes.read().unwrap().iter().enumerate() {
         if let Some(type_data) = type_index.types.get(&node_layout.node_index) {
@@ -357,13 +426,12 @@ fn create_types_layout_edges(layout_nodes: &SortedNodeLayout,type_index: &TypeIn
 mod tests {
     use std::sync::RwLock;
 
-    use crate::layout::{layout_graph_nodes, LayoutConfig, NodePosition};
+    use crate::layout::{LayoutConfig, NodePosition, layout_graph_nodes};
 
     use super::*;
 
     #[test]
-    fn test_meta_graph()  -> std::io::Result<()> {
-        
+    fn test_meta_graph() -> std::io::Result<()> {
         let mut vs = RdfGlanceApp::new(None);
         vs.load_ttl("sample-rdf-data/programming_languages.ttl");
         for (type_index, _type_node) in vs.type_index.types.iter() {
@@ -377,7 +445,6 @@ mod tests {
         let edges = create_types_layout_edges(&vs.meta_nodes, &vs.type_index);
         assert!(edges.len() > 0);
         vs.meta_nodes.edges = Arc::new(RwLock::new(edges));
-        
 
         let mut positions: Vec<NodePosition> = Vec::with_capacity(vs.meta_nodes.nodes.read().unwrap().len());
         for _ in 0..vs.meta_nodes.nodes.read().unwrap().len() {
@@ -390,6 +457,7 @@ mod tests {
         };
         let (max_move, positions) = layout_graph_nodes(
             &vs.meta_nodes.nodes.read().unwrap(),
+            &vs.meta_nodes.node_shapes.read().unwrap(),
             &vs.meta_nodes.positions.read().unwrap(),
             &vs.meta_nodes.edges.read().unwrap(),
             &layout_config,
