@@ -120,6 +120,7 @@ impl RdfGlanceApp {
                 .store(HeaderType::ShortLiterals, &mut file)?;
             rdf_data.node_data.indexers.literal_cache.store(&mut file)?;
             rdf_data.node_data.node_cache.store(&mut file)?;
+            rdf_data.prefix_manager.store(&mut file)?;
         }
         self.visible_nodes.store(&mut file)?;
         self.visualisation_style.store(&mut file)?;
@@ -922,7 +923,6 @@ mod tests {
     use std::{fs, path::PathBuf, time::Instant};
 
     use egui::Color32;
-    use oxrdf::vocab::rdf;
 
     use crate::{graph_styles::{ArrowLocation, IconPosition, IconStyle, LineStyle}, NodeChangeContext};
 
@@ -959,7 +959,13 @@ mod tests {
             .node_data
             .get_node_index("dbr:Rust_(programming_language)");
         assert_eq!(true, node_index.is_some());
-        assert_eq!(true, vs.load_object_by_index(node_index.unwrap()));
+        if let Ok(mut rdf_data) = vs.rdf_data.write() {
+            let mut node_change_context =  NodeChangeContext {
+                rdfwrwap: &mut vs.rdfwrap,
+                visible_nodes: &mut vs.visible_nodes,
+            };
+            assert_eq!(true, rdf_data.load_object_by_index(node_index.unwrap(),&mut node_change_context));
+        };
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
             let mut node_change_context =  NodeChangeContext {
                 rdfwrwap: &mut vs.rdfwrap,

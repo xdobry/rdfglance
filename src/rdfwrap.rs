@@ -6,11 +6,13 @@ use oxttl::TurtleParser;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
-use crate::RdfData;
+use crate::{DataLoading, RdfData};
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{BufReader, Cursor};
+use std::io::{self, BufReader, Cursor, Read};
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use std::time::Instant;
@@ -27,6 +29,25 @@ pub struct RDFWrap {
 pub struct IndexCache {
     pub index: IriIndex,
     pub iri: String,
+}
+
+pub struct CountingReader<R> {
+    inner: R,
+    pub bytes_read: Rc<RefCell<usize>>,
+}
+
+impl<R: Read> CountingReader<R> {
+    pub fn new(inner: R, bytes_read: Rc<RefCell<usize>>) -> Self {
+        CountingReader { inner, bytes_read: bytes_read }
+    }
+}
+
+impl<R: Read> Read for CountingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        *self.bytes_read.borrow_mut() += n;
+        Ok(n)
+    }
 }
 
 impl RDFWrap {
@@ -69,6 +90,7 @@ impl RDFWrap {
                                     path_name,
                                     rdf_data,
                                     language_filter,
+                                    None,
                                 ) {
                                     Ok(triples) => {
                                         total_triples += triples;
@@ -94,13 +116,25 @@ impl RDFWrap {
         file_name: P,
         rdf_data: &mut RdfData,
         language_filter: &[String],
+        data_loading: Option<&DataLoading>
     ) -> Result<u32> {
         let file_name = file_name.as_ref();
         let file =
             File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
+        if let Some(data_loading) = data_loading {
+            match file.metadata() {
+                Ok(metadata) => {
+                    data_loading.total_size.store(metadata.len() as usize, std::sync::atomic::Ordering::Relaxed);
+                }
+                Err(_e) => {
+                    // ignore
+                }
+            }
+        }   
+
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        Self::load_file_reader(file_extension, reader, rdf_data, language_filter)
+        Self::load_file_reader(file_extension, reader, rdf_data, language_filter, data_loading)
     }
 
     pub fn load_file_data(
@@ -112,7 +146,7 @@ impl RDFWrap {
         let file_name = Path::new(file_name);
         let reader = Cursor::new(data);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        Self::load_file_reader(file_extension, reader, rdf_data, language_filter)
+        Self::load_file_reader(file_extension, reader, rdf_data, language_filter, None)
     }
 
     pub fn load_file_reader<R: std::io::Read>(
@@ -120,8 +154,9 @@ impl RDFWrap {
         reader: R,
         rdf_data: &mut RdfData,
         language_filter: &[String],
+        data_loading: Option<&DataLoading>
     ) -> Result<u32> {
-        let mut triples_count = 0;
+        let mut triples_count: u32 = 0;
         let (indexer, cache) = rdf_data.node_data.split_mut();
         #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
@@ -129,11 +164,27 @@ impl RDFWrap {
             index: 0,
             iri: String::with_capacity(100),
         };
+        let bytes_read = Rc::new(RefCell::new(if let Some(data_loading) = data_loading {
+            data_loading.read_pos.load(std::sync::atomic::Ordering::Relaxed)
+        } else {
+            0
+        }));
+        let counting_reader = CountingReader::new(reader, Rc::clone(&bytes_read));
         match file_extension {
             "ttl" => {
-                let mut parser = TurtleParser::new().for_reader(reader);
+                let mut parser = TurtleParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(triple) = parser.next() {
+                    if let Some(data_loading) = data_loading {
+                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
+                        data_loading.total_triples.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading.read_pos.store(
+                            *bytes_read.borrow(),
+                            std::sync::atomic::Ordering::Relaxed,
+                        );
+                    }   
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
                             rdf_data.prefix_manager.add_prefix(prefix, iri);
@@ -159,7 +210,7 @@ impl RDFWrap {
                 }
             }
             "rdf" | "xml" => {
-                let mut parser = RdfXmlParser::new().for_reader(reader);
+                let mut parser = RdfXmlParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(triple) = parser.next() {
                     if !prefix_read {
@@ -181,7 +232,7 @@ impl RDFWrap {
                 }
             }
             "nt" => {
-                let parser = oxttl::NTriplesParser::new().for_reader(reader);
+                let parser = oxttl::NTriplesParser::new().for_reader(counting_reader);
                 for triple in parser {
                     let triple = triple?;
                     add_triple(
@@ -196,7 +247,7 @@ impl RDFWrap {
                 }
             }
             "trig" => {
-                let mut parser = oxttl::TriGParser::new().for_reader(reader);
+                let mut parser = oxttl::TriGParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(quad) = parser.next() {
                     if !prefix_read {
@@ -218,7 +269,7 @@ impl RDFWrap {
                 }
             }
             "nq" => {
-                let parser = oxttl::NQuadsParser::new().for_reader(reader);
+                let parser = oxttl::NQuadsParser::new().for_reader(counting_reader);
                 for quad in parser {
                     let quad = quad?;
                     add_triple(

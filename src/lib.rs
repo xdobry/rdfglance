@@ -1,11 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use anyhow::Error;
 use const_format::concatcp;
-use oxrdf::vocab::rdf;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{Arc, RwLock},
+    sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock}, thread::{self, JoinHandle}, time::Duration,
 };
 
 use eframe::{
@@ -81,8 +81,18 @@ pub struct RdfGlanceApp {
     type_index: TypeInstanceIndex,
     persistent_data: AppPersistentData,
     help_open: bool,
+    load_handle: Option<JoinHandle<Option<Result<u32, Error>>>>,
     #[cfg(target_arch = "wasm32")]
     file_upload: Option<Promise<Result<File, anyhow::Error>>>,
+    data_loading: Option<Arc<DataLoading>>,
+}
+
+pub struct DataLoading {
+    pub stop_loading: Arc<AtomicBool>,
+    pub progress: Arc<AtomicUsize>,
+    pub total_triples: Arc<AtomicUsize>,
+    pub read_pos: Arc<AtomicUsize>,
+    pub total_size: Arc<AtomicUsize>,
 }
 
 pub struct RdfData {
@@ -496,6 +506,8 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
             },
             help_open: false,
+            load_handle: None,
+            data_loading: None,
             #[cfg(target_arch = "wasm32")]
             file_upload: None,
         }
@@ -543,8 +555,8 @@ impl RdfGlanceApp {
                 return;
             }
         }
-        if let Ok(mut rdf_data) = self.rdf_data.write() {
-            let node = rdf_data.node_data.get_node_by_index_mut(index);
+        if let Ok(rdf_data) = self.rdf_data.read() {
+            let node = rdf_data.node_data.get_node_by_index(index);
             if let Some((node_iri, _node)) = node {
                 self.current_iri = Some(index);
                 self.object_iri = node_iri.to_string();
@@ -573,24 +585,6 @@ impl RdfGlanceApp {
         }
         true
     }
-    fn load_object_by_index(&mut self, index: IriIndex) -> bool {
-        // self.visible_nodes.start_layout(&self.persistent_data.config_data);
-        if let Ok(mut rdf_data) = self.rdf_data.write() {
-            let node = rdf_data.node_data.get_node_by_index_mut(index);
-            if let Some((node_iri, node)) = node {
-                if node.has_subject {
-                    return self.visible_nodes.add_by_index(index);
-                } else {
-                    let node_iri = node_iri.clone();
-                    let new_object = self.rdfwrap.load_object(&node_iri, &mut rdf_data.node_data);
-                    if let Some(new_object) = new_object {
-                        rdf_data.node_data.put_node_replace(&node_iri, new_object);
-                    }
-                }
-            }
-        }
-        false
-    }
     fn show_object(&mut self) {
         if self.show_current() {
             self.nav_history.truncate(self.nav_pos + 1);
@@ -599,6 +593,7 @@ impl RdfGlanceApp {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
@@ -606,6 +601,7 @@ impl RdfGlanceApp {
         } else {
             None
         };
+
         if let Some(rdfttl) = rdfttl {
             match rdfttl {
                 Err(err) => {
@@ -621,6 +617,31 @@ impl RdfGlanceApp {
                 }
             }
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn load_ttl(&mut self, file_name: &str) {
+        let rdf_data_clone = Arc::clone(&self.rdf_data);
+        let language_filter = self.persistent_data.config_data.language_filter();
+        let file_name_cpy = file_name.to_string();
+        let data_loading = Arc::new(DataLoading {
+            stop_loading: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(AtomicUsize::new(0)),
+            total_triples: Arc::new(AtomicUsize::new(0)),
+            read_pos: Arc::new(AtomicUsize::new(0)),
+            total_size: Arc::new(AtomicUsize::new(0)),
+        });
+        let data_loading_clone = Arc::clone(&data_loading);
+        let handle = thread::spawn(move || {
+            if let Ok(mut rdf_data) = rdf_data_clone.write() {
+                let my_data_loading = data_loading_clone.as_ref();
+                Some(rdfwrap::RDFWrap::load_file(file_name_cpy, &mut rdf_data, &language_filter, Some(my_data_loading)))
+            } else {
+                None
+            }
+        });
+        self.data_loading = Some(data_loading);
+        self.load_handle = Some(handle);
     }
 
     pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
@@ -842,6 +863,50 @@ impl eframe::App for RdfGlanceApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            if self.rdf_data.try_read().is_err() {
+                ui.label("RDF data is currently being loaded. Please wait...");
+                if let Some(data_loading) = &self.data_loading {
+                    let total_size = data_loading.total_size.load(Ordering::Relaxed);
+                    if total_size>0 {
+                        let progress = data_loading.read_pos.load(Ordering::Relaxed) as f32 / total_size as f32;
+                        let progress_bar = egui::ProgressBar::new(progress)
+                            .desired_width(300.0)
+                            .show_percentage();
+                        ui.add(progress_bar);
+                    }
+                    ui.label(format!(
+                        "Read triples: {}",
+                        data_loading.total_triples.load(Ordering::Relaxed)
+                    ));
+                    if !data_loading.stop_loading.load(Ordering::Relaxed) {
+                        if ui.button("Stop Loading").clicked() {
+                            data_loading.stop_loading.store(true, Ordering::Relaxed);
+                        }
+                    }
+                    ctx.request_repaint_after(Duration::from_millis(100));
+                }
+                return;
+            } else {
+                if let Some(handle) = self.load_handle.take() {
+                    match handle.join() {
+                        Ok(Some(Ok(triples_count))) => {
+                            self.set_status_message(&format!("Loaded {} triples", triples_count));
+                            self.update_data_indexes();
+                        }
+                        Ok(Some(Err(err))) => {
+                            self.system_message = SystemMessage::Error(format!("Error loading data: {}", err));
+                        }
+                        Ok(None) => {
+                            self.system_message = SystemMessage::Error("Error loading data".to_string());
+                        }
+                        Err(_) => {
+                            self.system_message = SystemMessage::Error("Thread panicked".to_string());
+                        }
+                    }
+                    self.data_loading = None;
+                }
+            }
+            
             if self.system_message.has_message() {
                 egui::Window::new("System Message")
                     .collapsible(false)
