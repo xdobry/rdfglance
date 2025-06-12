@@ -320,9 +320,14 @@ impl SortedNodeLayout {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn start_layout(&mut self, config: &Config) {
-        // self.compute_layout = true;
-        // self.layout_temparature = 100.0;
+        self.compute_layout = true;
+        self.layout_temparature = 100.0;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn start_layout(&mut self, config: &Config) {
         self.start_background_layout(config, 100.0);
     }
 

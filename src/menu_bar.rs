@@ -147,21 +147,27 @@ impl RdfGlanceApp {
             match &result.ready() {
                 Some(Ok(crate::File { path, data })) => {
                     let language_filter = self.persistent_data.config_data.language_filter();
-                    let rdfttl = crate::rdfwrap::RDFWrap::load_file_data(
-                        path,
-                        data,
-                        &mut self.node_data,
-                        &language_filter,
-                        &mut self.prefix_manager,
-                    );
-                    match rdfttl {
-                        Err(err) => {
-                            self.system_message = SystemMessage::Error(format!("File not found: {}", err));
-                        }
-                        Ok(triples_count) => {
-                            let load_message = format!("Loaded: {} triples: {}", path, triples_count);
-                            self.set_status_message(&load_message);
-                            self.update_data_indexes();
+                    let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
+                        let rdfttl = crate::rdfwrap::RDFWrap::load_file_data(
+                            path,
+                            data,
+                            &mut rdf_data,
+                            &language_filter,
+                        );
+                        Some(rdfttl)
+                    } else {
+                        None
+                    };
+                    if let Some(rdfttl) = rdfttl {
+                        match rdfttl {
+                            Err(err) => {
+                                self.system_message = SystemMessage::Error(format!("File not found: {}", err));
+                            }
+                            Ok(triples_count) => {
+                                let load_message = format!("Loaded: {} triples: {}", path, triples_count);
+                                self.set_status_message(&load_message);
+                                self.update_data_indexes();
+                            }
                         }
                     }
                     self.file_upload = None;

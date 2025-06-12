@@ -597,7 +597,7 @@ impl RdfGlanceApp {
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-            Some(rdfwrap::RDFWrap::load_file(file_name, &mut rdf_data, &language_filter))
+            Some(rdfwrap::RDFWrap::load_file(file_name, &mut rdf_data, &language_filter,None))
         } else {
             None
         };
