@@ -13,7 +13,8 @@ fn test_memory_usage() {
     
     let mut app = RdfGlanceApp::new(None);
     app.load_ttl("sample-rdf-data/programming_languages.ttl");
-    assert!(app.node_data.len()>0);
+    app.join_load();
+    assert!(app.rdf_data.read().unwrap().node_data.len()>0);
     let mem_after_loading = PEAK_ALLOC.current_usage_as_kb();
 	
 	println!(" !! Data strucures use {} kB of RAM.", mem_after_loading-current_mem);

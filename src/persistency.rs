@@ -942,6 +942,7 @@ mod tests {
         let mut vs = RdfGlanceApp::new(None);
         let start = Instant::now();
         vs.load_ttl("sample-rdf-data/programming_languages.ttl");
+        vs.join_load();
 
         if let Ok(rdf_data) = vs.rdf_data.read() {
             println!("nodes read {}", rdf_data.node_data.len());

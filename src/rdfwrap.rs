@@ -1,7 +1,8 @@
-use oxrdf::vocab::xsd;
 use oxrdf::NamedNode;
-use oxrdf::{vocab::rdf, NamedNodeRef, Subject, Term, Triple};
+use oxrdf::vocab::xsd;
+use oxrdf::{NamedNodeRef, Subject, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
+use oxttl::turtle::ReaderTurtleParser;
 use oxttl::TurtleParser;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
@@ -23,8 +24,7 @@ pub trait RDFAdapter {
     fn load_object(&mut self, iri: &str, node_data: &mut NodeData) -> Option<NObject>;
 }
 
-pub struct RDFWrap {
-}
+pub struct RDFWrap {}
 
 pub struct IndexCache {
     pub index: IriIndex,
@@ -38,7 +38,10 @@ pub struct CountingReader<R> {
 
 impl<R: Read> CountingReader<R> {
     pub fn new(inner: R, bytes_read: Rc<RefCell<usize>>) -> Self {
-        CountingReader { inner, bytes_read: bytes_read }
+        CountingReader {
+            inner,
+            bytes_read: bytes_read,
+        }
     }
 }
 
@@ -52,20 +55,14 @@ impl<R: Read> Read for CountingReader<R> {
 
 impl RDFWrap {
     pub fn empty() -> Self {
-        RDFWrap {
-        }
+        RDFWrap {}
     }
 
-    pub fn load_from_dir(
-        dir_name: &str,
-        rdf_data: &mut RdfData,
-        language_filter: &Vec<String>,
-    ) -> Result<u32> {
+    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &Vec<String>) -> Result<u32> {
         let mut total_triples = 0;
         let mut seen_files: HashSet<String> = HashSet::new();
 
-        let entries = fs::read_dir(dir_name)
-            .with_context(|| format!("Failed to read directory {}", dir_name));
+        let entries = fs::read_dir(dir_name).with_context(|| format!("Failed to read directory {}", dir_name));
         match entries {
             Err(e) => {
                 eprintln!("Error reading dir {}: {}", dir_name, e)
@@ -77,30 +74,15 @@ impl RDFWrap {
                     let path_name = path.to_str().unwrap();
                     if seen_files.insert(path_name.to_string()) {
                         if path.is_dir() {
-                            total_triples += RDFWrap::load_from_dir(
-                                path_name,
-                                rdf_data,
-                                language_filter,
-                            )?;
+                            total_triples += RDFWrap::load_from_dir(path_name, rdf_data, language_filter)?;
                         } else if let Some(extension) = path.extension() {
-                            if ["ttl", "rdf", "xml", "nt", "nq", "trig"]
-                                .contains(&extension.to_str().unwrap())
-                            {
-                                match RDFWrap::load_file(
-                                    path_name,
-                                    rdf_data,
-                                    language_filter,
-                                    None,
-                                ) {
+                            if ["ttl", "rdf", "xml", "nt", "nq", "trig"].contains(&extension.to_str().unwrap()) {
+                                match RDFWrap::load_file(path_name, rdf_data, language_filter, None) {
                                     Ok(triples) => {
                                         total_triples += triples;
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "Error processing file {}: {}",
-                                            path.display(),
-                                            e
-                                        );
+                                        eprintln!("Error processing file {}: {}", path.display(), e);
                                     }
                                 }
                             }
@@ -116,21 +98,22 @@ impl RDFWrap {
         file_name: P,
         rdf_data: &mut RdfData,
         language_filter: &[String],
-        data_loading: Option<&DataLoading>
+        data_loading: Option<&DataLoading>,
     ) -> Result<u32> {
         let file_name = file_name.as_ref();
-        let file =
-            File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
+        let file = File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
         if let Some(data_loading) = data_loading {
             match file.metadata() {
                 Ok(metadata) => {
-                    data_loading.total_size.store(metadata.len() as usize, std::sync::atomic::Ordering::Relaxed);
+                    data_loading
+                        .total_size
+                        .store(metadata.len() as usize, std::sync::atomic::Ordering::Relaxed);
                 }
                 Err(_e) => {
                     // ignore
                 }
             }
-        }   
+        }
 
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
@@ -154,7 +137,7 @@ impl RDFWrap {
         reader: R,
         rdf_data: &mut RdfData,
         language_filter: &[String],
-        data_loading: Option<&DataLoading>
+        data_loading: Option<&DataLoading>,
     ) -> Result<u32> {
         let mut triples_count: u32 = 0;
         let (indexer, cache) = rdf_data.node_data.split_mut();
@@ -179,12 +162,13 @@ impl RDFWrap {
                         if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
                             break;
                         }
-                        data_loading.total_triples.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        data_loading.read_pos.store(
-                            *bytes_read.borrow(),
-                            std::sync::atomic::Ordering::Relaxed,
-                        );
-                    }   
+                        data_loading
+                            .total_triples
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading
+                            .read_pos
+                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                    }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
                             rdf_data.prefix_manager.add_prefix(prefix, iri);
@@ -213,74 +197,142 @@ impl RDFWrap {
                 let mut parser = RdfXmlParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(triple) = parser.next() {
+                    if let Some(data_loading) = data_loading {
+                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
+                        data_loading
+                            .total_triples
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading
+                            .read_pos
+                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                    }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
                             rdf_data.prefix_manager.add_prefix(prefix, iri);
                         }
                         prefix_read = true;
                     }
-                    let triple = triple?;
-                    add_triple(
-                        &mut triples_count,
-                        indexer,
-                        cache,
-                        triple,
-                        &mut index_cache,
-                        language_filter,
-                        &rdf_data.prefix_manager,
-                    );
+                    match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error parsing triple: {}", e);
+                        }
+                    }
                 }
             }
             "nt" => {
                 let parser = oxttl::NTriplesParser::new().for_reader(counting_reader);
                 for triple in parser {
-                    let triple = triple?;
-                    add_triple(
-                        &mut triples_count,
-                        indexer,
-                        cache,
-                        triple,
-                        &mut index_cache,
-                        language_filter,
-                        &rdf_data.prefix_manager,
-                    );
+                    if let Some(data_loading) = data_loading {
+                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
+                        data_loading
+                            .total_triples
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading
+                            .read_pos
+                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                    }
+                    match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error parsing triple: {}", e);
+                        }
+                    }
                 }
             }
             "trig" => {
                 let mut parser = oxttl::TriGParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(quad) = parser.next() {
+                    if let Some(data_loading) = data_loading {
+                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
+                        data_loading
+                            .total_triples
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading
+                            .read_pos
+                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                    }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
                             rdf_data.prefix_manager.add_prefix(prefix, iri);
                         }
                         prefix_read = true;
                     }
-                    let quad = quad?;
-                    add_triple(
-                        &mut triples_count,
-                        indexer,
-                        cache,
-                        Triple::from(quad),
-                        &mut index_cache,
-                        language_filter,
-                        &rdf_data.prefix_manager,
-                    );
+                    match quad {
+                        Ok(quad) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                Triple::from(quad),
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error parsing triple: {}", e);
+                        }
+                    }
                 }
             }
             "nq" => {
                 let parser = oxttl::NQuadsParser::new().for_reader(counting_reader);
                 for quad in parser {
-                    let quad = quad?;
-                    add_triple(
-                        &mut triples_count,
-                        indexer,
-                        cache,
-                        Triple::from(quad),
-                        &mut index_cache,
-                        language_filter,
-                        &rdf_data.prefix_manager,
-                    );
+                    if let Some(data_loading) = data_loading {
+                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
+                        data_loading
+                            .total_triples
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        data_loading
+                            .read_pos
+                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                    }
+                    match quad {
+                        Ok(quad) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                Triple::from(quad),
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error parsing triple: {}", e);
+                        }
+                    }
                 }
             }
             _ => {
@@ -302,11 +354,7 @@ impl RDFWrap {
         Ok(triples_count)
     }
 
-    pub fn load_from_triples(
-        triples: &Vec<Triple>,
-        iri: &str,
-        node_data: &mut NodeData,
-    ) -> Option<NObject> {
+    pub fn load_from_triples(triples: &Vec<Triple>, iri: &str, node_data: &mut NodeData) -> Option<NObject> {
         let mut properties = Vec::new();
         let mut references = Vec::new();
         let mut types = Vec::new();
@@ -345,7 +393,10 @@ impl RDFWrap {
                             ));
                         }
                         _ => {
-                            let span = node_data.indexers.literal_cache.push_str(triple.object.to_string().as_str());
+                            let span = node_data
+                                .indexers
+                                .literal_cache
+                                .push_str(triple.object.to_string().as_str());
                             properties.push((
                                 node_data.get_predicate_index(triple.predicate.as_str()),
                                 Literal::String(span),
@@ -363,7 +414,7 @@ impl RDFWrap {
                     }
                     _ => {
                         // reverse_references.push((node_data.get_predicate_index(triple.predicate.as_str()), triple.subject.to_string()));
-                        println!("reverse reference is not named node {}",triple.subject);
+                        println!("reverse reference is not named node {}", triple.subject);
                     }
                 }
             }
@@ -472,9 +523,7 @@ fn add_predicate_object(
                 node.references.push(predicate_literal);
                 node.has_subject = true;
                 let (_riri, ref_node) = cache.get_node_by_index_mut(reference_index).unwrap();
-                ref_node
-                    .reverse_references
-                    .push((predicate_index, node_index));
+                ref_node.reverse_references.push((predicate_index, node_index));
                 *triples_count += 1;
             }
             Term::BlankNode(blank_node) => {
@@ -484,9 +533,7 @@ fn add_predicate_object(
                 node.references.push(predicate_literal);
                 node.has_subject = true;
                 let (_riri, ref_node) = cache.get_node_by_index_mut(reference_index).unwrap();
-                ref_node
-                    .reverse_references
-                    .push((predicate_index, node_index));
+                ref_node.reverse_references.push((predicate_index, node_index));
                 *triples_count += 1;
             }
             Term::Literal(literal) => {
@@ -507,12 +554,10 @@ fn add_predicate_object(
                     if let Some(language) = language {
                         let language_index = indexer.get_language_index(language);
                         let span = indexer.literal_cache.push_str(value);
-                        node.properties.push((
-                            predicate_index,
-                            Literal::LangString(language_index, span),
-                        ));
+                        node.properties
+                            .push((predicate_index, Literal::LangString(language_index, span)));
                     } else if datatype == xsd::STRING {
-                        let literal = if value.len()<SHORT_STR_LITERAL_LEN {
+                        let literal = if value.len() < SHORT_STR_LITERAL_LEN {
                             let index = indexer.short_literal_indexer.get_index(value);
                             Literal::StringShort(index)
                         } else {
@@ -524,10 +569,8 @@ fn add_predicate_object(
                         let datatype_prefixed = prefix_manager.get_prefixed(datatype.as_str());
                         let data_type_index = indexer.get_data_type_index(&datatype_prefixed);
                         let span = indexer.literal_cache.push_str(value);
-                        node.properties.push((
-                            predicate_index,
-                            Literal::TypedString(data_type_index,span),
-                        ));
+                        node.properties
+                            .push((predicate_index, Literal::TypedString(data_type_index, span)));
                     }
                     *triples_count += 1;
                 }

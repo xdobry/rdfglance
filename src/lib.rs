@@ -644,6 +644,27 @@ impl RdfGlanceApp {
         self.load_handle = Some(handle);
     }
 
+    pub fn join_load(&mut self) {
+        if let Some(handle) = self.load_handle.take() {
+            match handle.join() {
+                Ok(Some(Ok(triples_count))) => {
+                    self.set_status_message(&format!("Loaded {} triples", triples_count));
+                    self.update_data_indexes();
+                }
+                Ok(Some(Err(err))) => {
+                    self.system_message = SystemMessage::Error(format!("Error loading data: {}", err));
+                }
+                Ok(None) => {
+                    self.system_message = SystemMessage::Error("Error loading data".to_string());
+                }
+                Err(_) => {
+                    self.system_message = SystemMessage::Error("Thread panicked".to_string());
+                }
+            }
+            self.data_loading = None;
+        }
+    }
+
     pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
@@ -887,24 +908,7 @@ impl eframe::App for RdfGlanceApp {
                 }
                 return;
             } else {
-                if let Some(handle) = self.load_handle.take() {
-                    match handle.join() {
-                        Ok(Some(Ok(triples_count))) => {
-                            self.set_status_message(&format!("Loaded {} triples", triples_count));
-                            self.update_data_indexes();
-                        }
-                        Ok(Some(Err(err))) => {
-                            self.system_message = SystemMessage::Error(format!("Error loading data: {}", err));
-                        }
-                        Ok(None) => {
-                            self.system_message = SystemMessage::Error("Error loading data".to_string());
-                        }
-                        Err(_) => {
-                            self.system_message = SystemMessage::Error("Thread panicked".to_string());
-                        }
-                    }
-                    self.data_loading = None;
-                }
+                self.join_load();
             }
             
             if self.system_message.has_message() {

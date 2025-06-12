@@ -437,6 +437,7 @@ mod tests {
     fn test_meta_graph() -> std::io::Result<()> {
         let mut vs = RdfGlanceApp::new(None);
         vs.load_ttl("sample-rdf-data/programming_languages.ttl");
+        vs.join_load();
         for (type_index, _type_node) in vs.type_index.types.iter() {
             vs.meta_nodes.add_by_index(*type_index);
         }
