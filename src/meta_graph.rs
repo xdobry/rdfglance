@@ -27,9 +27,6 @@ impl RdfGlanceApp {
             }
             self.meta_nodes
                 .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
-            if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
-                self.meta_nodes.update_node_shapes = true;
-            }
             ui.label("nodes force");
             ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
@@ -264,7 +261,7 @@ impl RdfGlanceApp {
                         let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                     }
     
-                    let popup_id = ui.make_persistent_id("node_context_menu");
+                    let popup_id = ui.make_persistent_id("mnode_context_menu");
                     if was_context_click {
                         ui.memory_mut(|mem| mem.toggle_popup(popup_id));
                     }
@@ -315,6 +312,11 @@ impl RdfGlanceApp {
                             ui.label("no node selected");
                         }
                     });
+
+                    if !was_context_click && (secondary_clicked || single_clicked) {
+                        self.ui_state.context_menu_node = None;
+                        ui.memory_mut(|mem| mem.close_popup());
+                    }
                 }
             });
         });
@@ -367,7 +369,7 @@ impl TypeNodeContextAction {
         if ui.button("Hide same instance count or Less").clicked() {
             return TypeNodeContextAction::HideSameInstCount;
         }
-        return TypeNodeContextAction::None;
+        TypeNodeContextAction::None
     }
 }
 
@@ -406,16 +408,14 @@ fn create_types_layout_edges(layout_nodes: &SortedNodeLayout, type_index: &TypeI
                             bezier_distance: 0.0,
                         };
                         edges.push(edge);
-                    } else {
-                        if let Some(ref_pos) = layout_nodes.get_pos(*ref_type_iri) {
-                            let edge = Edge {
-                                from: node_pos,
-                                to: ref_pos,
-                                predicate: *pred_index,
-                                bezier_distance: 0.0,
-                            };
-                            edges.push(edge);
-                        }
+                    } else if let Some(ref_pos) = layout_nodes.get_pos(*ref_type_iri) {
+                        let edge = Edge {
+                            from: node_pos,
+                            to: ref_pos,
+                            predicate: *pred_index,
+                            bezier_distance: 0.0,
+                        };
+                        edges.push(edge);
                     }
                 }
             }

@@ -143,30 +143,26 @@ impl RdfData {
                 npos.insert(iri_index, ref_index);
             }
         }
-        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
-        npos.position(&mut node_change_context.visible_nodes);
+        update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+        npos.position(node_change_context.visible_nodes);
     }
 
-    fn expand_all_by_types(&mut self, types: &Vec<IriIndex>, node_change_context: &mut NodeChangeContext) {
+    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext) {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
             if let Some((_, nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
                 for (_, ref_iri) in nnode.references.iter() {
                     if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) {
-                            if refs_to_expand.insert(*ref_iri) {
-                                parent_ref.push((visible_index.node_index, *ref_iri));
-                            }
+                        if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
+                            parent_ref.push((visible_index.node_index, *ref_iri));
                         }
                     }
                 }
                 for (_, ref_iri) in nnode.reverse_references.iter() {
                     if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) {
-                            if refs_to_expand.insert(*ref_iri) {
-                                parent_ref.push((visible_index.node_index, *ref_iri));
-                            }
+                        if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
+                            parent_ref.push((visible_index.node_index, *ref_iri));
                         }
                     }
                 }
@@ -180,8 +176,8 @@ impl RdfData {
                 npos.insert(parent_index, ref_index);
             }
         }
-        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
-        npos.position(&mut node_change_context.visible_nodes);
+        update_layout_edges(&npos,  node_change_context.visible_nodes, &self.node_data);
+        npos.position(node_change_context.visible_nodes);
     }
 
     fn load_object_by_index(&mut self, index: IriIndex, node_change_context: &mut NodeChangeContext) -> bool {
@@ -226,8 +222,8 @@ impl RdfData {
                 npos.insert(parent_index, ref_index);
             }
         }
-        update_layout_edges(&npos, &mut node_change_context.visible_nodes, &self.node_data);
-        npos.position(&mut node_change_context.visible_nodes);
+        update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+        npos.position(node_change_context.visible_nodes);
     }
 
     pub fn resolve_rdf_lists(&mut self) {
@@ -755,7 +751,7 @@ impl RdfGlanceApp {
         {
             ui.add_space(20.0);
             ui.strong("0 React, 0 HTML, Full Power!");
-            ui.strong("Try Desktop version for full functionality!");
+            ui.strong("Try Desktop version for full functionality! Especially multuthread more performant non-blocking processing.");
             let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Sample Data")).size(16.0);
             let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
             let b_resp = ui.add(nav_but);
@@ -823,7 +819,7 @@ impl RdfGlanceApp {
                         });
                         if let Some(last_file_clicked) = last_file_clicked {
                             let last_project_path = Path::new(&*last_file_clicked);
-                            self.load_project(&last_project_path);
+                            self.load_project(last_project_path);
                         }
                         if let Some(last_file_forget) = last_file_forget {
                             self.persistent_data
@@ -899,10 +895,8 @@ impl eframe::App for RdfGlanceApp {
                         "Read triples: {}",
                         data_loading.total_triples.load(Ordering::Relaxed)
                     ));
-                    if !data_loading.stop_loading.load(Ordering::Relaxed) {
-                        if ui.button("Stop Loading").clicked() {
-                            data_loading.stop_loading.store(true, Ordering::Relaxed);
-                        }
+                    if !data_loading.stop_loading.load(Ordering::Relaxed) && ui.button("Stop Loading").clicked() {
+                        data_loading.stop_loading.store(true, Ordering::Relaxed);
                     }
                     ctx.request_repaint_after(Duration::from_millis(100));
                 }
@@ -974,19 +968,17 @@ impl eframe::App for RdfGlanceApp {
                                 if self.is_empty() {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
+                                } else if let Ok(mut rdf_data) = self.rdf_data.write() {
+                                    self.type_index.display(
+                                        ctx,
+                                        ui,
+                                        &mut rdf_data,
+                                        &mut self.ui_state,
+                                        &self.visualisation_style,
+                                        self.persistent_data.config_data.iri_display,
+                                    )
                                 } else {
-                                    if let Ok(mut rdf_data) = self.rdf_data.write() {
-                                        self.type_index.display(
-                                            ctx,
-                                            ui,
-                                            &mut rdf_data,
-                                            &mut self.ui_state,
-                                            &self.visualisation_style,
-                                            self.persistent_data.config_data.iri_display,
-                                        )
-                                    } else {
-                                        NodeAction::None
-                                    }
+                                    NodeAction::None
                                 }
                             }
                             DisplayType::Configuration => self.show_config(ctx, ui),

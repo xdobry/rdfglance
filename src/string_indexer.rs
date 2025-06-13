@@ -30,6 +30,7 @@ impl StringIndexer {
     
 }
 
+#[derive(Default)]
 pub struct StringCache {
     pub cache: String,
 }
@@ -38,10 +39,6 @@ pub struct StringCache {
 /// A 'StrignCache' is a simple string cache that allows for storing and retrieving strings by their index.
 /// It is used to store strings in a single contiguous memory block, allowing for efficient access and storage.
 impl StringCache {
-    pub fn new() -> Self {
-        Self { cache: String::new() }
-    }
-
     pub fn push_str(&mut self, s: &str) -> IndexSpan {
         let end_pos = self.cache.len() as u32;
         let length = s.len() as u32;
@@ -84,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_string_cache() {
-        let mut string_cache = super::StringCache::new();
+        let mut string_cache = super::StringCache::default();
         let span1 = string_cache.push_str("test");
         let span2 = string_cache.push_str("test2");
         assert_eq!(span1.start, 0);

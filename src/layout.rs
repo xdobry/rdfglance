@@ -132,7 +132,7 @@ impl SortedNodeLayout {
                 }
             }
         }
-        return false;
+        false
     }
 
     pub fn add_by_index(&mut self, value: IriIndex) -> bool {
@@ -184,11 +184,11 @@ impl SortedNodeLayout {
         });
     }
 
-    pub fn remove_all(&mut self, iris_to_remove: &Vec<IriIndex>) {
+    pub fn remove_all(&mut self, iris_to_remove: &[IriIndex]) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             for value in iris_to_remove.iter() {
                 // Can be optimized if values are sorted
-                if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
+                if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(value)) {
                     nodes.remove(pos);
                     if positions.len() > pos {
                         positions.remove(pos);
@@ -276,10 +276,8 @@ impl SortedNodeLayout {
     }
 
     pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
-        if ui.checkbox(&mut self.force_compute_layout, "Force Layout").changed() {
-            if self.force_compute_layout {
-                self.layout_temparature = 100.0;
-            }
+        if ui.checkbox(&mut self.force_compute_layout, "Force Layout").changed() && self.force_compute_layout {
+            self.layout_temparature = 100.0;
         }
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
@@ -289,39 +287,44 @@ impl SortedNodeLayout {
                 }
             }
             ctx.request_repaint();
-        } else {
-            if self.compute_layout || self.force_compute_layout {
-                let config = LayoutConfig {
-                    repulsion_constant: config.m_repulsion_constant,
-                    attraction_factor: config.m_attraction_factor,
-                };
-                let (max_move, new_positions) = layout_graph_nodes(
-                    &self.nodes.read().unwrap(),
-                    &self.node_shapes.read().unwrap(),
-                    &self.positions.read().unwrap(),
-                    &self.edges.read().unwrap(),
-                    &config,
-                    self.layout_temparature,
-                );
-                if let Ok(mut positions) = self.positions.write() {
-                    *positions = new_positions;
-                }
-                if !self.force_compute_layout {
-                    self.layout_temparature *= 0.98;
-                }
-                if (max_move < 0.8 || self.layout_temparature < 0.5) && !self.force_compute_layout {
-                    self.compute_layout = false;
-                }
-                if self.compute_layout || self.force_compute_layout {
-                    self.compute_layout = true;
-                    ctx.request_repaint();
-                }
+        } else if self.compute_layout || self.force_compute_layout {
+            let config = LayoutConfig {
+                repulsion_constant: config.m_repulsion_constant,
+                attraction_factor: config.m_attraction_factor,
+            };
+            let (max_move, new_positions) = layout_graph_nodes(
+                &self.nodes.read().unwrap(),
+                &self.node_shapes.read().unwrap(),
+                &self.positions.read().unwrap(),
+                &self.edges.read().unwrap(),
+                &config,
+                self.layout_temparature,
+            );
+            if let Ok(mut positions) = self.positions.write() {
+                *positions = new_positions;
             }
+            if !self.force_compute_layout {
+                self.layout_temparature *= 0.98;
+            }
+            if (max_move < 0.8 || self.layout_temparature < 0.5) && !self.force_compute_layout {
+                self.compute_layout = false;
+            }
+            if self.compute_layout || self.force_compute_layout {
+                self.compute_layout = true;
+                ctx.request_repaint();
+            }
+        }
+        if self.layout_handle.is_none() {
+            if ui.button("Start Layout").clicked() {
+                self.start_layout(config);
+            }
+        } else if ui.button("Stop Layout").clicked() {
+            self.stop_layout();
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_layout(&mut self, config: &Config) {
+    pub fn start_layout(&mut self, _config: &Config) {
         self.compute_layout = true;
         self.layout_temparature = 100.0;
     }
@@ -396,7 +399,7 @@ impl SortedNodeLayout {
     }
 }
 
-pub fn update_edges_groups(edges: &mut Vec<Edge>) {
+pub fn update_edges_groups(edges: &mut [Edge]) {
     // Each group has all edges that connect same nodes (dispite the direction)
     // It is needed to set parameter for bezier curves
     let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
@@ -407,7 +410,7 @@ pub fn update_edges_groups(edges: &mut Vec<Edge>) {
             } else {
                 (edge.to, edge.from)
             })
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(edge_index);
     }
     let bezier_gap: f32 = 30.0;
@@ -441,10 +444,10 @@ pub struct LayoutConfig {
 }
 
 pub fn layout_graph_nodes(
-    nodes: &Vec<NodeLayout>,
-    node_shapes: &Vec<NodeShapeData>,
-    positions: &Vec<NodePosition>,
-    edges: &Vec<Edge>,
+    nodes: &[NodeLayout],
+    node_shapes: &[NodeShapeData],
+    positions: &[NodePosition],
+    edges: &[Edge],
     config: &LayoutConfig,
     temperature: f32,
 ) -> (f32, Vec<NodePosition>) {

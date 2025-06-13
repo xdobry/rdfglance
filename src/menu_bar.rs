@@ -36,7 +36,7 @@ impl RdfGlanceApp {
                             if let Some(last_project_clicked) = last_project_clicked {
                                 ui.close_menu();
                                 let last_project_path = Path::new(&*last_project_clicked);
-                                self.load_project(&last_project_path);
+                                self.load_project(last_project_path);
                             }
                         });
                     }
@@ -114,7 +114,7 @@ impl RdfGlanceApp {
     pub fn import_file_dialog(&mut self, _ui: &mut egui::Ui) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
-            .add_filter("RDF Files", &vec!["ttl", "rdf", "xml", "nt", "trig", "nq"])
+            .add_filter("RDF Files", &["ttl", "rdf", "xml", "nt", "trig", "nq"])
             .pick_file()
         {
             let selected_file = Some(path.display().to_string());
@@ -182,7 +182,7 @@ impl RdfGlanceApp {
     pub fn load_project_dialog(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
-            .add_filter("RDF Glance project", &vec!["rdfglance"])
+            .add_filter("RDF Glance project", &["rdfglance"])
             .pick_file()
         {
             self.load_project(path.as_path());
@@ -200,7 +200,7 @@ impl RdfGlanceApp {
                 self.ui_state = app_data.ui_state;
                 self.visible_nodes = app_data.visible_nodes;
                 self.update_data_indexes();
-                if app_data.visualisation_style.node_styles.len() > 0 {
+                if !app_data.visualisation_style.node_styles.is_empty() {
                     self.visualisation_style = app_data.visualisation_style;
                 }
                 let file_name: Box<str> = Box::from(path.display().to_string());
@@ -213,7 +213,7 @@ impl RdfGlanceApp {
     pub fn save_project_dialog(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
-            .add_filter("RDF Glance project", &vec!["rdfglance"])
+            .add_filter("RDF Glance project", &["rdfglance"])
             .set_file_name("project.rdfglance")
             .save_file()
         {

@@ -450,7 +450,7 @@ impl RdfGlanceApp {
                     response.rect.min + Vec2::new(200.0, 50.0),
                     Vec2::new(5.0, 5.0),
                     NodeShape::Circle,
-                    &edge_style,
+                    edge_style,
                     node_label,
                     false,
                     0.0,
@@ -485,15 +485,13 @@ fn display_icon_style(ui: &mut egui::Ui, icon_style: &mut Option<IconStyle>, ico
                 ui.color_edit_button_srgba(&mut icon_style_val.icon_color);
             });
         }
-    } else {
-        if ui.button("Add additional Icon").clicked() {
-            *icon_style = Some(IconStyle {
-                icon_character: '\u{2606}',
-                icon_position: IconPosition::Center,
-                icon_size: 20.0,
-                icon_color: Color32::BLACK,
-            });
-        }
+    } else if ui.button("Add additional Icon").clicked() {
+        *icon_style = Some(IconStyle {
+            icon_character: '\u{2606}',
+            icon_position: IconPosition::Center,
+            icon_size: 20.0,
+            icon_color: Color32::BLACK,
+        });
     }
 }
 

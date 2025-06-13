@@ -5,6 +5,7 @@ RDFGlance is an open-source application designed to provide a visual representat
 - Easy to install
 - Small Desktop App
 - 100% React free
+- Multithread Processing to use 100% of your CPU power
 - No HTML
 - No Server needed
 - Programmed by real programmer with real programming language
@@ -12,7 +13,7 @@ RDFGlance is an open-source application designed to provide a visual representat
 - Zero runtime needed
 
 Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
-The WASM version does not offer all functionality.
+The WASM version does not offer all functionality. Especially no multithread non-blocking processing.
 
 ## Description
 
@@ -116,6 +117,11 @@ Build static web content. Output in dist folder
   ```
 
 The last web release is avaiable here [Rdfglance WASM version](https://xdobry.github.io/rdfglance/)
+
+You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferences Open User Settings (JSON). Add option
+
+     "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
+
 
 ## Known Problems
 

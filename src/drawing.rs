@@ -33,12 +33,12 @@ pub fn draw_edge<F>(
     let radius_to = size_to.x / 2.0;
     let radius_from = size_from.x / 2.0;
 
-    if !matches!(shape_to, NodeShape::Rect) && !matches!(shape_to, NodeShape::Rect) && length <= radius_to + radius_from
+    if !matches!(shape_to, NodeShape::Rect) && !matches!(shape_from, NodeShape::Rect) && length <= radius_to + radius_from
     {
         // nodes are non rect (so handle as circles) overlapping, no edge needed
         return;
     }
-    if matches!(shape_to, NodeShape::Rect) && matches!(shape_to, NodeShape::Rect) {
+    if matches!(shape_to, NodeShape::Rect) && matches!(shape_from, NodeShape::Rect) {
         // both nodes are rect, test if react overlapping
         let rect_from = Rect::from_center_size(point_from, size_from);
         let rect_to = Rect::from_center_size(point_to, size_to);
@@ -50,7 +50,7 @@ pub fn draw_edge<F>(
 
     // Normalize and scale to radius
     let unit = dir / length;
-    let mut arrow_unit = unit.clone();
+    let mut arrow_unit = unit;
 
     // Find intersection on shape surface
     let edge_to = match shape_to {
@@ -224,7 +224,7 @@ pub fn draw_self_edge<F>(
     point: Pos2,
     size: Vec2,
     rotation: f32,
-    shape: NodeShape,
+    _shape: NodeShape,
     edge_style: &EdgeStyle,
     faded: bool,
     label_cb: F,
@@ -425,7 +425,7 @@ pub fn draw_node_label(
                     center: pos,
                     radius: Vec2::new(node_rect.width() / 2.0, node_rect.height() / 2.0),
                     fill: fade_color(type_style.color, faded),
-                    stroke: stroke,
+                    stroke,
                 }));
             }
             NodeShape::Rect => {

@@ -2,7 +2,6 @@ use oxrdf::NamedNode;
 use oxrdf::vocab::xsd;
 use oxrdf::{NamedNodeRef, Subject, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
-use oxttl::turtle::ReaderTurtleParser;
 use oxttl::TurtleParser;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
@@ -40,7 +39,7 @@ impl<R: Read> CountingReader<R> {
     pub fn new(inner: R, bytes_read: Rc<RefCell<usize>>) -> Self {
         CountingReader {
             inner,
-            bytes_read: bytes_read,
+            bytes_read,
         }
     }
 }

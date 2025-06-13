@@ -218,7 +218,7 @@ impl NObject {
         false
     }
 
-    pub fn match_types(&self, types: &Vec<IriIndex>) -> bool {
+    pub fn match_types(&self, types: &[IriIndex]) -> bool {
         for type_index in self.types.iter() {
             if types.contains(type_index) {
                 return true;
@@ -251,7 +251,7 @@ impl Indexers {
             language_indexer: StringIndexer::new(),
             datatype_indexer: StringIndexer::new(),
             short_literal_indexer: StringIndexer::new(),
-            literal_cache: StringCache::new(),
+            literal_cache: StringCache::default(),
         };
         indexer.language_indexer.get_index("en");
         indexer.predicate_indexer.get_index("rdfs:label");

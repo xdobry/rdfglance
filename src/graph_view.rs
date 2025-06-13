@@ -1,7 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, StyleEdit, UIState
+    ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, StyleEdit, UIState,
+    drawing::{self, draw_node_label},
+    graph_styles::NodeShape,
+    layout::{Edge, NodeShapeData, SortedNodeLayout, update_edges_groups},
+    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
+    style::{ICON_GRAPH, ICON_WRENCH},
+    uitools::popup_at,
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -57,7 +63,7 @@ impl NodeContextAction {
         if ui.button("Expand this type").clicked() {
             return NodeContextAction::ExpandThisType;
         }
-        return NodeContextAction::None;
+        NodeContextAction::None
     }
 }
 
@@ -73,15 +79,6 @@ impl RdfGlanceApp {
         }
         ui.horizontal(|ui| {
             self.visible_nodes.show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
-            if self.visible_nodes.layout_handle.is_none() {
-                if ui.button("Start Layout").clicked() {
-                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
-                }
-            } else {
-                if ui.button("Stop Layout").clicked() {
-                    self.visible_nodes.stop_layout();
-                }
-            }
             if ui.button("Expand all").clicked() {
                 if let Ok(mut rdf_data) = self.rdf_data.write() {
                     let mut node_change_context =  NodeChangeContext {
@@ -499,17 +496,14 @@ impl RdfGlanceApp {
                 if self.ui_state.fade_unselected {
                     if let Some(selected_node) = &self.ui_state.selected_node {
                         selected_related_nodes.push(*selected_node);
-                        rdf_data
-                            .node_data
-                            .get_node_by_index(*selected_node)
-                            .map(|(_node_iri, node)| {
-                                for (_predicate_index, ref_iri) in &node.references {
-                                    selected_related_nodes.push(*ref_iri);
-                                }
-                                for (_predicate_index, ref_iri) in &node.reverse_references {
-                                    selected_related_nodes.push(*ref_iri);
-                                }
-                            });
+                        if let Some((_node_iri, node)) = rdf_data.node_data.get_node_by_index(*selected_node) {
+                            for (_predicate_index, ref_iri) in &node.references {
+                                selected_related_nodes.push(*ref_iri);
+                            }
+                            for (_predicate_index, ref_iri) in &node.reverse_references {
+                                selected_related_nodes.push(*ref_iri);
+                            }
+                        }
                         selected_related_nodes.sort_unstable();
                         selected_related_nodes.dedup();
                     }
@@ -564,7 +558,7 @@ impl RdfGlanceApp {
                                         );
                                     } else {
                                         let faded = !selected_related_nodes.is_empty()
-                                            && !selected_related_nodes.binary_search(&node_layout.node_index).is_ok();
+                                            && selected_related_nodes.binary_search(&node_layout.node_index).is_err();
                                         let node_shape_from = &node_shapes[edge.from];
                                         drawing::draw_self_edge(
                                             painter,
@@ -604,7 +598,7 @@ impl RdfGlanceApp {
                             {
                                 let pos = center + node_position.pos.to_vec2();
                                 let faded = !selected_related_nodes.is_empty()
-                                    && !selected_related_nodes.binary_search(&node_layout.node_index).is_ok();
+                                    && selected_related_nodes.binary_search(&node_layout.node_index).is_err();
                                 let (node_rect, node_shape) = draw_node(
                                     &self.visualisation_style,
                                     &rdf_data.node_data.indexers,
@@ -696,7 +690,6 @@ impl RdfGlanceApp {
                     let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                 }
             });
-
         }
         let popup_id = ui.make_persistent_id("node_context_menu");
         if was_context_click {
@@ -768,7 +761,7 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::Expand => {
-                                let mut node_change_context =  NodeChangeContext {
+                                let mut node_change_context = NodeChangeContext {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
@@ -776,7 +769,7 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandReferenced => {
-                                let mut node_change_context =  NodeChangeContext {
+                                let mut node_change_context = NodeChangeContext {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
@@ -784,16 +777,20 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandReferencedBy => {
-                                let mut node_change_context =  NodeChangeContext {
+                                let mut node_change_context = NodeChangeContext {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                rdf_data.expand_node(current_index, ExpandType::ReverseReferences, &mut node_change_context);
+                                rdf_data.expand_node(
+                                    current_index,
+                                    ExpandType::ReverseReferences,
+                                    &mut node_change_context,
+                                );
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandThisType => {
                                 let types = current_node.types.clone();
-                                let mut node_change_context =  NodeChangeContext {
+                                let mut node_change_context = NodeChangeContext {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
@@ -822,14 +819,13 @@ impl RdfGlanceApp {
 
         if let Some(node_to_click) = node_to_click {
             if let Ok(mut rdf_data) = self.rdf_data.write() {
-                let mut node_change_context =  NodeChangeContext {
+                let mut node_change_context = NodeChangeContext {
                     rdfwrwap: &mut self.rdfwrap,
                     visible_nodes: &mut self.visible_nodes,
                 };
                 rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context);
             }
         }
-
 
         if let Ok(rdf_data) = self.rdf_data.read() {
             if let Some(node_to_hover) = node_to_hover {
@@ -900,7 +896,7 @@ pub fn draw_node(
     ui_state: &UIState,
     painter: &Painter,
     node_object: &NObject,
-    object_iri: &Box<str>,
+    object_iri: &str,
     pos: Pos2,
     selected: bool,
     highlighted: bool,
@@ -941,17 +937,15 @@ pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNo
                                 bezier_distance: 0.0,
                             };
                             edges.push(edge);
-                        } else {
-                            if !visited_nodes.contains(ref_iri) {
-                                if let Some(ref_pos) = layout_nodes.get_pos(*ref_iri) {
-                                    let edge = Edge {
-                                        from: node_pos,
-                                        to: ref_pos,
-                                        predicate: *pred_index,
-                                        bezier_distance: 0.0,
-                                    };
-                                    edges.push(edge);
-                                }
+                        } else if !visited_nodes.contains(ref_iri) {
+                            if let Some(ref_pos) = layout_nodes.get_pos(*ref_iri) {
+                                let edge = Edge {
+                                    from: node_pos,
+                                    to: ref_pos,
+                                    predicate: *pred_index,
+                                    bezier_distance: 0.0,
+                                };
+                                edges.push(edge);
                             }
                         }
                     }

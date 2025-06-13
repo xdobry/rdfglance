@@ -274,7 +274,7 @@ pub fn show_references(
                         });
                         row.col(|ui| {
                             let label = ref_node.node_label_opt(
-                                &color_cache,
+                                color_cache,
                                 layout_data.display_language,
                                 &node_data.indexers,
                             );

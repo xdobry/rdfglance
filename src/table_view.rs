@@ -702,7 +702,7 @@ impl TypeData {
             {
                 let predicate_label = node_data.predicate_display(
                     *predicate_index,
-                    &label_context,
+                    label_context,
                     &node_data.indexers
                 );
                 ui.label(predicate_label.as_str());
@@ -725,7 +725,7 @@ impl TypeData {
             for (predicate_index, reference_characteristics) in &self.references {
                 let predicate_label = node_data.predicate_display(
                     *predicate_index,
-                    &label_context,
+                    label_context,
                     &node_data.indexers
                 );
                 ui.label(predicate_label.as_str());
@@ -744,7 +744,7 @@ impl TypeData {
             for (predicate_index, count) in &self.rev_references {
                 let predicate_label = node_data.predicate_display(
                     *predicate_index,
-                    &label_context,
+                    label_context,
                     &node_data.indexers
                 );
                 ui.label(predicate_label.as_str());
@@ -944,7 +944,7 @@ impl TypeInstanceIndex {
                                 count,
                                 min_cardinality: count,
                                 max_cardinality: count,
-                                types: types,
+                                types,
                             },
                         );
                     }
@@ -1194,10 +1194,8 @@ impl TypeInstanceIndex {
                         if text_edit_response.changed() {
                             table_action = TableAction::Filter;
                         }
-                    } else {
-                        if ui.button(ICON_FILTER).clicked() {
-                            table_action = TableAction::Filter;
-                        }
+                    } else if ui.button(ICON_FILTER).clicked() {
+                        table_action = TableAction::Filter;
                     }
                     if ui.button(ICON_CLOSE).clicked() {
                         type_data.instance_view.instance_filter.clear();
@@ -1291,14 +1289,14 @@ impl TypeInstanceIndex {
                                             if let Some(b_value) = b_value {
                                                 let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
                                                 let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                return a_value.cmp(b_value);
+                                                a_value.cmp(b_value)
                                             } else {
-                                                return std::cmp::Ordering::Less;
+                                                std::cmp::Ordering::Less
                                             }
                                         } else if let Some(_b_value) = b_value {
-                                            return std::cmp::Ordering::Greater;
+                                            std::cmp::Ordering::Greater
                                         } else {
-                                            return std::cmp::Ordering::Equal;
+                                            std::cmp::Ordering::Equal
                                         }
                                     } else {
                                         std::cmp::Ordering::Less
@@ -1328,14 +1326,14 @@ impl TypeInstanceIndex {
                                             if let Some(b_value) = b_value {
                                                 let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
                                                 let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                return b_value.cmp(a_value);
+                                                b_value.cmp(a_value)
                                             } else {
-                                                return std::cmp::Ordering::Less;
+                                                std::cmp::Ordering::Less
                                             }
                                         } else if let Some(_b_value) = b_value {
-                                            return std::cmp::Ordering::Greater;
+                                            std::cmp::Ordering::Greater
                                         } else {
-                                            return std::cmp::Ordering::Equal;
+                                            std::cmp::Ordering::Equal
                                         }
                                     } else {
                                         std::cmp::Ordering::Greater

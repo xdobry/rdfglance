@@ -419,7 +419,7 @@ impl NodeCache {
                 is_blank_node,
                 has_subject,
             };
-            cache.cache.insert(iri.into(), node);
+            cache.cache.insert(iri, node);
         }
         Ok(cache)
     }
@@ -545,8 +545,8 @@ impl PrefixManager {
             {
                 let mut compressor = ZlibEncoder::new(file, Compression::default());
                 for (iri, prefix) in self.prefixes.iter() {
-                    write_len_string(&prefix, &mut compressor)?;
-                    write_len_string(&iri, &mut compressor)?;
+                    write_len_string(prefix, &mut compressor)?;
+                    write_len_string(iri, &mut compressor)?;
                 }
                 compressor.finish()?;
             }
@@ -562,7 +562,7 @@ impl PrefixManager {
         for _ in 0..len {
             let prefix = read_len_string(&mut decoder)?;
             let iri = read_len_string(&mut decoder)?;
-            index.prefixes.insert(iri.into(), prefix.into());
+            index.prefixes.insert(iri, prefix);
         }
         Ok(index)
     }
@@ -628,11 +628,11 @@ impl GVisualisationStyle {
                 leb128::write::unsigned(writer, style.priority as u64)?;
                 leb128::write::unsigned(writer, style.max_lines as u64)?;
                 let col = style.color.to_array();
-                writer.write(&col)?;
+                let _written = writer.write(&col)?;
                 let col_border = style.border_color.to_array();
-                writer.write(&col_border)?;
+                let _written = writer.write(&col_border)?;
                 let col_label = style.label_color.to_array();
-                writer.write(&col_label)?;
+                let _written = writer.write(&col_label)?;
                 writer.write_u8(style.node_shape as u8)?;
                 writer.write_u8(style.label_position as u8)?;
                 writer.write_u8(style.node_size as u8)?;
@@ -656,7 +656,7 @@ impl GVisualisationStyle {
             for (reference_index, style) in self.edge_styles.iter() {
                 leb128::write::unsigned(writer, *reference_index as u64)?;
                 let col = style.color.to_array();
-                writer.write(&col)?;
+                let _written = writer.write(&col)?;
                 writer.write_f32::<LittleEndian>(style.width)?;
                 writer.write_f32::<LittleEndian>(style.line_gap)?;
                 writer.write_f32::<LittleEndian>(style.arrow_size)?;
@@ -768,7 +768,6 @@ impl GVisualisationStyle {
                 label_position,
                 node_size,
                 icon_style,
-                ..Default::default()
             };
             styles.node_styles.insert(type_index, style);
         }
@@ -842,7 +841,7 @@ impl IconStyle {
         leb128::write::unsigned(writer, self.icon_position as u64)?;
         writer.write_f32::<LittleEndian>(self.icon_size)?;
         let col = self.icon_color.to_array();
-        writer.write(&col)?;
+        let _written = writer.write(&col)?;
         let character = self.icon_character as u32;
         leb128::write::unsigned(writer, character as u64)?;
         leb128::write::unsigned(writer, 0)?;
@@ -876,7 +875,7 @@ impl EdgeFont {
     pub fn store<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_f32::<LittleEndian>(self.font_size)?;
         let col = self.font_color.to_array();
-        writer.write(&col)?;
+        let _written = writer.write(&col)?;
         // num of fields
         leb128::write::unsigned(writer, 0)?;
         Ok(())
@@ -884,17 +883,19 @@ impl EdgeFont {
 
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
         let _field_length = leb128::read::unsigned(reader)?;
-        let mut edge_font = EdgeFont::default();
-        edge_font.font_size = reader.read_f32::<LittleEndian>()?;
+        let font_size = reader.read_f32::<LittleEndian>()?;
         let mut color = [0u8; 4];
         reader.read_exact(&mut color)?;
-        edge_font.font_color = egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]);
+        let font_color = egui::Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3]);
         let field_number = leb128::read::unsigned(reader)?;
         for _ in 0..field_number {
             let (field_type, _field_index) = read_field_index(reader)?;
             skip_field(reader, field_type)?;
         }
-        Ok(edge_font)
+        Ok(EdgeFont {
+            font_size,
+            font_color
+        })
     }
 }
 
