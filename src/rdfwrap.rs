@@ -8,7 +8,6 @@ use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
 use crate::{DataLoading, RdfData};
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Cursor, Read};
 use std::path::Path;
@@ -52,41 +51,54 @@ impl<R: Read> Read for CountingReader<R> {
     }
 }
 
+fn collect_rdf_files(dir_name: &str, files: &mut Vec<String>) -> Result<()> {
+    let entries = fs::read_dir(dir_name).with_context(|| format!("Failed to read directory {}", dir_name));
+    match entries {
+        Err(e) => {
+            eprintln!("Error reading dir {}: {}", dir_name, e)
+        }
+        Ok(entries) => {
+            for entry in entries {
+                let entry = entry?;
+                let path = entry.path();
+                let path_name = path.to_str().unwrap();
+                if path.is_dir() {
+                    collect_rdf_files(path_name, files)?;
+                } else if let Some(extension) = path.extension() {
+                    if ["ttl", "rdf", "xml", "nt", "nq", "trig"].contains(&extension.to_str().unwrap()) {
+                        files.push(path_name.to_string());
+                    }
+                }
+            }
+        }  
+    }
+    Ok(())
+}
+
 impl RDFWrap {
     pub fn empty() -> Self {
         RDFWrap {}
     }
 
-    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &Vec<String>) -> Result<u32> {
+    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &Vec<String>, data_loading: Option<&DataLoading>) -> Result<u32> {
         let mut total_triples = 0;
-        let mut seen_files: HashSet<String> = HashSet::new();
-
-        let entries = fs::read_dir(dir_name).with_context(|| format!("Failed to read directory {}", dir_name));
-        match entries {
-            Err(e) => {
-                eprintln!("Error reading dir {}: {}", dir_name, e)
+        let mut files = Vec::new();
+        collect_rdf_files(dir_name, &mut files)?;
+        if let Some(data_loading) = data_loading {
+            let mut size_total = 0;
+            for file in &files {
+                let metadata = fs::metadata(file).with_context(|| format!("Failed to get metadata for file {}", file))?;
+                size_total += metadata.len() as usize;
             }
-            Ok(entries) => {
-                for entry in entries {
-                    let entry = entry?;
-                    let path = entry.path();
-                    let path_name = path.to_str().unwrap();
-                    if seen_files.insert(path_name.to_string()) {
-                        if path.is_dir() {
-                            total_triples += RDFWrap::load_from_dir(path_name, rdf_data, language_filter)?;
-                        } else if let Some(extension) = path.extension() {
-                            if ["ttl", "rdf", "xml", "nt", "nq", "trig"].contains(&extension.to_str().unwrap()) {
-                                match RDFWrap::load_file(path_name, rdf_data, language_filter, None) {
-                                    Ok(triples) => {
-                                        total_triples += triples;
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Error processing file {}: {}", path.display(), e);
-                                    }
-                                }
-                            }
-                        }
-                    }
+            data_loading.total_size.store(size_total, std::sync::atomic::Ordering::Relaxed);
+        }   
+        for file in &files {
+            match RDFWrap::load_file(&file, rdf_data, language_filter, data_loading) {
+                Ok(triples) => {
+                    total_triples += triples;
+                }
+                Err(e) => {
+                    eprintln!("Error processing file {}: {}", file, e);
                 }
             }
         }
@@ -102,14 +114,16 @@ impl RDFWrap {
         let file_name = file_name.as_ref();
         let file = File::open(file_name).with_context(|| format!("Can not open file {}", file_name.display()))?;
         if let Some(data_loading) = data_loading {
-            match file.metadata() {
-                Ok(metadata) => {
-                    data_loading
-                        .total_size
-                        .store(metadata.len() as usize, std::sync::atomic::Ordering::Relaxed);
-                }
-                Err(_e) => {
-                    // ignore
+            if data_loading.total_size.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+                match file.metadata() {
+                    Ok(metadata) => {
+                        data_loading
+                            .total_size
+                            .store(metadata.len() as usize, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Err(_e) => {
+                        // ignore
+                    }
                 }
             }
         }

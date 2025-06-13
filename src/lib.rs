@@ -687,28 +687,27 @@ impl RdfGlanceApp {
         }
     }
     fn load_ttl_dir(&mut self, dir_name: &str) {
+        let rdf_data_clone = Arc::clone(&self.rdf_data);
         let language_filter = self.persistent_data.config_data.language_filter();
-        let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-            Some(rdfwrap::RDFWrap::load_from_dir(
-                dir_name,
-                &mut rdf_data,
-                &language_filter,
-            ))
-        } else {
-            None
-        };
-        if let Some(rdfttl) = rdfttl {
-            match rdfttl {
-                Err(err) => {
-                    self.system_message = SystemMessage::Error(format!("Directory not found: {}", err));
-                }
-                Ok(triples_count) => {
-                    self.system_message =
-                        SystemMessage::Info(format!("Loaded: {} triples: {}", dir_name, triples_count));
-                    self.update_data_indexes();
-                }
+        let dir_name_cpy = dir_name.to_string();
+        let data_loading = Arc::new(DataLoading {
+            stop_loading: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(AtomicUsize::new(0)),
+            total_triples: Arc::new(AtomicUsize::new(0)),
+            read_pos: Arc::new(AtomicUsize::new(0)),
+            total_size: Arc::new(AtomicUsize::new(0)),
+        });
+        let data_loading_clone = Arc::clone(&data_loading);
+        let handle = thread::spawn(move || {
+            if let Ok(mut rdf_data) = rdf_data_clone.write() {
+                let my_data_loading = data_loading_clone.as_ref();
+                Some(rdfwrap::RDFWrap::load_from_dir(dir_name_cpy.as_str(), &mut rdf_data, &language_filter, Some(my_data_loading)))
+            } else {
+                None
             }
-        }
+        });
+        self.data_loading = Some(data_loading);
+        self.load_handle = Some(handle);
     }
 
     fn set_status_message(&mut self, message: &str) {
