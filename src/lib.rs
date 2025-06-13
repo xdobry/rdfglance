@@ -93,6 +93,7 @@ pub struct DataLoading {
     pub total_triples: Arc<AtomicUsize>,
     pub read_pos: Arc<AtomicUsize>,
     pub total_size: Arc<AtomicUsize>,
+    pub finished: Arc<AtomicBool>,
 }
 
 pub struct RdfData {
@@ -626,22 +627,26 @@ impl RdfGlanceApp {
             total_triples: Arc::new(AtomicUsize::new(0)),
             read_pos: Arc::new(AtomicUsize::new(0)),
             total_size: Arc::new(AtomicUsize::new(0)),
+            finished: Arc::new(AtomicBool::new(false)),
         });
         let data_loading_clone = Arc::clone(&data_loading);
+        self.data_loading = Some(data_loading);
         let handle = thread::spawn(move || {
-            if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                let my_data_loading = data_loading_clone.as_ref();
+            let my_data_loading = data_loading_clone.as_ref();
+            let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
                 Some(rdfwrap::RDFWrap::load_file(file_name_cpy, &mut rdf_data, &language_filter, Some(my_data_loading)))
             } else {
                 None
-            }
+            };
+            my_data_loading.finished.store(true, Ordering::Relaxed);
+            erg
         });
-        self.data_loading = Some(data_loading);
         self.load_handle = Some(handle);
     }
 
     pub fn join_load(&mut self) {
         if let Some(handle) = self.load_handle.take() {
+            println!("Joining load thread");
             match handle.join() {
                 Ok(Some(Ok(triples_count))) => {
                     self.set_status_message(&format!("Loaded {} triples", triples_count));
@@ -696,17 +701,20 @@ impl RdfGlanceApp {
             total_triples: Arc::new(AtomicUsize::new(0)),
             read_pos: Arc::new(AtomicUsize::new(0)),
             total_size: Arc::new(AtomicUsize::new(0)),
+            finished: Arc::new(AtomicBool::new(false)),
         });
         let data_loading_clone = Arc::clone(&data_loading);
+        self.data_loading = Some(data_loading);
         let handle = thread::spawn(move || {
-            if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                let my_data_loading = data_loading_clone.as_ref();
+            let my_data_loading = data_loading_clone.as_ref();
+            let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
                 Some(rdfwrap::RDFWrap::load_from_dir(dir_name_cpy.as_str(), &mut rdf_data, &language_filter, Some(my_data_loading)))
             } else {
                 None
-            }
+            };
+            my_data_loading.finished.store(true, Ordering::Relaxed);
+            erg
         });
-        self.data_loading = Some(data_loading);
         self.load_handle = Some(handle);
     }
 
@@ -879,9 +887,9 @@ impl eframe::App for RdfGlanceApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if self.rdf_data.try_read().is_err() {
-                ui.label("RDF data is currently being loaded. Please wait...");
-                if let Some(data_loading) = &self.data_loading {
+            if let Some(data_loading) = &self.data_loading {
+                if !data_loading.finished.load(Ordering::Relaxed) {
+                    ui.label("RDF data is currently being loaded. Please wait...");
                     let total_size = data_loading.total_size.load(Ordering::Relaxed);
                     if total_size>0 {
                         let progress = data_loading.read_pos.load(Ordering::Relaxed) as f32 / total_size as f32;
@@ -898,10 +906,10 @@ impl eframe::App for RdfGlanceApp {
                         data_loading.stop_loading.store(true, Ordering::Relaxed);
                     }
                     ctx.request_repaint_after(Duration::from_millis(100));
+                    return;
+                } else {
+                    self.join_load();
                 }
-                return;
-            } else {
-                self.join_load();
             }
             
             if self.system_message.has_message() {
@@ -918,6 +926,11 @@ impl eframe::App for RdfGlanceApp {
                 ui.disable();
             }
             self.menu_bar(ui);
+            // The menu bar action could start loading data, so we check if data is being loaded
+            // if loading data the display coud block on waiting access to rdf_data
+            if self.data_loading.is_some() {
+                return;
+            }
             ui.separator();
             ui.horizontal(|ui| {
                 ui.selectable_value(

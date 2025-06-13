@@ -74,6 +74,7 @@ impl RdfGlanceApp {
                         if let Some(last_file_clicked) = last_file_clicked {
                             ui.close_menu();
                             self.load_ttl(&last_file_clicked);
+                            ui.ctx().request_repaint();
                         }
                     });
                 }
@@ -111,7 +112,7 @@ impl RdfGlanceApp {
             }
         });
     }
-    pub fn import_file_dialog(&mut self, _ui: &mut egui::Ui) {
+    pub fn import_file_dialog(&mut self, ui: &mut egui::Ui) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
             .add_filter("RDF Files", &["ttl", "rdf", "xml", "nt", "trig", "nq"])
