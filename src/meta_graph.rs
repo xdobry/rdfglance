@@ -27,6 +27,9 @@ impl RdfGlanceApp {
             }
             self.meta_nodes
                 .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
+            if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
+                self.meta_nodes.update_node_shapes = true;
+            }
             ui.label("nodes force");
             ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
