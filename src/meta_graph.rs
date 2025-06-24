@@ -303,6 +303,18 @@ impl RdfGlanceApp {
                                     }
                                     close_menu = true;
                                 }
+                                TypeNodeContextAction::Expand => {
+                                    if let Some(current_type_node) = self.type_index.types.get(&current_index) {
+                                        node_to_click = Some(current_index);
+                                    }
+                                    close_menu = true;
+                                },
+                                TypeNodeContextAction::HideOthers => {
+                                    self.meta_nodes.clear();
+                                    self.meta_nodes.add_by_index(current_index);
+                                    self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                                    close_menu = true;
+                                }
                                 TypeNodeContextAction::None => {
                                     // do nothing
                                 }
@@ -315,6 +327,37 @@ impl RdfGlanceApp {
                             ui.label("no node selected");
                         }
                     });
+
+                    if let Some(node_to_click) = node_to_click {
+                        if let Some(current_type_node) = self.type_index.types.get(&node_to_click) {
+                            let mut was_add = false;
+                            for reference_characteristics in current_type_node.references.values() {
+                                for ref_type in reference_characteristics.types.iter() {
+                                    if !self.meta_nodes.contains(*ref_type) {
+                                        was_add = true;
+                                        self.meta_nodes.add_by_index(*ref_type);
+                                    }
+                                }
+                            }
+                            for (type_index,type_node) in self.type_index.types.iter() {
+                                if *type_index!=node_to_click && !self.meta_nodes.contains(*type_index) {
+                                    if type_node.references.iter().any(|(_, ref_characteristics)| {
+                                        ref_characteristics.types.contains(&node_to_click)
+                                    }) {
+                                        was_add = true;
+                                        self.meta_nodes.add_by_index(*type_index);
+                                    }
+                                }
+                            }
+                            if was_add {
+                                self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
+                                    &self.meta_nodes,
+                                    &self.type_index,
+                                )));                           
+                                self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                            }
+                        }
+                    }
 
                     if !was_context_click && (secondary_clicked || single_clicked) {
                         self.ui_state.context_menu_node = None;
@@ -362,6 +405,8 @@ enum TypeNodeContextAction {
     None,
     Hide,
     HideSameInstCount,
+    HideOthers,
+    Expand,
 }
 
 impl TypeNodeContextAction {
@@ -371,6 +416,12 @@ impl TypeNodeContextAction {
         }
         if ui.button("Hide same instance count or Less").clicked() {
             return TypeNodeContextAction::HideSameInstCount;
+        }
+        if ui.button("Hide Others").clicked() {
+            return TypeNodeContextAction::HideOthers;
+        }
+        if ui.button("Expand").clicked() {
+            return TypeNodeContextAction::Expand;
         }
         TypeNodeContextAction::None
     }

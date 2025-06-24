@@ -7,11 +7,11 @@ use oxttl::TurtleParser;
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
 use crate::{DataLoading, RdfData};
-use std::cell::RefCell;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Cursor, Read};
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use std::time::Instant;
@@ -31,11 +31,11 @@ pub struct IndexCache {
 
 pub struct CountingReader<R> {
     inner: R,
-    pub bytes_read: Rc<RefCell<usize>>,
+    pub bytes_read: Arc<AtomicUsize>,
 }
 
 impl<R: Read> CountingReader<R> {
-    pub fn new(inner: R, bytes_read: Rc<RefCell<usize>>) -> Self {
+    pub fn new(inner: R, bytes_read: Arc<AtomicUsize>) -> Self {
         CountingReader {
             inner,
             bytes_read,
@@ -46,9 +46,14 @@ impl<R: Read> CountingReader<R> {
 impl<R: Read> Read for CountingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inner.read(buf)?;
-        *self.bytes_read.borrow_mut() += n;
+        self.bytes_read.fetch_add(n, Ordering::Relaxed);
         Ok(n)
     }
+}
+
+enum ParseItem {
+    Triple(Result<Triple, io::Error>),
+    Prefix(String, String),
 }
 
 fn collect_rdf_files(dir_name: &str, files: &mut Vec<String>) -> Result<()> {
@@ -133,6 +138,7 @@ impl RDFWrap {
         Self::load_file_reader(file_extension, reader, rdf_data, language_filter, data_loading)
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn load_file_data(
         file_name: &str,
         data: &Vec<u8>,
@@ -145,6 +151,7 @@ impl RDFWrap {
         Self::load_file_reader(file_extension, reader, rdf_data, language_filter, None)
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn load_file_reader<R: std::io::Read>(
         file_extension: &str,
         reader: R,
@@ -160,28 +167,17 @@ impl RDFWrap {
             index: 0,
             iri: String::with_capacity(100),
         };
-        let bytes_read = Rc::new(RefCell::new(if let Some(data_loading) = data_loading {
+        let bytes_read = Arc::new(AtomicUsize::new(if let Some(data_loading) = data_loading {
             data_loading.read_pos.load(std::sync::atomic::Ordering::Relaxed)
         } else {
             0
         }));
-        let counting_reader = CountingReader::new(reader, Rc::clone(&bytes_read));
+        let counting_reader = reader;
         match file_extension {
             "ttl" => {
                 let mut parser = TurtleParser::new().for_reader(counting_reader);
                 let mut prefix_read = false;
                 while let Some(triple) = parser.next() {
-                    if let Some(data_loading) = data_loading {
-                        if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
-                            break;
-                        }
-                        data_loading
-                            .total_triples
-                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        data_loading
-                            .read_pos
-                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
-                    }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
                             rdf_data.prefix_manager.add_prefix(prefix, iri);
@@ -219,7 +215,7 @@ impl RDFWrap {
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         data_loading
                             .read_pos
-                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                            .store(bytes_read.load(Ordering::Relaxed), std::sync::atomic::Ordering::Relaxed);
                     }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
@@ -257,7 +253,7 @@ impl RDFWrap {
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         data_loading
                             .read_pos
-                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                            .store(bytes_read.load(Ordering::Relaxed), std::sync::atomic::Ordering::Relaxed);
                     }
                     match triple {
                         Ok(triple) => {
@@ -290,7 +286,7 @@ impl RDFWrap {
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         data_loading
                             .read_pos
-                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                            .store(bytes_read.load(Ordering::Relaxed), std::sync::atomic::Ordering::Relaxed);
                     }
                     if !prefix_read {
                         for (prefix, iri) in parser.prefixes() {
@@ -328,7 +324,7 @@ impl RDFWrap {
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         data_loading
                             .read_pos
-                            .store(*bytes_read.borrow(), std::sync::atomic::Ordering::Relaxed);
+                            .store(bytes_read.load(Ordering::Relaxed), std::sync::atomic::Ordering::Relaxed);
                     }
                     match quad {
                         Ok(quad) => {
@@ -364,6 +360,184 @@ impl RDFWrap {
                 triples_count as f64 / duration.as_secs_f64()
             );
         }
+        Ok(triples_count)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn load_file_reader<R: std::io::Read + std::marker::Send + 'static>(
+        file_extension: &str,
+        reader: R,
+        rdf_data: &mut RdfData,
+        language_filter: &[String],
+        data_loading: Option<&DataLoading>,
+    ) -> Result<u32> {
+        // This function uses 2 stages to parse and process RDF data
+        // The parsing is done in a separate thread and parse items are send to main thread via a channel.
+        use std::{sync::mpsc, thread};
+
+
+        let mut triples_count: u32 = 0;
+        let (indexer, cache) = rdf_data.node_data.split_mut();
+        let start = Instant::now();
+        let mut index_cache = IndexCache {
+            index: 0,
+            iri: String::with_capacity(100),
+        };
+        let bytes_read= Arc::new(AtomicUsize::new(if let Some(data_loading) = data_loading {
+            data_loading.read_pos.load(std::sync::atomic::Ordering::Relaxed)
+        } else {
+            0
+        }));
+        let (tx, rx) = mpsc::sync_channel(1000);
+
+        let bytes_read_tx = Arc::clone(&bytes_read);
+        let file_extension = file_extension.to_string();
+        let handle = thread::spawn(move || {
+            let counting_reader = CountingReader::new(reader, bytes_read_tx);
+            match file_extension.as_str() {
+                "ttl" => {
+                    let mut parser = TurtleParser::new().for_reader(counting_reader);
+                    let mut prefix_read = false;
+                    while let Some(triple) = parser.next() {
+                        if !prefix_read {
+                            for (prefix, iri) in parser.prefixes() {
+                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                            }
+                            prefix_read = true;
+                        }
+                        match triple {
+                            Ok(triple) => {
+                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                            }
+                            Err(e) => {
+                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                            }
+                        }
+                    }
+                },
+                "rdf" | "xml" => {
+                    let mut parser = RdfXmlParser::new().for_reader(counting_reader);
+                    let mut prefix_read = false;
+                    while let Some(triple) = parser.next() {
+                        if !prefix_read {
+                            for (prefix, iri) in parser.prefixes() {
+                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                            }
+                            prefix_read = true;
+                        }
+                        match triple {
+                            Ok(triple) => {
+                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                            }
+                            Err(e) => {
+                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                            }
+                        }
+                    }
+                }
+                "nt" => {
+                    let parser = oxttl::NTriplesParser::new().for_reader(counting_reader);
+                    for triple in parser {
+                        match triple {
+                            Ok(triple) => {
+                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                            }
+                            Err(e) => {
+                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                            }
+                        }
+                    }
+                }
+                "trig" => {
+                    let mut parser = oxttl::TriGParser::new().for_reader(counting_reader);
+                    let mut prefix_read = false;
+                    while let Some(quad) = parser.next() {
+                        if !prefix_read {
+                            for (prefix, iri) in parser.prefixes() {
+                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                            }
+                            prefix_read = true;
+                        }
+                        match quad {
+                            Ok(quad) => {
+                                tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).unwrap();
+                            }
+                            Err(e) => {
+                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                            }
+                        }
+                    }
+                }
+                "nq" => {
+                    let parser = oxttl::NQuadsParser::new().for_reader(counting_reader);
+                    for quad in parser {
+                        match quad {
+                            Ok(quad) => {
+                                tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).unwrap();
+                            }
+                            Err(e) => {
+                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported file extension {} for rdf data import (known: ttl, rdf, xml)",
+                        file_extension
+                    ));
+                }
+            };
+            Ok(())
+        });
+
+        for parse_item in rx {
+            if let Some(data_loading) = data_loading {
+                if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                data_loading
+                    .total_triples
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let readed = bytes_read.load(Ordering::Relaxed);
+                data_loading
+                    .read_pos
+                    .store(readed, std::sync::atomic::Ordering::Relaxed);
+            }
+            match parse_item {
+                ParseItem::Prefix(prefix, iri) => {
+                    rdf_data.prefix_manager.add_prefix(&prefix, &iri);
+                }
+                ParseItem::Triple(triple) => {
+                    match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error parsing triple: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+        let thread_res = handle.join().unwrap();
+        if let Err(e) = thread_res {
+            return Err(e);
+        }
+        let duration = start.elapsed();
+        println!("Time taken to read the file {:?}", duration);
+        println!(
+            "Triples read per second: {}",
+            triples_count as f64 / duration.as_secs_f64()
+        );
         Ok(triples_count)
     }
 

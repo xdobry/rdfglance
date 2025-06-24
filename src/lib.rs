@@ -666,6 +666,7 @@ impl RdfGlanceApp {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {

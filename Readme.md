@@ -116,11 +116,20 @@ Build static web content. Output in dist folder
   trunk build
   ```
 
+Build for github pages
+
+  ```sh
+  trunk build --release --public-url /rdfglance/
+  ```
+
+
 The last web release is avaiable here [Rdfglance WASM version](https://xdobry.github.io/rdfglance/)
 
 You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferences Open User Settings (JSON). Add option
 
      "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
+
+
 
 
 ## Known Problems
