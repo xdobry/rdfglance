@@ -1,14 +1,20 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
-use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui::{Align, Align2, Color32, CursorIcon, Frame, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    browse_view::show_references, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
+    GVisualisationStyle, NodeAction, RdfData, UIState,
+    browse_view::show_references,
+    config::IriDisplay,
+    nobject::{IriIndex, LabelContext, NodeData},
+    prefix_manager::PrefixManager,
+    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
+    uitools::{ScrollBar, popup_at, strong_unselectable},
 };
 
 pub struct TypeInstanceIndex {
@@ -26,6 +32,21 @@ pub struct TypeInstanceIndex {
     pub types_filtered: Vec<IriIndex>,
     pub selected_type: Option<IriIndex>,
     pub types_filter: String,
+    pub type_cell_action: TypeCellAction,
+}
+
+pub enum TypeCellAction {
+    None,
+    ShowRefTypes(Pos2, IriIndex),
+}
+
+impl TypeCellAction {
+    pub fn pos(&self) -> Pos2 {
+        match self {
+            TypeCellAction::ShowRefTypes(pos, _) => *pos,
+            TypeCellAction::None => Pos2::new(0.0, 0.0),
+        }
+    }
 }
 
 pub struct DataPropCharacteristics {
@@ -34,7 +55,6 @@ pub struct DataPropCharacteristics {
     pub max_cardinality: u32,
     pub min_cardinality: u32,
 }
-
 
 pub struct ReferenceCharacteristics {
     pub count: u32,
@@ -96,7 +116,9 @@ impl TableContextMenu {
 
 impl InstanceView {
     pub fn get_column(&self, predicate_index: IriIndex) -> Option<&ColumnDesc> {
-        self.display_properties.iter().find(|column_desc| column_desc.predicate_index == predicate_index)
+        self.display_properties
+            .iter()
+            .find(|column_desc| column_desc.predicate_index == predicate_index)
     }
     pub fn visible_columns(&self) -> u32 {
         let mut count = 0;
@@ -119,7 +141,7 @@ const ROW_HIGHT: f32 = 17.0;
 const CHAR_WIDTH: f32 = 8.0;
 const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
 const COLUMN_GAP: f32 = 2.0;
-const IRI_WIDTH: f32  = 300.0;
+const IRI_WIDTH: f32 = 300.0;
 const REF_COUNT_WIDTH: f32 = 80.0;
 
 impl TypeData {
@@ -182,10 +204,7 @@ impl TypeData {
         let popup_id = ui.make_persistent_id("column_context_menu");
 
         painter.rect_filled(
-            Rect::from_min_size(
-                available_rect.left_top(),
-                Vec2::new(available_width, ROW_HIGHT),
-            ),
+            Rect::from_min_size(available_rect.left_top(), Vec2::new(available_width, ROW_HIGHT)),
             0.0,
             Color32::GRAY,
         );
@@ -248,10 +267,9 @@ impl TypeData {
 
         if iri_colums_drag_size_rect.contains(mouse_pos) {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
-            if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
-                self.instance_view.column_resize = InstanceColumnResize::Iri(
-                    mouse_pos - Vec2::new(self.instance_view.iri_width, 0.0),
-                );
+            if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
+                self.instance_view.column_resize =
+                    InstanceColumnResize::Iri(mouse_pos - Vec2::new(self.instance_view.iri_width, 0.0));
             }
         }
 
@@ -276,15 +294,18 @@ impl TypeData {
             Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
         );
         let refs_colums_drag_size_rect = egui::Rect::from_min_size(
-            available_rect.left_top() + Vec2::new(self.instance_view.iri_width + self.instance_view.ref_count_width - 3.0, 0.0),
+            available_rect.left_top()
+                + Vec2::new(
+                    self.instance_view.iri_width + self.instance_view.ref_count_width - 3.0,
+                    0.0,
+                ),
             Vec2::new(6.0, ROW_HIGHT),
-        );        
+        );
         if refs_colums_drag_size_rect.contains(mouse_pos) {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
-            if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
-                self.instance_view.column_resize = InstanceColumnResize::Refs(
-                    mouse_pos - Vec2::new(self.instance_view.ref_count_width, 0.0),
-                );
+            if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
+                self.instance_view.column_resize =
+                    InstanceColumnResize::Refs(mouse_pos - Vec2::new(self.instance_view.ref_count_width, 0.0));
             }
         }
         if ref_column_rec.contains(mouse_pos) && secondary_clicked {
@@ -303,11 +324,11 @@ impl TypeData {
             .skip(self.instance_view.column_pos as usize)
         {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
-            let predicate_label = node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
+            let predicate_label =
+                node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
             text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false);
             xpos += column_desc.width + COLUMN_GAP;
-            let column_rect =
-                egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
+            let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
             if column_rect.contains(mouse_pos) {
                 if secondary_clicked {
                     was_context_click = true;
@@ -324,7 +345,7 @@ impl TypeData {
             );
             if colums_drag_size_rect.contains(mouse_pos) {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
-                if primary_down && matches!(self.instance_view.column_resize,InstanceColumnResize::None) {
+                if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
                     self.instance_view.column_resize = InstanceColumnResize::Predicate(
                         mouse_pos - Vec2::new(column_desc.width, 0.0),
                         column_desc.predicate_index,
@@ -336,8 +357,8 @@ impl TypeData {
         let mut ypos = ROW_HIGHT;
         let mut start_pos = instance_index;
 
-        for instance_index in &self.filtered_instances
-            [instance_index..min(instance_index + capacity, self.filtered_instances.len())]
+        for instance_index in
+            &self.filtered_instances[instance_index..min(instance_index + capacity, self.filtered_instances.len())]
         {
             let node = node_data.get_node_by_index(*instance_index);
             if let Some((node_iri, node)) = node {
@@ -355,11 +376,8 @@ impl TypeData {
                 let mut xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
 
                 let graph_button_width = 20.0;
-                let graph_pos = available_rect.left_top() + Vec2::new(0.0, ypos+1.0);
-                let button_rect = Rect::from_min_size(
-                    graph_pos,
-                    Vec2::new(graph_button_width, ROW_HIGHT-2.0),
-                );
+                let graph_pos = available_rect.left_top() + Vec2::new(0.0, ypos + 1.0);
+                let button_rect = Rect::from_min_size(graph_pos, Vec2::new(graph_button_width, ROW_HIGHT - 2.0));
                 let button_background = if button_rect.contains(mouse_pos) {
                     if primary_clicked {
                         *instance_action = NodeAction::ShowVisual(*instance_index);
@@ -370,12 +388,20 @@ impl TypeData {
                 };
 
                 painter.rect_filled(button_rect, 3.0, button_background);
-                painter.text(graph_pos+Vec2::new(graph_button_width/2.0,(ROW_HIGHT-2.0)/2.0), Align2::CENTER_CENTER , ICON_GRAPH, egui::FontId::default(), Color32::BLACK);
+                painter.text(
+                    graph_pos + Vec2::new(graph_button_width / 2.0, (ROW_HIGHT - 2.0) / 2.0),
+                    Align2::CENTER_CENTER,
+                    ICON_GRAPH,
+                    egui::FontId::default(),
+                    Color32::BLACK,
+                );
 
                 let iri_top_left = available_rect.left_top() + Vec2::new(graph_button_width, ypos);
 
-                let cell_rect =
-                    egui::Rect::from_min_size(iri_top_left, Vec2::new(self.instance_view.iri_width-graph_button_width, ROW_HIGHT));
+                let cell_rect = egui::Rect::from_min_size(
+                    iri_top_left,
+                    Vec2::new(self.instance_view.iri_width - graph_button_width, ROW_HIGHT),
+                );
 
                 let mut cell_hovered = false;
                 if cell_rect.contains(mouse_pos) {
@@ -396,11 +422,7 @@ impl TypeData {
                 } else if secondary_clicked && cell_rect.contains(mouse_pos) {
                     *instance_action = NodeAction::ShowVisual(*instance_index);
                 }
-                let s = format!(
-                    "{}/{}",
-                    node.references.len(),
-                    node.reverse_references.len()
-                );
+                let s = format!("{}/{}", node.references.len(), node.reverse_references.len());
                 let ref_rect = egui::Rect::from_min_size(
                     available_rect.left_top() + Vec2::new(self.instance_view.iri_width, ypos),
                     Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
@@ -410,13 +432,16 @@ impl TypeData {
                     egui::Align2::LEFT_TOP,
                     s,
                     font_id.clone(),
-                    if ref_rect.contains(mouse_pos) { egui::Color32::DARK_BLUE } else { egui::Color32::BLACK },
+                    if ref_rect.contains(mouse_pos) {
+                        egui::Color32::DARK_BLUE
+                    } else {
+                        egui::Color32::BLACK
+                    },
                 );
                 if primary_clicked && ref_rect.contains(mouse_pos) {
                     was_context_click = true;
                     ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                    self.instance_view.context_menu =
-                        TableContextMenu::RefMenu(mouse_pos, *instance_index);
+                    self.instance_view.context_menu = TableContextMenu::RefMenu(mouse_pos, *instance_index);
                 }
 
                 for column_desc in self
@@ -426,8 +451,7 @@ impl TypeData {
                     .filter(|p| p.visible)
                     .skip(self.instance_view.column_pos as usize)
                 {
-                    let property = node
-                        .get_property_count(column_desc.predicate_index, layout_data.display_language);
+                    let property = node.get_property_count(column_desc.predicate_index, layout_data.display_language);
                     if let Some((property, count)) = property {
                         let value = property.as_str_ref(&node_data.indexers);
                         let cell_rect = egui::Rect::from_min_size(
@@ -438,18 +462,15 @@ impl TypeData {
                         if cell_rect.contains(mouse_pos) {
                             cell_hovered = true;
                         }
-                        if count>1 {
+                        if count > 1 {
                             painter.rect_filled(cell_rect, 0.0, Color32::LIGHT_YELLOW);
                         }
                         text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered);
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
                             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                            self.instance_view.context_menu = TableContextMenu::CellMenu(
-                                mouse_pos,
-                                *instance_index,
-                                column_desc.predicate_index,
-                            );
+                            self.instance_view.context_menu =
+                                TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
                         }
                     }
                     xpos += column_desc.width + COLUMN_GAP;
@@ -478,11 +499,15 @@ impl TypeData {
         painter.line(
             [
                 Pos2::new(
-                    available_rect.left() + self.instance_view.iri_width + self.instance_view.ref_count_width + -COLUMN_GAP,
+                    available_rect.left()
+                        + self.instance_view.iri_width
+                        + self.instance_view.ref_count_width
+                        + -COLUMN_GAP,
                     available_rect.top(),
                 ),
                 Pos2::new(
-                    available_rect.left() + self.instance_view.ref_count_width + self.instance_view.iri_width - COLUMN_GAP,
+                    available_rect.left() + self.instance_view.ref_count_width + self.instance_view.iri_width
+                        - COLUMN_GAP,
                     available_rect.top() + ypos,
                 ),
             ]
@@ -589,13 +614,13 @@ impl TypeData {
                         ui.separator();
                         ui.menu_button("Unhide Columns", |ui| {
                             for column_desc in hidden_columns {
-                                let predicate_label = node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
-                                if ui
-                                    .button(predicate_label.as_str())
-                                    .clicked()
-                                {
-                                    *table_action =
-                                        TableAction::UhideColumn(column_desc.predicate_index);
+                                let predicate_label = node_data.predicate_display(
+                                    column_desc.predicate_index,
+                                    &label_context,
+                                    &node_data.indexers,
+                                );
+                                if ui.button(predicate_label.as_str()).clicked() {
+                                    *table_action = TableAction::UhideColumn(column_desc.predicate_index);
                                     close_menu = true;
                                 }
                             }
@@ -616,7 +641,7 @@ impl TypeData {
                                 ui.label(value.as_str_ref(&node_data.indexers));
                             }
                         }
-                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE," Close")).size(16.0);
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
                         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
@@ -636,7 +661,8 @@ impl TypeData {
                     let node = node_data.get_node_by_index(instance_index);
                     if let Some((_node_iri, node)) = node {
                         let mut node_to_click: Option<IriIndex> = None;
-                        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                         if let Some(node_index) = show_references(
                             node_data,
                             color_cache,
@@ -670,11 +696,10 @@ impl TypeData {
                         if let Some(node_to_click) = node_to_click {
                             *instance_action = NodeAction::BrowseNode(node_to_click);
                         }
-                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE," Close")).size(16.0);
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
                         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
-
                             close_menu = true;
                         }
                     } else {
@@ -698,13 +723,8 @@ impl TypeData {
             ui.strong("Min Card.");
             ui.strong("Max Card.");
             ui.end_row();
-            for (predicate_index, pcharecteristics) in &self.properties
-            {
-                let predicate_label = node_data.predicate_display(
-                    *predicate_index,
-                    label_context,
-                    &node_data.indexers
-                );
+            for (predicate_index, pcharecteristics) in &self.properties {
+                let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                 ui.label(predicate_label.as_str());
                 ui.label(pcharecteristics.count.to_string());
                 ui.label(pcharecteristics.max_len.to_string());
@@ -715,26 +735,45 @@ impl TypeData {
         });
     }
 
-    pub fn display_references(&self, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+    pub fn display_references(
+        &self,
+        ui: &mut egui::Ui,
+        label_context: &LabelContext,
+        node_data: &NodeData,
+    ) -> TypeCellAction {
+        let mut type_cell_action: TypeCellAction = TypeCellAction::None;
         egui::Grid::new("referenced").show(ui, |ui| {
             ui.strong("Out Ref");
             ui.strong("Count");
+            ui.strong("Type");
             ui.strong("Min Card.");
             ui.strong("Max Card.");
             ui.end_row();
             for (predicate_index, reference_characteristics) in &self.references {
-                let predicate_label = node_data.predicate_display(
-                    *predicate_index,
-                    label_context,
-                    &node_data.indexers
-                );
+                let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                 ui.label(predicate_label.as_str());
                 ui.label(reference_characteristics.count.to_string());
+                if reference_characteristics.types.is_empty() {
+                    ui.label("<None>");
+                } else {
+                    let first_type = reference_characteristics.types[0];
+                    let type_label = node_data.type_display(first_type, label_context, &node_data.indexers);
+                    let type_response = if reference_characteristics.types.len()==1 {
+                        ui.label(type_label.as_str())
+                    } else {
+                        ui.label(format!("{} +{}", type_label.as_str(), reference_characteristics.types.len() - 1).as_str())
+                    };
+                    if type_response.clicked() {
+                        let mouse_pos = type_response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                        type_cell_action = TypeCellAction::ShowRefTypes(mouse_pos, *predicate_index);
+                    }
+                }
                 ui.label(reference_characteristics.min_cardinality.to_string());
                 ui.label(reference_characteristics.max_cardinality.to_string());
                 ui.end_row();
             }
         });
+        type_cell_action
     }
     pub fn display_reverse_references(&self, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
         egui::Grid::new("referenced by").show(ui, |ui| {
@@ -742,11 +781,7 @@ impl TypeData {
             ui.strong("Count");
             ui.end_row();
             for (predicate_index, count) in &self.rev_references {
-                let predicate_label = node_data.predicate_display(
-                    *predicate_index,
-                    label_context,
-                    &node_data.indexers
-                );
+                let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                 ui.label(predicate_label.as_str());
                 ui.label(count.to_string());
                 ui.end_row();
@@ -762,7 +797,11 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2,
         0.0,
         egui::TextFormat {
             font_id: egui::FontId::default(),
-            color: if cell_hovered { Color32::DARK_BLUE } else { Color32::BLACK },
+            color: if cell_hovered {
+                Color32::DARK_BLUE
+            } else {
+                Color32::BLACK
+            },
             ..Default::default()
         },
     );
@@ -821,6 +860,7 @@ impl TypeInstanceIndex {
             types_filtered: Vec::new(),
             selected_type: None,
             types_filter: String::new(),
+            type_cell_action: TypeCellAction::None,
         }
     }
 
@@ -868,7 +908,9 @@ impl TypeInstanceIndex {
                         if *property_index == *predicate_index {
                             property_stat.count += 1;
                             property_card += 1;
-                            property_stat.max_len = property_stat.max_len.max(value.as_str_ref(&node_data.indexers).len() as u32);
+                            property_stat.max_len = property_stat
+                                .max_len
+                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
                         }
                     }
                     property_stat.max_cardinality = property_stat.max_cardinality.max(property_card);
@@ -892,7 +934,9 @@ impl TypeInstanceIndex {
                         if *property_index == predicate_index {
                             property_stat.count += 1;
                             property_card += 1;
-                            property_stat.max_len = property_stat.max_len.max(value.as_str_ref(&node_data.indexers).len() as u32);
+                            property_stat.max_len = property_stat
+                                .max_len
+                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
                         }
                     }
                     property_stat.max_cardinality = property_card;
@@ -902,7 +946,7 @@ impl TypeInstanceIndex {
                 let mut ref_counts: Vec<(IriIndex, u32, Vec<IriIndex>)> = Vec::new();
                 for (predicate_index, ref_index) in &node.references {
                     let ref_node = node_data.get_node_by_index(*ref_index);
-                    if let Some((_str,ref_node)) = ref_node {
+                    if let Some((_str, ref_node)) = ref_node {
                         let mut found = false;
                         for (predicate_count_index, predicate_count, types) in ref_counts.iter_mut() {
                             if *predicate_count_index == *predicate_index {
@@ -931,12 +975,10 @@ impl TypeInstanceIndex {
                     let reference_characteristics = type_data.references.get_mut(&predicate_index);
                     if let Some(reference_characteristics) = reference_characteristics {
                         reference_characteristics.count += count;
-                        reference_characteristics.max_cardinality = reference_characteristics
-                            .max_cardinality
-                            .max(count);
-                        reference_characteristics.min_cardinality = reference_characteristics
-                            .min_cardinality
-                            .min(count);
+                        reference_characteristics.max_cardinality =
+                            reference_characteristics.max_cardinality.max(count);
+                        reference_characteristics.min_cardinality =
+                            reference_characteristics.min_cardinality.min(count);
                     } else {
                         type_data.references.insert(
                             predicate_index,
@@ -964,17 +1006,11 @@ impl TypeInstanceIndex {
                 self.min_instance_type_count = type_data.instances.len();
                 self.max_instance_type_count = type_data.instances.len();
             } else {
-                self.min_instance_type_count =
-                    self.min_instance_type_count.min(type_data.instances.len());
-                self.max_instance_type_count =
-                    self.max_instance_type_count.max(type_data.instances.len());
+                self.min_instance_type_count = self.min_instance_type_count.min(type_data.instances.len());
+                self.max_instance_type_count = self.max_instance_type_count.max(type_data.instances.len());
             }
             for (predicate_index, data_characteristics) in type_data.properties.iter() {
-                if type_data
-                    .instance_view
-                    .get_column(*predicate_index)
-                    .is_none()
-                {
+                if type_data.instance_view.get_column(*predicate_index).is_none() {
                     let predicate_str = node_data.get_predicate(*predicate_index);
                     let column_desc = ColumnDesc {
                         predicate_index: *predicate_index,
@@ -984,10 +1020,7 @@ impl TypeInstanceIndex {
                     };
                     if let Some(predicate_str) = predicate_str {
                         if predicate_str.contains("label") {
-                            type_data
-                                .instance_view
-                                .display_properties
-                                .insert(0, column_desc);
+                            type_data.instance_view.display_properties.insert(0, column_desc);
                             continue;
                         }
                     }
@@ -996,22 +1029,23 @@ impl TypeInstanceIndex {
             }
             type_data.filtered_instances = type_data.instances.clone();
         }
-        self.selected_type = None;
         self.types_order.sort_by(|a, b| {
             let a_data = self.types.get(a).unwrap();
             let b_data = self.types.get(b).unwrap();
             b_data.instances.len().cmp(&a_data.instances.len())
         });
+        if self.types_order.is_empty() {
+            self.selected_type = None;
+        } else {
+            self.selected_type = Some(self.types_order[0]);
+        }
         self.types_filter.clear();
         self.types_filtered = self.types_order.clone();
         #[cfg(not(target_arch = "wasm32"))]
         {
             let duration = start.elapsed();
             println!("Time taken to index {} nodes: {:?}", node_len, duration);
-            println!(
-                "Nodes per second: {}",
-                node_len as f64 / duration.as_secs_f64()
-            );
+            println!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
         }
     }
 
@@ -1022,13 +1056,9 @@ impl TypeInstanceIndex {
             let filter = self.types_filter.to_lowercase();
             self.types_filtered = self
                 .types_order
-                .par_iter()                
+                .par_iter()
                 .filter(|type_index| {
-                    let label = node_data.type_display(
-                        **type_index,
-                        label_context,
-                        &node_data.indexers,
-                    );
+                    let label = node_data.type_display(**type_index, label_context, &node_data.indexers);
                     label.as_str().to_lowercase().contains(&filter)
                 })
                 .cloned()
@@ -1051,23 +1081,14 @@ impl TypeInstanceIndex {
                 ui.vertical(|ui| {
                     ui.heading("Statistics:");
                     ui.label(format!("Nodes: {}", self.nodes));
-                    ui.label(format!(
-                        "Unresolved References: {}",
-                        self.unresolved_references
-                    ));
+                    ui.label(format!("Unresolved References: {}", self.unresolved_references));
                     ui.label(format!("Blank Nodes: {}", self.blank_nodes));
                     ui.label(format!("Properties: {}", self.properties));
                     ui.label(format!("References: {}", self.references));
                     ui.label(format!("Unique Predicates: {}", self.unique_predicates));
                     ui.label(format!("Unique Types: {}", self.unique_types));
-                    ui.label(format!(
-                        "Unique Languages: {}",
-                        rdf_data.node_data.unique_languages()
-                    ));
-                    ui.label(format!(
-                        "Unique Data Types: {}",
-                        rdf_data.node_data.unique_data_types()
-                    ));
+                    ui.label(format!("Unique Languages: {}", rdf_data.node_data.unique_languages()));
+                    ui.label(format!("Unique Data Types: {}", rdf_data.node_data.unique_data_types()));
                     /*
                     ui.horizontal(|ui| {
                         if ui.button("Update").clicked() {
@@ -1083,7 +1104,8 @@ impl TypeInstanceIndex {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.push_id("types", |ui| {
                         let type_filter_response = ui.text_edit_singleline(&mut self.types_filter);
-                        let label_context = LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         if type_filter_response.changed() {
                             self.apply_filter(&mut rdf_data.node_data, &label_context);
                         }
@@ -1104,37 +1126,37 @@ impl TypeInstanceIndex {
                                     let label_a = rdf_data.node_data.type_display(
                                         *a,
                                         &label_context,
-                                        &rdf_data.node_data.indexers
+                                        &rdf_data.node_data.indexers,
                                     );
                                     let label_b = rdf_data.node_data.type_display(
                                         *b,
                                         &label_context,
-                                        &rdf_data.node_data.indexers
+                                        &rdf_data.node_data.indexers,
                                     );
                                     label_a.as_str().cmp(label_b.as_str())
                                 });
-                            },
+                            }
                             TypeTableAction::SortByInstances => {
                                 self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.instances.len().cmp(&a_data.instances.len())
                                 });
-                            },
+                            }
                             TypeTableAction::SortByDataProps => {
                                 self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.properties.len().cmp(&a_data.properties.len())
                                 });
-                            },
+                            }
                             TypeTableAction::SortByOutRef => {
                                 self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
                                     let b_data = self.types.get(b).unwrap();
                                     b_data.references.len().cmp(&a_data.references.len())
                                 });
-                            },
+                            }
                             TypeTableAction::SortByInRef => {
                                 self.types_filtered.par_sort_by(|a, b| {
                                     let a_data = self.types.get(a).unwrap();
@@ -1142,15 +1164,15 @@ impl TypeInstanceIndex {
                                     b_data.rev_references.len().cmp(&a_data.rev_references.len())
                                 });
                             }
-                            TypeTableAction::None => {
-
-                            }
+                            TypeTableAction::None => {}
                         }
                     });
                 });
                 if let Some(selected_type) = self.selected_type {
+                    let popup_id = ui.make_persistent_id("column_type_popup");
                     if let Some(type_data) = self.types.get_mut(&selected_type) {
-                        let label_context = LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
@@ -1160,16 +1182,54 @@ impl TypeInstanceIndex {
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
                             egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
-                                type_data.display_references(ui, &label_context, &rdf_data.node_data);
+                                let type_cell_action =
+                                    type_data.display_references(ui, &label_context, &rdf_data.node_data);
+                                match type_cell_action {
+                                    TypeCellAction::ShowRefTypes(pos, predicate_index) => {
+                                        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                                        self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
+                                    }
+                                    _ => {}
+                                }
                             });
                         });
                         ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
                             ui.separator();
-                            egui::ScrollArea::vertical()
-                                .id_salt("refby")
-                                .show(ui, |ui| {
-                                    type_data.display_reverse_references(ui, &label_context, &rdf_data.node_data);
-                                });
+                            egui::ScrollArea::vertical().id_salt("refby").show(ui, |ui| {
+                                type_data.display_reverse_references(ui, &label_context, &rdf_data.node_data);
+                            });
+                        });
+                        popup_at(ui, popup_id, self.type_cell_action.pos(), 500.0, |ui| {
+                            match self.type_cell_action {
+                                TypeCellAction::ShowRefTypes(_pos, predicate_index) => {
+                                    let mut close_menu = false;
+                                    let charteristics = type_data.references.get(&predicate_index);
+                                    if let Some(characterisics) = charteristics {
+                                        for type_index in &characterisics.types {
+                                            ui.label(
+                                                rdf_data.node_data.type_display(
+                                                    *type_index,
+                                                    &label_context,
+                                                    &rdf_data.node_data.indexers,
+                                                ).as_str()
+                                            );
+                                        }
+                                    } else {
+                                        close_menu = true;
+                                    }
+                                    let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
+                                    let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                                    let b_resp = ui.add(nav_but);
+                                    if b_resp.clicked() {
+                                        close_menu = true;
+                                    }
+                                    if close_menu {
+                                        self.type_cell_action = TypeCellAction::None;
+                                        ui.memory_mut(|mem| mem.close_popup());
+                                    }
+                                }
+                                TypeCellAction::None => {}
+                            }
                         });
                     }
                 }
@@ -1181,13 +1241,9 @@ impl TypeInstanceIndex {
                 let mut table_action: TableAction = TableAction::None;
                 ui.horizontal(|ui| {
                     let filter_immandiately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
-                    let text_edit =
-                        egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
+                    let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
-                    if ui
-                        .ctx()
-                        .input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command)
-                    {
+                    if ui.ctx().input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command) {
                         text_edit_response.request_focus();
                     }
                     if filter_immandiately {
@@ -1250,8 +1306,7 @@ impl TypeInstanceIndex {
                 match table_action {
                     TableAction::HideColumn(predicate_to_hide) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            for column_desc in type_data.instance_view.display_properties.iter_mut()
-                            {
+                            for column_desc in type_data.instance_view.display_properties.iter_mut() {
                                 if column_desc.predicate_index == predicate_to_hide {
                                     column_desc.visible = false;
                                     break;
@@ -1261,8 +1316,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::UhideColumn(preducate_to_unhide) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            for column_desc in type_data.instance_view.display_properties.iter_mut()
-                            {
+                            for column_desc in type_data.instance_view.display_properties.iter_mut() {
                                 if column_desc.predicate_index == preducate_to_unhide {
                                     column_desc.visible = true;
                                     break;
@@ -1277,14 +1331,10 @@ impl TypeInstanceIndex {
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = &node_a.get_property(
-                                            predicate_to_sort,
-                                            layout_data.display_language,
-                                        );
-                                        let b_value = &node_b.get_property(
-                                            predicate_to_sort,
-                                            layout_data.display_language,
-                                        );
+                                        let a_value =
+                                            &node_a.get_property(predicate_to_sort, layout_data.display_language);
+                                        let b_value =
+                                            &node_b.get_property(predicate_to_sort, layout_data.display_language);
                                         if let Some(a_value) = a_value {
                                             if let Some(b_value) = b_value {
                                                 let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
@@ -1314,14 +1364,10 @@ impl TypeInstanceIndex {
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = &node_a.get_property(
-                                            predicate_to_sort,
-                                            layout_data.display_language,
-                                        );
-                                        let b_value = node_b.get_property(
-                                            predicate_to_sort,
-                                            layout_data.display_language,
-                                        );
+                                        let a_value =
+                                            &node_a.get_property(predicate_to_sort, layout_data.display_language);
+                                        let b_value =
+                                            node_b.get_property(predicate_to_sort, layout_data.display_language);
                                         if let Some(a_value) = a_value {
                                             if let Some(b_value) = b_value {
                                                 let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
@@ -1351,10 +1397,8 @@ impl TypeInstanceIndex {
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = node_a.references.len()
-                                            + node_a.reverse_references.len();
-                                        let b_value = node_b.references.len()
-                                            + node_b.reverse_references.len();
+                                        let a_value = node_a.references.len() + node_a.reverse_references.len();
+                                        let b_value = node_b.references.len() + node_b.reverse_references.len();
                                         b_value.cmp(&a_value)
                                     } else {
                                         std::cmp::Ordering::Greater
@@ -1372,10 +1416,8 @@ impl TypeInstanceIndex {
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
                                     if let Some((_, node_b)) = node_b {
-                                        let a_value = node_a.references.len()
-                                            + node_a.reverse_references.len();
-                                        let b_value = node_b.references.len()
-                                            + node_b.reverse_references.len();
+                                        let a_value = node_a.references.len() + node_a.reverse_references.len();
+                                        let b_value = node_b.references.len() + node_b.reverse_references.len();
                                         a_value.cmp(&b_value)
                                     } else {
                                         std::cmp::Ordering::Greater
@@ -1428,16 +1470,18 @@ impl TypeInstanceIndex {
                             .filter(|&instance_index| {
                                 let node = rdf_data.node_data.get_node_by_index(instance_index);
                                 if let Some((node_iri, node)) = node {
-                                    if node.apply_filter(&type_data.instance_view.instance_filter,node_iri, &rdf_data.node_data.indexers) {
+                                    if node.apply_filter(
+                                        &type_data.instance_view.instance_filter,
+                                        node_iri,
+                                        &rdf_data.node_data.indexers,
+                                    ) {
                                         return true;
                                     }
                                 }
                                 false
                             })
                             .collect();
-                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
-                            >= type_data.filtered_instances.len()
-                        {
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
                     }
@@ -1445,13 +1489,11 @@ impl TypeInstanceIndex {
                         type_data.filtered_instances.retain(|&instance_index| {
                             let node = rdf_data.node_data.get_node_by_index(instance_index);
                             if let Some((_, node)) = node {
-                                return node.has_property(predicate_to_hide)
+                                return node.has_property(predicate_to_hide);
                             }
                             false
                         });
-                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
-                            >= type_data.filtered_instances.len()
-                        {
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
                     }
@@ -1471,9 +1513,7 @@ impl TypeInstanceIndex {
                             }
                             false
                         });
-                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
-                            >= type_data.filtered_instances.len()
-                        {
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
                     }
@@ -1481,13 +1521,11 @@ impl TypeInstanceIndex {
                         type_data.filtered_instances.retain(|&instance_index| {
                             let node = rdf_data.node_data.get_node_by_index(instance_index);
                             if let Some((_, node)) = node {
-                                return !node.has_property(predicate_to_hide)
+                                return !node.has_property(predicate_to_hide);
                             }
                             false
                         });
-                        if (type_data.instance_view.pos / ROW_HIGHT) as usize
-                            >= type_data.filtered_instances.len()
-                        {
+                        if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
                     }
@@ -1508,7 +1546,7 @@ impl TypeInstanceIndex {
         layout_data: &UIState,
         iri_display: IriDisplay,
         height: f32,
-    ) -> (Option<IriIndex>,TypeTableAction) {
+    ) -> (Option<IriIndex>, TypeTableAction) {
         let mut selected_type: Option<IriIndex> = None;
         let mut type_table_action: TypeTableAction = TypeTableAction::None;
         let text_height = egui::TextStyle::Body
@@ -1532,7 +1570,7 @@ impl TypeInstanceIndex {
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    strong_unselectable(ui,"Type");
+                    strong_unselectable(ui, "Type");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
@@ -1541,7 +1579,7 @@ impl TypeInstanceIndex {
                     }
                 });
                 header.col(|ui| {
-                    strong_unselectable(ui,"Inst#");
+                    strong_unselectable(ui, "Inst#");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
@@ -1550,7 +1588,7 @@ impl TypeInstanceIndex {
                     }
                 });
                 header.col(|ui| {
-                    strong_unselectable(ui,"Data#");
+                    strong_unselectable(ui, "Data#");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
@@ -1559,7 +1597,7 @@ impl TypeInstanceIndex {
                     }
                 });
                 header.col(|ui| {
-                    strong_unselectable(ui,"Out Ref#");
+                    strong_unselectable(ui, "Out Ref#");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
@@ -1568,7 +1606,7 @@ impl TypeInstanceIndex {
                     }
                 });
                 header.col(|ui| {
-                    strong_unselectable(ui,"In Ref#");
+                    strong_unselectable(ui, "In Ref#");
                     if ui.response().hovered() {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
@@ -1583,11 +1621,7 @@ impl TypeInstanceIndex {
                     let type_index = self.types_filtered.get(row.index()).unwrap();
                     row.set_selected(self.selected_type == Some(*type_index));
                     let type_data = self.types.get(type_index).unwrap();
-                    let type_label = node_data.type_display(
-                        *type_index,
-                        &label_context,
-                        &node_data.indexers
-                    );
+                    let type_label = node_data.type_display(*type_index, &label_context, &node_data.indexers);
                     row.col(|ui| {
                         ui.add(egui::Label::new(type_label.as_str()).selectable(false));
                     });
