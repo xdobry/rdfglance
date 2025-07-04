@@ -281,7 +281,7 @@ impl SortedNodeLayout {
         }
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
-                println!("Layout thread finished");
+                // println!("Layout thread finished");
                 if let Some(layout_handle) = self.layout_handle.take() {
                     layout_handle.join().unwrap();
                 }
@@ -342,7 +342,7 @@ impl SortedNodeLayout {
         if self.layout_handle.is_some() {
             return;
         }
-        println!("Starting background layout thread");
+        // println!("Starting background layout thread");
         let nodes_clone = Arc::clone(&self.nodes);
         let edges_clone = Arc::clone(&self.edges);
         let positions_clone = Arc::clone(&self.positions);
@@ -368,6 +368,7 @@ impl SortedNodeLayout {
                 count += 1;
                  */
                 if stop_layout.load(Ordering::Relaxed) {
+                    // println!("Layout stoppend");
                     break;
                 }
                 let (max_move, new_positions) = {
@@ -378,6 +379,7 @@ impl SortedNodeLayout {
                     layout_graph_nodes(&nodes, &node_shapes, &positions, &edges, &layout_config, temperature)
                 };
                 if stop_layout.load(Ordering::Relaxed) {
+                    // println!("Layout stoppend");
                     break;
                 }
                 {
@@ -389,13 +391,14 @@ impl SortedNodeLayout {
                     temperature *= 0.98;
                 }
                 if (max_move < 0.8 || temperature < 0.5) && !force_compute_layout {
+                    // println!("Layout finished with max move: {} temparature: {} lo", max_move, temperature);
                     break;
                 }
             }
             is_done.store(true, Ordering::Relaxed);
         });
         self.layout_handle = Some(handle);
-        println!("Background layout thread started");
+        // println!("Background layout thread started");
     }
 }
 
@@ -454,11 +457,17 @@ pub fn layout_graph_nodes(
     if nodes.is_empty() {
         return (0.0, Vec::new());
     }
+    // bei mehr nodes is kleiner
+    // Was auch stimmt, weil es k der optimalen entfernung zwischen den nodes ist
     let k = ((500.0 * 500.0) / (nodes.len() as f32)).sqrt();
+    // abstossen
     let repulsion_constant = config.repulsion_constant;
+    // anziehen
     let attraction_constant = config.attraction_factor;
     let repulsion_factor: f32 = (repulsion_constant * k).powi(2);
-    let attraction = k / attraction_constant;
+    // 55000.0 entspricht 20 nodes. Die anziehung soll unabhängig von der Anzahl der nodes sein
+    // let attraction = k / attraction_constant;
+    let attraction = 111.0 / attraction_constant;
 
     let mut forces: Vec<Vec2> = nodes
         .par_iter()

@@ -85,9 +85,10 @@ impl RdfGlanceApp {
                         rdfwrwap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
                     };
-                    rdf_data.expand_all(&mut node_change_context);
+                    if rdf_data.expand_all(&mut node_change_context) {
+                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                    }
                 }
-                self.visible_nodes.start_layout(&self.persistent_data.config_data);
             }
             if ui.button("To Center").clicked() {
                 self.graph_state.scene_rect = Rect::ZERO;
@@ -291,9 +292,11 @@ impl RdfGlanceApp {
                                                 npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
                                             }
                                         }
-                                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
-                                        npos.position(&mut self.visible_nodes);
-                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        if !npos.is_empty() {
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            npos.position(&mut self.visible_nodes);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
                                         .fill(self.visualisation_style.get_predicate_color(*reference_index));
@@ -321,9 +324,11 @@ impl RdfGlanceApp {
                                         for (parent_index, node_index) in nodes_to_add.iter() {
                                             npos.add_by_index(&mut self.visible_nodes, *parent_index, *node_index);
                                         }
-                                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
-                                        npos.position(&mut self.visible_nodes);
-                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        if !npos.is_empty() {
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            npos.position(&mut self.visible_nodes);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        }
                                     }
                                     let reference_state = reference_state.get(reference_index).unwrap();
                                     let state = format!("{}/{}", reference_state.count, reference_state.visible);
@@ -383,15 +388,17 @@ impl RdfGlanceApp {
                                         &rdf_data.node_data.indexers,
                                     );
                                     if ui.button(reference_label.as_str()).clicked() {
-                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         let mut npos = NeighbourPos::new();
                                         for (predicate_index, ref_iri) in &current_node.reverse_references {
                                             if predicate_index == reference_index {
                                                 npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
                                             }
                                         }
-                                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
-                                        npos.position(&mut self.visible_nodes);
+                                        if !npos.is_empty() {
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            npos.position(&mut self.visible_nodes);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
                                         .fill(self.visualisation_style.get_predicate_color(*reference_index));
@@ -399,7 +406,6 @@ impl RdfGlanceApp {
                                         self.ui_state.style_edit = StyleEdit::Edge(*reference_index);
                                     }
                                     if ui.button("➕").clicked() {
-                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         let mut nodes_to_add: Vec<(IriIndex, IriIndex)> = Vec::new();
                                         for node_layout in self.visible_nodes.nodes.read().unwrap().iter() {
                                             let visible_node =
@@ -418,8 +424,11 @@ impl RdfGlanceApp {
                                         for (root_index, node_to_add) in nodes_to_add.iter() {
                                             npos.add_by_index(&mut self.visible_nodes, *root_index, *node_to_add);
                                         }
-                                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
-                                        npos.position(&mut self.visible_nodes);
+                                        if !npos.is_empty() {
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            npos.position(&mut self.visible_nodes);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        }
                                     }
                                     let reference_state = reference_state.get(reference_index).unwrap();
                                     let state = format!("{}/{}", reference_state.count, reference_state.visible);
@@ -765,7 +774,9 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context);
+                                if rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandReferenced => {
@@ -773,7 +784,9 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context);
+                                if rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandReferencedBy => {
@@ -781,11 +794,13 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                rdf_data.expand_node(
+                                if rdf_data.expand_node(
                                     current_index,
                                     ExpandType::ReverseReferences,
                                     &mut node_change_context,
-                                );
+                                ) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 close_menu = true;
                             }
                             NodeContextAction::ExpandThisType => {
@@ -794,7 +809,9 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                rdf_data.expand_all_by_types(&types, &mut node_change_context);
+                                if rdf_data.expand_all_by_types(&types, &mut node_change_context) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 close_menu = true;
                             }
                             NodeContextAction::None => {
@@ -823,7 +840,9 @@ impl RdfGlanceApp {
                     rdfwrwap: &mut self.rdfwrap,
                     visible_nodes: &mut self.visible_nodes,
                 };
-                rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context);
+                if rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context) {
+                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                }
             }
         }
 
@@ -1003,6 +1022,10 @@ impl NeighbourPos {
         } else {
             false
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
     }
 
     pub fn insert(&mut self, root_node: IriIndex, node_index: IriIndex) {

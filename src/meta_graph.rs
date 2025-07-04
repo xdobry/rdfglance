@@ -14,16 +14,8 @@ impl RdfGlanceApp {
         let mut node_action = NodeAction::None;
 
         ui.horizontal(|ui| {
-            if ui.button("Show Meta Graph").clicked() {
-                self.meta_nodes.clear();
-                for (type_index, _type_node) in self.type_index.types.iter() {
-                    self.meta_nodes.add_by_index(*type_index);
-                }
-                self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
-                    &self.meta_nodes,
-                    &self.type_index,
-                )));
-                self.meta_nodes.start_layout(&self.persistent_data.config_data);
+            if ui.button("Rebuild Meta Graph").clicked() {
+                self.build_meta_graph();
             }
             self.meta_nodes
                 .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
@@ -367,6 +359,18 @@ impl RdfGlanceApp {
             });
         });
         node_action
+    }
+
+    pub fn build_meta_graph(&mut self) {
+        self.meta_nodes.clear();
+        for (type_index, _type_node) in self.type_index.types.iter() {
+            self.meta_nodes.add_by_index(*type_index);
+        }
+        self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
+            &self.meta_nodes,
+            &self.type_index,
+        )));
+        self.meta_nodes.start_layout(&self.persistent_data.config_data);
     }
 
     pub fn display_type_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {

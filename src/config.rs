@@ -8,9 +8,9 @@ pub struct Config {
     pub repulsion_constant: f32,
     // edges force
     pub attraction_factor: f32,
-    #[serde(default = "default_05")]
+    #[serde(default = "default_1")]
     pub m_repulsion_constant: f32,
-    #[serde(default = "default_05")]
+    #[serde(default = "default_1")]
     pub m_attraction_factor: f32,
     pub language_filter: String,
     #[serde(default = "default_true")]
@@ -57,8 +57,8 @@ fn default_iri_display() -> IriDisplay {
     IriDisplay::Full
 }
 
-fn default_05() -> f32 {
-    0.5
+fn default_1() -> f32 {
+    1.0
 }
 
 

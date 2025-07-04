@@ -5,7 +5,12 @@ use const_format::concatcp;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock}, thread::{self, JoinHandle}, time::Duration,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use eframe::{
@@ -112,7 +117,7 @@ impl RdfData {
         iri_index: IriIndex,
         expand_type: ExpandType,
         node_change_context: &mut NodeChangeContext,
-    ) {
+    ) -> bool {
         let refs_to_expand = {
             let nnode = self.node_data.get_node_by_index(iri_index);
             if let Some((_, nnode)) = nnode {
@@ -144,11 +149,16 @@ impl RdfData {
                 npos.insert(iri_index, ref_index);
             }
         }
-        update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
-        npos.position(node_change_context.visible_nodes);
+        if npos.is_empty() {
+            false
+        } else {
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            npos.position(node_change_context.visible_nodes);
+            true
+        }
     }
 
-    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext) {
+    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -177,8 +187,13 @@ impl RdfData {
                 npos.insert(parent_index, ref_index);
             }
         }
-        update_layout_edges(&npos,  node_change_context.visible_nodes, &self.node_data);
-        npos.position(node_change_context.visible_nodes);
+        if npos.is_empty() {
+            false
+        } else {
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            npos.position(node_change_context.visible_nodes);
+            true
+        }
     }
 
     fn load_object_by_index(&mut self, index: IriIndex, node_change_context: &mut NodeChangeContext) -> bool {
@@ -198,7 +213,7 @@ impl RdfData {
         false
     }
 
-    fn expand_all(&mut self, node_change_context: &mut NodeChangeContext) {
+    fn expand_all(&mut self, node_change_context: &mut NodeChangeContext) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -223,8 +238,13 @@ impl RdfData {
                 npos.insert(parent_index, ref_index);
             }
         }
-        update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
-        npos.position(node_change_context.visible_nodes);
+        if npos.is_empty() {
+            false
+        } else {
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            npos.position(node_change_context.visible_nodes);
+            true
+        }
     }
 
     pub fn resolve_rdf_lists(&mut self) {
@@ -594,7 +614,12 @@ impl RdfGlanceApp {
     pub fn load_ttl(&mut self, file_name: &str) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-            Some(rdfwrap::RDFWrap::load_file(file_name, &mut rdf_data, &language_filter,None))
+            Some(rdfwrap::RDFWrap::load_file(
+                file_name,
+                &mut rdf_data,
+                &language_filter,
+                None,
+            ))
         } else {
             None
         };
@@ -634,7 +659,12 @@ impl RdfGlanceApp {
         let handle = thread::spawn(move || {
             let my_data_loading = data_loading_clone.as_ref();
             let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                Some(rdfwrap::RDFWrap::load_file(file_name_cpy, &mut rdf_data, &language_filter, Some(my_data_loading)))
+                Some(rdfwrap::RDFWrap::load_file(
+                    file_name_cpy,
+                    &mut rdf_data,
+                    &language_filter,
+                    Some(my_data_loading),
+                ))
             } else {
                 None
             };
@@ -709,7 +739,12 @@ impl RdfGlanceApp {
         let handle = thread::spawn(move || {
             let my_data_loading = data_loading_clone.as_ref();
             let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                Some(rdfwrap::RDFWrap::load_from_dir(dir_name_cpy.as_str(), &mut rdf_data, &language_filter, Some(my_data_loading)))
+                Some(rdfwrap::RDFWrap::load_from_dir(
+                    dir_name_cpy.as_str(),
+                    &mut rdf_data,
+                    &language_filter,
+                    Some(my_data_loading),
+                ))
             } else {
                 None
             };
@@ -892,11 +927,9 @@ impl eframe::App for RdfGlanceApp {
                 if !data_loading.finished.load(Ordering::Relaxed) {
                     ui.label("RDF data is currently being loaded. Please wait...");
                     let total_size = data_loading.total_size.load(Ordering::Relaxed);
-                    if total_size>0 {
+                    if total_size > 0 {
                         let progress = data_loading.read_pos.load(Ordering::Relaxed) as f32 / total_size as f32;
-                        let progress_bar = egui::ProgressBar::new(progress)
-                            .desired_width(300.0)
-                            .show_percentage();
+                        let progress_bar = egui::ProgressBar::new(progress).desired_width(300.0).show_percentage();
                         ui.add(progress_bar);
                     }
                     ui.label(format!(
@@ -912,7 +945,7 @@ impl eframe::App for RdfGlanceApp {
                     self.join_load();
                 }
             }
-            
+
             if self.system_message.has_message() {
                 egui::Window::new("System Message")
                     .collapsible(false)
@@ -950,11 +983,19 @@ impl eframe::App for RdfGlanceApp {
                         DisplayType::Browse,
                         concatcp!(ICON_BROWSE, " Browse"),
                     );
-                    ui.selectable_value(
-                        &mut self.display_type,
-                        DisplayType::MetaGraph,
-                        concatcp!(ICON_METADATA, " Meta Graph"),
-                    );
+                    if ui
+                        .selectable_value(
+                            &mut self.display_type,
+                            DisplayType::MetaGraph,
+                            concatcp!(ICON_METADATA, " Meta Graph"),
+                        )
+                        .clicked()
+                    {
+                        let is_empty = self.meta_nodes.nodes.read().unwrap().is_empty();
+                        if is_empty {
+                            self.build_meta_graph();
+                        }
+                    }
                 });
                 ui.selectable_value(
                     &mut self.display_type,
