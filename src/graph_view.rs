@@ -32,6 +32,7 @@ enum NodeContextAction {
     ExpandReferenced,
     ExpandReferencedBy,
     ExpandThisType,
+    HideThisTypePreserveEdges,
 }
 
 impl NodeContextAction {
@@ -41,6 +42,9 @@ impl NodeContextAction {
         }
         if ui.button("Hide this type").clicked() {
             return NodeContextAction::HideThisType;
+        }
+        if ui.button("Hide this type with Edge Preservation").clicked() {
+            return NodeContextAction::HideThisTypePreserveEdges;
         }
         if ui.button("Hide other").clicked() {
             return NodeContextAction::HideOther;
@@ -721,7 +725,6 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::HideThisType => {
                                 let types = current_node.types.clone();
-                                self.visible_nodes.remove(current_index);
                                 self.visible_nodes.retain(|x| {
                                     let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                     if let Some((_, node)) = node {
@@ -814,6 +817,24 @@ impl RdfGlanceApp {
                                 }
                                 close_menu = true;
                             }
+                            NodeContextAction::HideThisTypePreserveEdges => {
+                                let types = current_node.types.clone();
+                                add_preserved_edges(
+                                    &types,
+                                    &mut self.visible_nodes,
+                                    &rdf_data.node_data,
+                                );
+                                self.visible_nodes.retain(|x| {
+                                    let node = rdf_data.node_data.get_node_by_index(x.node_index);
+                                    if let Some((_, node)) = node {
+                                        !node.has_same_type(&types)
+                                    } else {
+                                        true
+                                    }
+                                });
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                close_menu = true;
+                            },
                             NodeContextAction::None => {
                                 // do nothing
                             }
@@ -992,6 +1013,89 @@ pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNo
         }
          */
         update_edges_groups(&mut edges);
+    }
+}
+
+pub fn add_preserved_edges(hidden_types: &Vec<IriIndex>, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData) {
+    if let Ok(mut edges) = layout_nodes.edges.write() {
+        let mut positions_to_preserve : Vec<usize> = Vec::new();
+        if let Ok(nodes) = layout_nodes.nodes.read() {
+            for (pos,node_layout) in nodes.iter().enumerate() {
+                let node = node_data.get_node_by_index(node_layout.node_index);
+                if let Some((_iri, nobject)) = node {
+                    if hidden_types.iter().any(|type_index| nobject.types.contains(type_index)) {
+                        positions_to_preserve.push(pos)
+                    }
+                }
+            }
+        }
+        for position_to_preserve in positions_to_preserve.iter() {
+            let mut preserved_edges: Vec<Edge> = Vec::new();
+            let pos_edges : Vec<&Edge> = edges.iter().filter(|edge| {
+                edge.from == *position_to_preserve || edge.to == *position_to_preserve
+            }).collect();
+            let mut has_to = false;
+            for edge in pos_edges.iter() {
+                // We create preserved edges only if the are 2 edges that jump over the node
+                if edge.to == *position_to_preserve {
+                    has_to = true;
+                    for edge2 in pos_edges.iter() {
+                        if edge2.from == *position_to_preserve && edge2.to != edge.from {
+                            if preserved_edges.iter().any(|e| (e.from == edge.from && e.to == edge2.to) || (e.from == edge2.to && e.to == edge.from)) {
+                                continue;
+                            }
+                            preserved_edges.push(Edge {
+                                from: edge.from,
+                                to: edge2.to,
+                                predicate: edge.predicate,
+                                bezier_distance: 0.0,
+                            });
+                        }
+                    }
+                }
+            }
+            if preserved_edges.len() == 0 {
+                // No edges found. But create edges if to nodes point to or from the node for hide
+                if has_to {
+                    for edge in pos_edges.iter() {
+                        if edge.to == *position_to_preserve {
+                            for edge2 in pos_edges.iter() {
+                                if edge2.to == *position_to_preserve && edge2.from != edge.from && edge.from < edge2.from {
+                                    if preserved_edges.iter().any(|e| e.from == edge.from && e.to == edge2.from) {
+                                        continue;
+                                    }
+                                    preserved_edges.push(Edge {
+                                        from: edge.from,
+                                        to: edge2.from,
+                                        predicate: edge.predicate,
+                                        bezier_distance: 0.0,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    for edge in pos_edges.iter() {
+                        if edge.from == *position_to_preserve {
+                            for edge2 in pos_edges.iter() {
+                                if edge2.from == *position_to_preserve && edge2.to != edge.to && edge.to < edge2.to {
+                                    if preserved_edges.iter().any(|e| e.from == edge.to && e.to == edge2.to) {
+                                        continue;
+                                    }
+                                    preserved_edges.push(Edge {
+                                        from: edge.to,
+                                        to: edge2.to,
+                                        predicate: edge.predicate,
+                                        bezier_distance: 0.0,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            edges.extend(preserved_edges);
+        }
     }
 }
 

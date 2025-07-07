@@ -86,7 +86,7 @@ pub struct RdfGlanceApp {
     type_index: TypeInstanceIndex,
     persistent_data: AppPersistentData,
     help_open: bool,
-    load_handle: Option<JoinHandle<Option<Result<u32, Error>>>>,
+    load_handle: Option<JoinHandle<Option<Result<(u32,String), Error>>>>,
     #[cfg(target_arch = "wasm32")]
     file_upload: Option<Promise<Result<File, anyhow::Error>>>,
     data_loading: Option<Arc<DataLoading>>,
@@ -660,11 +660,11 @@ impl RdfGlanceApp {
             let my_data_loading = data_loading_clone.as_ref();
             let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
                 Some(rdfwrap::RDFWrap::load_file(
-                    file_name_cpy,
+                    file_name_cpy.as_str(),
                     &mut rdf_data,
                     &language_filter,
                     Some(my_data_loading),
-                ))
+                ).map(|triples_count| (triples_count, file_name_cpy)))
             } else {
                 None
             };
@@ -678,9 +678,13 @@ impl RdfGlanceApp {
         if let Some(handle) = self.load_handle.take() {
             println!("Joining load thread");
             match handle.join() {
-                Ok(Some(Ok(triples_count))) => {
+                Ok(Some(Ok((triples_count, file_name)))) => {
                     self.set_status_message(&format!("Loaded {} triples", triples_count));
                     self.update_data_indexes();
+                    let file_name = file_name.as_str();
+                    if !self.persistent_data.last_files.iter().any(|f| *f == file_name.into()) {
+                        self.persistent_data.last_files.push(file_name.into());
+                    }
                 }
                 Ok(Some(Err(err))) => {
                     self.system_message = SystemMessage::Error(format!("Error loading data: {}", err));
@@ -744,7 +748,7 @@ impl RdfGlanceApp {
                     &mut rdf_data,
                     &language_filter,
                     Some(my_data_loading),
-                ))
+                ).map(|triples_count| (triples_count, dir_name_cpy)))
             } else {
                 None
             };

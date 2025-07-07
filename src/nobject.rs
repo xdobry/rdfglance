@@ -275,6 +275,8 @@ impl Indexers {
         self.type_indexer = StringIndexer::new();
         self.language_indexer = StringIndexer::new();
         self.datatype_indexer = StringIndexer::new();
+        self.language_indexer.get_index("en");
+        self.predicate_indexer.get_index("rdfs:label");
     }
 }
 
