@@ -4,6 +4,7 @@ RDFGlance is an open-source application designed to provide a visual representat
 
 - Easy to install
 - Small Desktop App
+- [Serverless WASM Based Web Application](https://xdobry.github.io/rdfglance/) (limited functionality)
 - 100% React free
 - Multithread Processing to use 100% of your CPU power
 - No HTML
@@ -137,6 +138,7 @@ You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferenc
 - Some RDF files can not be read. You will see the error messages in the std output. It seems that the used oxrdf parser is quite sensitive.
 - If loading big rdf files the gui may freeze for a while. There is no separate worker thread for it
 - The is no limitations to shown size of elements in visual graph. If you have more than 10000 Elements the ui may be not very responsible
+- If your computer has no GPU support the application can be quite slow, esspecially in browser
 
 I still hope that the application can be useful for others.
 Maybe I will improve it later if I feel like it again.

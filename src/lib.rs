@@ -342,6 +342,7 @@ pub enum NodeAction {
     None,
     BrowseNode(IriIndex),
     ShowType(IriIndex),
+    ShowTypeInstances(IriIndex, Vec<IriIndex>),
     ShowVisual(IriIndex),
 }
 
@@ -777,6 +778,10 @@ impl RdfGlanceApp {
             if self.persistent_data.config_data.resolve_rdf_lists {
                 rdf_data.resolve_rdf_lists();
             }
+            for (_iri, node) in rdf_data.node_data.iter_mut() {
+                node.references.sort_by(|a,b| a.0.cmp(&b.0));
+                node.reverse_references.sort_by(|a,b| a.0.cmp(&b.0));
+            }
             self.type_index.update(&rdf_data.node_data);
 
             self.visualisation_style.preset_styles(&self.type_index);
@@ -1053,6 +1058,14 @@ impl eframe::App for RdfGlanceApp {
                 NodeAction::ShowType(type_index) => {
                     self.display_type = DisplayType::Table;
                     self.type_index.selected_type = Some(type_index);
+                }
+                NodeAction::ShowTypeInstances(type_index, instances) => {
+                    self.display_type = DisplayType::Table;
+                    self.type_index.selected_type = Some(type_index);
+                    self.type_index.types.get_mut(&type_index).map(|type_desc| {
+                        type_desc.filtered_instances = instances;
+                        type_desc.instance_view.pos = 0.0;
+                    });
                 }
                 NodeAction::BrowseNode(node_index) => {
                     self.display_type = DisplayType::Browse;

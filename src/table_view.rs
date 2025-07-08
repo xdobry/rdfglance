@@ -8,13 +8,7 @@ use rayon::prelude::*;
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    GVisualisationStyle, NodeAction, RdfData, UIState,
-    browse_view::show_references,
-    config::IriDisplay,
-    nobject::{IriIndex, LabelContext, NodeData},
-    prefix_manager::PrefixManager,
-    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
-    uitools::{ScrollBar, popup_at, strong_unselectable},
+    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
 };
 
 pub struct TypeInstanceIndex {
@@ -660,10 +654,10 @@ impl TypeData {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
                     if let Some((_node_iri, node)) = node {
-                        let mut node_to_click: Option<IriIndex> = None;
+                        let mut node_to_click: ReferenceAction = ReferenceAction::None;
                         let label_context =
                             LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
-                        if let Some(node_index) = show_references(
+                        let ref_result = show_references(
                             node_data,
                             color_cache,
                             ui,
@@ -673,12 +667,13 @@ impl TypeData {
                             300.0,
                             "ref",
                             &label_context,
-                        ) {
-                            node_to_click = Some(node_index);
+                        );
+                        if ref_result != ReferenceAction::None {
+                            node_to_click = ref_result;
                             close_menu = true;
                         }
                         ui.push_id("refby", |ui| {
-                            if let Some(node_index) = show_references(
+                            let ref_result = show_references(
                                 node_data,
                                 color_cache,
                                 ui,
@@ -688,13 +683,20 @@ impl TypeData {
                                 300.0,
                                 "ref_by",
                                 &label_context,
-                            ) {
-                                node_to_click = Some(node_index);
+                            );
+                            if ref_result != ReferenceAction::None {
+                                node_to_click = ref_result;
                                 close_menu = true;
                             }
                         });
-                        if let Some(node_to_click) = node_to_click {
-                            *instance_action = NodeAction::BrowseNode(node_to_click);
+                        match node_to_click {
+                            ReferenceAction::None => {},
+                            ReferenceAction::ShowNode(node_index) => {
+                                *instance_action = NodeAction::BrowseNode(node_index);
+                            },
+                            ReferenceAction::Filter(type_index,instances ) => {
+                                *instance_action = NodeAction::ShowTypeInstances(type_index, instances)
+                            }
                         }
                         let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
                         let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);

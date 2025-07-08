@@ -1,11 +1,20 @@
+use std::cell::Ref;
+
 use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    GVisualisationStyle, NodeAction, RdfGlanceApp, UIState,
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData},
-    style::ICON_GRAPH,
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, GVisualisationStyle, NodeAction, RdfGlanceApp, UIState
 };
+
+
+
+#[derive(PartialEq)]
+pub enum ReferenceAction {
+    None,
+    ShowNode(IriIndex),
+    Filter(IriIndex,Vec<IriIndex>)
+}
 
 impl RdfGlanceApp {
     pub fn show_table(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -29,7 +38,7 @@ impl RdfGlanceApp {
                 self.show_object();
             }
         });
-        let mut node_to_click: Option<IriIndex> = None;
+        let mut node_to_click: ReferenceAction = ReferenceAction::None;
         if let Some(current_iri_index) = self.current_iri {
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let current_node = rdf_data.node_data.get_node_by_index(current_iri_index);
@@ -140,8 +149,14 @@ impl RdfGlanceApp {
         } else {
             ui.heading("No node selected. Please enter Node IRI or click node link from table or graph view.");
         }
-        if let Some(node_to_click) = node_to_click {
-            self.show_object_by_index(node_to_click, true);
+        match node_to_click {
+            ReferenceAction::None => {}
+            ReferenceAction::ShowNode(iri_index) => {
+                action_type_index = NodeAction::BrowseNode(iri_index);
+            }
+            ReferenceAction::Filter(node_type, instances) => {
+                action_type_index = NodeAction::ShowTypeInstances(node_type, instances);                
+            }
         }
         action_type_index
     }
@@ -155,15 +170,15 @@ pub fn show_refs_table(
     layout_data: &UIState,
     h: f32,
     label_context: &LabelContext,
-) -> Option<IriIndex> {
-    let mut node_to_click: Option<IriIndex> = None;
+) -> ReferenceAction {
+    let mut node_to_click: ReferenceAction = ReferenceAction::None;
 
     StripBuilder::new(ui)
         .size(egui_extras::Size::exact(600.0))
         .size(egui_extras::Size::exact(600.0)) // Two resizable panels with equal initial width
         .horizontal(|mut strip| {
             strip.cell(|ui| {
-                if let Some(node_index) = show_references(
+                let ref_result = show_references(
                     node_data,
                     color_cache,
                     ui,
@@ -173,13 +188,14 @@ pub fn show_refs_table(
                     h,
                     "ref",
                     label_context,
-                ) {
-                    node_to_click = Some(node_index);
+                );
+                if ref_result != ReferenceAction::None {
+                    node_to_click = ref_result;
                 }
             });
             strip.cell(|ui| {
                 ui.push_id("ref2", |ui| {
-                    if let Some(node_index) = show_references(
+                    let ref_result = show_references(
                         node_data,
                         color_cache,
                         ui,
@@ -189,8 +205,9 @@ pub fn show_refs_table(
                         h,
                         "ref_by",
                         label_context,
-                    ) {
-                        node_to_click = Some(node_index);
+                    );
+                    if ref_result != ReferenceAction::None {
+                        node_to_click = ref_result;
                     }
                 });
             });
@@ -208,8 +225,8 @@ pub fn show_references(
     height: f32,
     id_salt: &str,
     label_context: &LabelContext,
-) -> Option<IriIndex> {
-    let mut node_to_click: Option<IriIndex> = None;
+) -> ReferenceAction {
+    let mut node_to_click: ReferenceAction = ReferenceAction::None;
     if !references.is_empty() {
         ui.heading(label);
         let text_height = egui::TextStyle::Body
@@ -226,6 +243,7 @@ pub fn show_references(
             .column(Column::exact(200.0).at_least(30.0).at_most(300.0))
             .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
             .column(Column::exact(100.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(20.0))
             .min_scrolled_height(height)
             .max_scroll_height(height);
 
@@ -243,6 +261,9 @@ pub fn show_references(
                 header.col(|ui| {
                     ui.strong("Label");
                 });
+                header.col(|ui| {
+                    ui.strong("F");
+                });
             })
             .body(|body| {
                 body.rows(text_height, references.len(), |mut row| {
@@ -255,7 +276,7 @@ pub fn show_references(
                     if let Some((ref_iri, ref_node)) = node_data.get_node_by_index(*ref_index) {
                         row.col(|ui| {
                             if ui.link(ref_iri).clicked() {
-                                node_to_click = Some(*ref_index);
+                                node_to_click = ReferenceAction::ShowNode(*ref_index);
                             }
                         });
                         row.col(|ui| {
@@ -282,6 +303,28 @@ pub fn show_references(
                                 ui.label(label);
                             }
                         });
+                        row.col(|ui| {
+                            if ref_node.types.is_empty() {
+                                ui.label("?");
+                            } else {
+                                if ui.button(ICON_FILTER).clicked() {
+                                    let node_type = ref_node.types.first().unwrap();
+                                    // collected all instance of same predicate and type
+                                    let instances: Vec<IriIndex> = references.iter().filter(|(pred, iref_index)| {
+                                        if pred == predicate_index {
+                                            if let Some((_iri, nobject)) = node_data.get_node_by_index(*iref_index) {
+                                                nobject.types.contains(node_type)
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        }
+                                    }).map(|(_pred, iref_index)| *iref_index).collect();
+                                    node_to_click = ReferenceAction::Filter(*node_type,instances);
+                                }
+                            }
+                       });
                     }
                 });
             });
