@@ -73,7 +73,7 @@ impl RdfGlanceApp {
                         }
                         if let Some(last_file_clicked) = last_file_clicked {
                             ui.close_menu();
-                            self.load_ttl(&last_file_clicked);
+                            self.load_ttl(&last_file_clicked, ui.visuals().dark_mode);
                             ui.ctx().request_repaint();
                         }
                     });
@@ -121,7 +121,7 @@ impl RdfGlanceApp {
         {
             let selected_file = Some(path.display().to_string());
             if let Some(selected_file) = &selected_file {
-                self.load_ttl(selected_file);
+                self.load_ttl(selected_file, ui.visuals().dark_mode);
             }
         }
         #[cfg(target_arch = "wasm32")]
@@ -144,7 +144,7 @@ impl RdfGlanceApp {
         }
     }
     #[cfg(target_arch = "wasm32")]
-    pub fn handle_files(&mut self, ctx: &egui::Context) {
+    pub fn handle_files(&mut self, ctx: &egui::Context, visuals: &egui::Visuals) {
         if let Some(result) = &self.file_upload {
             match &result.ready() {
                 Some(Ok(crate::File { path, data })) => {
@@ -168,7 +168,7 @@ impl RdfGlanceApp {
                             Ok(triples_count) => {
                                 let load_message = format!("Loaded: {} triples: {}", path, triples_count);
                                 self.set_status_message(&load_message);
-                                self.update_data_indexes();
+                                self.update_data_indexes(visuals.dark_mode);
                             }
                         }
                     }

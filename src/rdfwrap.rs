@@ -146,7 +146,7 @@ impl RDFWrap {
         language_filter: &[String],
     ) -> Result<u32> {
         let file_name = Path::new(file_name);
-        let reader = Cursor::new(data);
+        let reader = io::Cursor::new(data);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
         Self::load_file_reader(file_extension, reader, rdf_data, language_filter, None)
     }

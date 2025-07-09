@@ -229,6 +229,7 @@ pub fn draw_self_edge<F>(
     edge_style: &EdgeStyle,
     faded: bool,
     label_cb: F,
+    visuals: &egui::Visuals,
 ) where
 F: Fn() -> String,
 {
@@ -304,7 +305,7 @@ F: Fn() -> String,
             0.0,
             egui::TextFormat {
                 font_id: label_font,
-                color: fade_color(edge_font.font_color, faded),
+                color: fade_color(fg_color_mode(edge_font.font_color,visuals), faded),
                 ..Default::default()
             },
         );

@@ -583,6 +583,7 @@ impl RdfGlanceApp {
                                             self.visualisation_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
                                             faded,
                                             node_label,
+                                            ui.visuals()
                                         );
                                     }
                                 }

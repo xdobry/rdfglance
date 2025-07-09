@@ -619,7 +619,7 @@ impl RdfGlanceApp {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn load_ttl(&mut self, file_name: &str) {
+    pub fn load_ttl(&mut self, file_name: &str, is_dark_mode: bool) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
             Some(rdfwrap::RDFWrap::load_file(
@@ -643,14 +643,14 @@ impl RdfGlanceApp {
                     if !self.persistent_data.last_files.iter().any(|f| *f == file_name.into()) {
                         self.persistent_data.last_files.push(file_name.into());
                     }
-                    self.update_data_indexes();
+                    self.update_data_indexes(is_dark_mode);
                 }
             }
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn load_ttl(&mut self, file_name: &str) {
+    pub fn load_ttl(&mut self, file_name: &str, _is_dark_mode: bool) {
         let rdf_data_clone = Arc::clone(&self.rdf_data);
         let language_filter = self.persistent_data.config_data.language_filter();
         let file_name_cpy = file_name.to_string();
@@ -712,7 +712,7 @@ impl RdfGlanceApp {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>) {
+    pub fn load_ttl_data(&mut self, file_name: &str, data: &Vec<u8>, is_dark_mode: bool) {
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
             Some(rdfwrap::RDFWrap::load_file_data(
@@ -732,7 +732,7 @@ impl RdfGlanceApp {
                 Ok(triples_count) => {
                     let load_message = format!("Loaded: {} triples: {}", file_name, triples_count);
                     self.set_status_message(&load_message);
-                    self.update_data_indexes();
+                    self.update_data_indexes(is_dark_mode);
                 }
             }
         }
@@ -821,7 +821,7 @@ impl RdfGlanceApp {
             let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
             let b_resp = ui.add(nav_but);
             if b_resp.clicked() {
-                self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref());
+                self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref(), ui.visuals().dark_mode);
             }
         }
         StripBuilder::new(ui)
@@ -854,7 +854,7 @@ impl RdfGlanceApp {
                             });
                         });
                         if let Some(last_file_clicked) = last_file_clicked {
-                            self.load_ttl(&last_file_clicked);
+                            self.load_ttl(&last_file_clicked, ui.visuals().dark_mode);
                         }
                         if let Some(last_file_forget) = last_file_forget {
                             self.persistent_data
@@ -1117,11 +1117,11 @@ impl eframe::App for RdfGlanceApp {
                 });
             }
              */
+            #[cfg(target_arch = "wasm32")]
+            {
+                self.handle_files(ctx, ui.visuals());
+            }
         });
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.handle_files(ctx);
-        }
     }
 
     fn save(&mut self, _storage: &mut dyn Storage) {

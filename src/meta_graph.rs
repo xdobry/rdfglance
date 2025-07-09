@@ -159,6 +159,7 @@ impl RdfGlanceApp {
                                             &edge_style,
                                             false,
                                             node_label,
+                                            ui.visuals(),
                                         );
                                     }
                                 }
@@ -496,7 +497,7 @@ mod tests {
     #[test]
     fn test_meta_graph() -> std::io::Result<()> {
         let mut vs = RdfGlanceApp::new(None);
-        vs.load_ttl("sample-rdf-data/programming_languages.ttl");
+        vs.load_ttl("sample-rdf-data/programming_languages.ttl",true);
         vs.join_load(true);
         for (type_index, _type_node) in vs.type_index.types.iter() {
             vs.meta_nodes.add_by_index(*type_index);
