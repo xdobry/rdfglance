@@ -128,7 +128,7 @@ impl RdfGlanceApp {
                                         reference_label.as_str().to_owned()
                                     };
                                     let pos1 = center + positions[edge.from].pos.to_vec2();
-                                    let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate);
+                                    let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode);
                                     edge_style.color = p_edge_style.color;
                                     if edge.from != edge.to {
                                         let node_shape_from = &node_shapes[edge.from];
@@ -146,6 +146,7 @@ impl RdfGlanceApp {
                                             node_label,
                                             false,
                                             edge.bezier_distance,
+                                            ui.visuals()
                                         );
                                     } else {
                                         let node_shape_from = &node_shapes[edge.from];
@@ -204,6 +205,7 @@ impl RdfGlanceApp {
                                     false,
                                     false,
                                     true,
+                                    ui.visuals()
                                 );
                                 if let Some(new_node_shapes) = &mut new_node_shapes {
                                     new_node_shapes.push(NodeShapeData {
@@ -495,7 +497,7 @@ mod tests {
     fn test_meta_graph() -> std::io::Result<()> {
         let mut vs = RdfGlanceApp::new(None);
         vs.load_ttl("sample-rdf-data/programming_languages.ttl");
-        vs.join_load();
+        vs.join_load(true);
         for (type_index, _type_node) in vs.type_index.types.iter() {
             vs.meta_nodes.add_by_index(*type_index);
         }

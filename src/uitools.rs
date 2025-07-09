@@ -143,9 +143,9 @@ impl Widget for ScrollBar<'_> {
 
         // Draw the filled box
         ui.painter()
-            .rect_filled(rect, 5.0, Color32::LIGHT_GRAY); // 5.0 is corner rounding
+            .rect_filled(rect, 5.0, ui.visuals().extreme_bg_color);
 
-        ui.painter().rect_filled(bar_rec, 5.0, Color32::DARK_GRAY);
+        ui.painter().rect_filled(bar_rec, 5.0, ui.visuals().text_color());
 
         response
     }

@@ -358,6 +358,7 @@ impl RdfGlanceApp {
                     false,
                     false,
                     true,
+                    ui.visuals()
                 );
             }
         }
@@ -454,6 +455,7 @@ impl RdfGlanceApp {
                     node_label,
                     false,
                     0.0,
+                    ui.visuals()
                 );
             }
         }

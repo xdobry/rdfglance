@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{Align, Layout};
+use egui::{global_theme_preference_switch, Align, Layout};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -18,7 +18,7 @@ impl RdfGlanceApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     if ui.button("Load Project").clicked() {
-                        self.load_project_dialog();
+                        self.load_project_dialog(ui.visuals().dark_mode);
                         ui.close_menu();
                     }
                     if ui.button("Save Project").clicked() {
@@ -36,7 +36,7 @@ impl RdfGlanceApp {
                             if let Some(last_project_clicked) = last_project_clicked {
                                 ui.close_menu();
                                 let last_project_path = Path::new(&*last_project_clicked);
-                                self.load_project(last_project_path);
+                                self.load_project(last_project_path, ui.visuals().dark_mode);
                             }
                         });
                     }
@@ -84,6 +84,7 @@ impl RdfGlanceApp {
                     ui.close_menu();
                 }
             });
+            global_theme_preference_switch(ui);
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let selected_language = rdf_data.node_data.get_language(self.ui_state.display_language);
                 if let Some(selected_language) = selected_language {
@@ -180,16 +181,16 @@ impl RdfGlanceApp {
             }
         }
     }
-    pub fn load_project_dialog(&mut self) {
+    pub fn load_project_dialog(&mut self, is_dark_mode: bool) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
             .add_filter("RDF Glance project", &["rdfglance"])
             .pick_file()
         {
-            self.load_project(path.as_path());
+            self.load_project(path.as_path(), is_dark_mode);
         }
     }
-    pub fn load_project(&mut self, path: &Path) {
+    pub fn load_project(&mut self, path: &Path, is_dark_mode: bool) {
         let restore = Self::restore(Path::new(path));
         match restore {
             Err(e) => {
@@ -200,7 +201,7 @@ impl RdfGlanceApp {
                 self.rdf_data = app_data.rdf_data;
                 self.ui_state = app_data.ui_state;
                 self.visible_nodes = app_data.visible_nodes;
-                self.update_data_indexes();
+                self.update_data_indexes(is_dark_mode);
                 if !app_data.visualisation_style.node_styles.is_empty() {
                     self.visualisation_style = app_data.visualisation_style;
                 }

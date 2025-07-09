@@ -1,6 +1,6 @@
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
-    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
+    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, text_selection::visuals, Align2, FontId, Rect, Shape, StrokeKind, Vec2
 };
 
 use crate::{
@@ -23,6 +23,7 @@ pub fn draw_edge<F>(
     label_cb: F,
     faded: bool,
     bezier_distance: f32,
+    visuals: &egui::Visuals,
 ) where
     F: Fn() -> String,
 {
@@ -182,7 +183,7 @@ pub fn draw_edge<F>(
             0.0,
             egui::TextFormat {
                 font_id: label_font,
-                color: fade_color(edge_font.font_color, faded),
+                color: fade_color(fg_color_mode(edge_font.font_color,visuals), faded),
                 ..Default::default()
             },
         );
@@ -214,7 +215,7 @@ pub fn draw_edge<F>(
             Align2::CENTER_CENTER,
             icon_style.icon_character.to_string(),
             icon_font,
-            fade_color(icon_style.icon_color, faded),
+            fade_color(fg_color_mode(icon_style.icon_color,visuals), faded),
         );
     }
 }
@@ -336,6 +337,18 @@ fn fade_color(color: Color32, fade: bool) -> Color32 {
     }
 }
 
+pub fn fg_color_mode(color: Color32, visuals: &egui::Visuals) -> Color32 {
+    if visuals.dark_mode {
+        if Color32::BLACK == color {
+            visuals.text_color()
+        } else {
+            visuals.extreme_bg_color
+        }
+    } else {
+        color
+    }
+}
+
 pub fn draw_node_label(
     painter: &Painter,
     node_label: &str,
@@ -345,6 +358,7 @@ pub fn draw_node_label(
     highlighted: bool,
     faded: bool,
     show_labels: bool,
+    visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let mut job = LayoutJob::default();
     let font = FontId::proportional(type_style.font_size);
@@ -354,9 +368,9 @@ pub fn draw_node_label(
         egui::TextFormat {
             font_id: font,
             color: if highlighted {
-                Color32::BLUE
+                visuals.selection.stroke.color
             } else {
-                fade_color(type_style.label_color, faded)
+                fade_color(fg_color_mode(type_style.label_color,visuals), faded)
             },
             ..Default::default()
         },
@@ -466,7 +480,7 @@ pub fn draw_node_label(
     };
     if highlighted {
         let hrec = galley.rect.translate(Vec2::new(text_pos.x, text_pos.y));
-        painter.rect_filled(hrec, 3.0, Color32::from_rgba_unmultiplied(255, 255, 153, 200));
+        painter.rect_filled(hrec, 3.0, visuals.extreme_bg_color);
     }
     if show_labels || highlighted {
         painter.galley(text_pos, galley, Color32::BLACK);

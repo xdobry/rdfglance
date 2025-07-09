@@ -943,7 +943,7 @@ mod tests {
         let mut vs = RdfGlanceApp::new(None);
         let start = Instant::now();
         vs.load_ttl("sample-rdf-data/programming_languages.ttl");
-        vs.join_load();
+        vs.join_load(true);
 
         if let Ok(rdf_data) = vs.rdf_data.read() {
             println!("nodes read {}", rdf_data.node_data.len());
@@ -1003,7 +1003,7 @@ mod tests {
                 }
             });
             let edge_index = node_object.references.get(0).unwrap().0;
-            vs.visualisation_style.get_edge_syle(edge_index);
+            vs.visualisation_style.get_edge_syle(edge_index, true);
             let edge = vs.visualisation_style.edge_styles.get_mut(&edge_index).unwrap();
             edge.color = Color32::YELLOW;
             edge.width = 3.0;

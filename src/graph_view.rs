@@ -303,7 +303,7 @@ impl RdfGlanceApp {
                                         }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
-                                        .fill(self.visualisation_style.get_predicate_color(*reference_index));
+                                        .fill(self.visualisation_style.get_predicate_color(*reference_index, ui.visuals().dark_mode));
                                     if ui.add(edge_style_button).clicked() {
                                         self.ui_state.style_edit = StyleEdit::Edge(*reference_index);
                                     }
@@ -405,7 +405,7 @@ impl RdfGlanceApp {
                                         }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
-                                        .fill(self.visualisation_style.get_predicate_color(*reference_index));
+                                        .fill(self.visualisation_style.get_predicate_color(*reference_index, ui.visuals().dark_mode));
                                     if ui.add(edge_style_button).clicked() {
                                         self.ui_state.style_edit = StyleEdit::Edge(*reference_index);
                                     }
@@ -564,10 +564,11 @@ impl RdfGlanceApp {
                                             pos2,
                                             node_shape_to.size,
                                             node_shape_to.node_shape,
-                                            self.visualisation_style.get_edge_syle(edge.predicate),
+                                            self.visualisation_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
                                             node_label,
                                             faded,
                                             edge.bezier_distance,
+                                            ui.visuals()
                                         );
                                     } else {
                                         let faded = !selected_related_nodes.is_empty()
@@ -579,7 +580,7 @@ impl RdfGlanceApp {
                                             node_shape_from.size,
                                             edge.bezier_distance,
                                             node_shape_from.node_shape,
-                                            self.visualisation_style.get_edge_syle(edge.predicate),
+                                            self.visualisation_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
                                             faded,
                                             node_label,
                                         );
@@ -623,6 +624,7 @@ impl RdfGlanceApp {
                                     self.ui_state.selected_node == Some(node_layout.node_index),
                                     false,
                                     faded,
+                                    ui.visuals()
                                 );
                                 if let Some(new_node_shapes) = &mut new_node_shapes {
                                     new_node_shapes.push(NodeShapeData {
@@ -688,6 +690,7 @@ impl RdfGlanceApp {
                                     self.ui_state.selected_node == Some(node_to_hover),
                                     true,
                                     false,
+                                    ui.visuals()
                                 );
                             }
                         }
@@ -938,6 +941,7 @@ pub fn draw_node(
     selected: bool,
     highlighted: bool,
     faded: bool,
+    visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let type_style = visualisation_style.get_type_style(&node_object.types);
     let node_label = node_object.node_label(
@@ -956,6 +960,7 @@ pub fn draw_node(
         highlighted,
         faded,
         ui_state.show_labels,
+        visuals
     )
 }
 

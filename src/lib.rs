@@ -84,9 +84,9 @@ pub struct RdfGlanceApp {
     system_message: SystemMessage,
     pub rdf_data: Arc<RwLock<RdfData>>,
     type_index: TypeInstanceIndex,
-    persistent_data: AppPersistentData,
+    pub persistent_data: AppPersistentData,
     help_open: bool,
-    load_handle: Option<JoinHandle<Option<Result<(u32,String), Error>>>>,
+    load_handle: Option<JoinHandle<Option<Result<(u32, String), Error>>>>,
     #[cfg(target_arch = "wasm32")]
     file_upload: Option<Promise<Result<File, anyhow::Error>>>,
     data_loading: Option<Arc<DataLoading>>,
@@ -321,13 +321,13 @@ pub enum StyleEdit {
 }
 
 #[derive(Serialize, Deserialize)]
-struct AppPersistentData {
+pub struct AppPersistentData {
     last_files: Vec<Box<str>>,
     last_endpoints: Vec<Box<str>>,
     #[serde(default = "default_last_projects")]
     last_projects: Vec<Box<str>>,
     #[serde(default = "default_config_data")]
-    config_data: config::Config,
+    pub config_data: config::Config,
 }
 
 fn default_config_data() -> config::Config {
@@ -356,11 +356,12 @@ impl UIState {
 }
 
 impl GVisualisationStyle {
-    pub fn preset_styles(&mut self, cache_statistics: &TypeInstanceIndex) {
+    pub fn preset_styles(&mut self, cache_statistics: &TypeInstanceIndex, is_dark_mode: bool) {
         for (type_index, _type_desc) in cache_statistics.types.iter() {
             let type_style = self.node_styles.get(type_index);
             if type_style.is_none() {
-                let new_color = distinct_colors::next_distinct_color(self.node_styles.len(), 0.8, 0.8, 200);
+                let lightness = if is_dark_mode { 0.3 } else { 0.6 };
+                let new_color = distinct_colors::next_distinct_color(self.node_styles.len(), 0.8, lightness, 200);
                 self.node_styles.insert(
                     *type_index,
                     NodeStyle {
@@ -404,22 +405,28 @@ impl GVisualisationStyle {
         style.unwrap_or(&self.default_node_style)
     }
 
-    fn get_predicate_color(&mut self, iri: IriIndex) -> egui::Color32 {
+    fn get_predicate_color(&mut self, iri: IriIndex, is_dark_mode: bool) -> egui::Color32 {
         let len = self.edge_styles.len();
         self.edge_styles
             .entry(iri)
-            .or_insert_with(|| EdgeStyle {
-                color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
-                ..EdgeStyle::default()
+            .or_insert_with(|| {
+                let lightness = if is_dark_mode { 0.6 } else { 0.3 };
+                EdgeStyle {
+                    color: distinct_colors::next_distinct_color(len, 0.5, lightness, 170),
+                    ..EdgeStyle::default()
+                }
             })
             .color
     }
 
-    fn get_edge_syle(&mut self, iri: IriIndex) -> &EdgeStyle {
+    fn get_edge_syle(&mut self, iri: IriIndex, is_dark_mode: bool) -> &EdgeStyle {
         let len = self.edge_styles.len();
-        self.edge_styles.entry(iri).or_insert_with(|| EdgeStyle {
-            color: distinct_colors::next_distinct_color(len, 0.5, 0.3, 170),
-            ..EdgeStyle::default()
+        self.edge_styles.entry(iri).or_insert_with(|| {
+            let lightness = if is_dark_mode { 0.6 } else { 0.3 };
+            EdgeStyle {
+                color: distinct_colors::next_distinct_color(len, 0.5, lightness, 170),
+                ..EdgeStyle::default()
+            }
         })
     }
 
@@ -660,12 +667,15 @@ impl RdfGlanceApp {
         let handle = thread::spawn(move || {
             let my_data_loading = data_loading_clone.as_ref();
             let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                Some(rdfwrap::RDFWrap::load_file(
-                    file_name_cpy.as_str(),
-                    &mut rdf_data,
-                    &language_filter,
-                    Some(my_data_loading),
-                ).map(|triples_count| (triples_count, file_name_cpy)))
+                Some(
+                    rdfwrap::RDFWrap::load_file(
+                        file_name_cpy.as_str(),
+                        &mut rdf_data,
+                        &language_filter,
+                        Some(my_data_loading),
+                    )
+                    .map(|triples_count| (triples_count, file_name_cpy)),
+                )
             } else {
                 None
             };
@@ -675,13 +685,13 @@ impl RdfGlanceApp {
         self.load_handle = Some(handle);
     }
 
-    pub fn join_load(&mut self) {
+    pub fn join_load(&mut self, is_dark_mode: bool) {
         if let Some(handle) = self.load_handle.take() {
             println!("Joining load thread");
             match handle.join() {
                 Ok(Some(Ok((triples_count, file_name)))) => {
                     self.set_status_message(&format!("Loaded {} triples", triples_count));
-                    self.update_data_indexes();
+                    self.update_data_indexes(is_dark_mode);
                     let file_name = file_name.as_str();
                     if !self.persistent_data.last_files.iter().any(|f| *f == file_name.into()) {
                         self.persistent_data.last_files.push(file_name.into());
@@ -744,12 +754,15 @@ impl RdfGlanceApp {
         let handle = thread::spawn(move || {
             let my_data_loading = data_loading_clone.as_ref();
             let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
-                Some(rdfwrap::RDFWrap::load_from_dir(
-                    dir_name_cpy.as_str(),
-                    &mut rdf_data,
-                    &language_filter,
-                    Some(my_data_loading),
-                ).map(|triples_count| (triples_count, dir_name_cpy)))
+                Some(
+                    rdfwrap::RDFWrap::load_from_dir(
+                        dir_name_cpy.as_str(),
+                        &mut rdf_data,
+                        &language_filter,
+                        Some(my_data_loading),
+                    )
+                    .map(|triples_count| (triples_count, dir_name_cpy)),
+                )
             } else {
                 None
             };
@@ -763,7 +776,7 @@ impl RdfGlanceApp {
         self.status_message.clear();
         self.status_message.push_str(message);
     }
-    pub fn update_data_indexes(&mut self) {
+    pub fn update_data_indexes(&mut self, is_dark_mode: bool) {
         if let Ok(mut rdf_data) = self.rdf_data.write() {
             self.ui_state.language_sort.clear();
             for (index, _lang) in rdf_data.node_data.indexers.language_indexer.map.iter() {
@@ -779,12 +792,12 @@ impl RdfGlanceApp {
                 rdf_data.resolve_rdf_lists();
             }
             for (_iri, node) in rdf_data.node_data.iter_mut() {
-                node.references.sort_by(|a,b| a.0.cmp(&b.0));
-                node.reverse_references.sort_by(|a,b| a.0.cmp(&b.0));
+                node.references.sort_by(|a, b| a.0.cmp(&b.0));
+                node.reverse_references.sort_by(|a, b| a.0.cmp(&b.0));
             }
             self.type_index.update(&rdf_data.node_data);
 
-            self.visualisation_style.preset_styles(&self.type_index);
+            self.visualisation_style.preset_styles(&self.type_index, is_dark_mode);
             rdf_data.node_data.indexers.predicate_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.type_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.language_indexer.map.shrink_to_fit();
@@ -871,7 +884,7 @@ impl RdfGlanceApp {
                         });
                         if let Some(last_file_clicked) = last_file_clicked {
                             let last_project_path = Path::new(&*last_file_clicked);
-                            self.load_project(last_project_path);
+                            self.load_project(last_project_path, ui.visuals().dark_mode);
                         }
                         if let Some(last_file_forget) = last_file_forget {
                             self.persistent_data
@@ -951,7 +964,7 @@ impl eframe::App for RdfGlanceApp {
                     ctx.request_repaint_after(Duration::from_millis(100));
                     return;
                 } else {
-                    self.join_load();
+                    self.join_load(ui.visuals().dark_mode);
                 }
             }
 

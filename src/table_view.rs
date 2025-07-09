@@ -1,7 +1,7 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
-use egui::{Align, Align2, Color32, CursorIcon, Frame, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui::{text_selection::visuals, Align, Align2, Color32, CursorIcon, Frame, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
 
@@ -200,7 +200,7 @@ impl TypeData {
         painter.rect_filled(
             Rect::from_min_size(available_rect.left_top(), Vec2::new(available_width, ROW_HIGHT)),
             0.0,
-            Color32::GRAY,
+            ui.visuals().code_bg_color,
         );
 
         if response.drag_stopped() {
@@ -242,7 +242,7 @@ impl TypeData {
             egui::Align2::LEFT_TOP,
             "iri",
             font_id.clone(),
-            egui::Color32::BLACK,
+            ui.visuals().text_color(),
         );
 
         let iri_colums_drag_size_rect = egui::Rect::from_min_size(
@@ -281,7 +281,7 @@ impl TypeData {
             egui::Align2::LEFT_TOP,
             "out/in",
             font_id.clone(),
-            egui::Color32::BLACK,
+            ui.visuals().text_color(),
         );
         let ref_column_rec = egui::Rect::from_min_size(
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
@@ -320,7 +320,7 @@ impl TypeData {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let predicate_label =
                 node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
-            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false);
+            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false, ui.visuals());
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
             if column_rect.contains(mouse_pos) {
@@ -363,7 +363,7 @@ impl TypeData {
                             Vec2::new(available_width, ROW_HIGHT),
                         ),
                         0.0,
-                        Color32::WHITE,
+                        ui.visuals().faint_bg_color,
                     );
                 }
                 start_pos += 1;
@@ -387,7 +387,7 @@ impl TypeData {
                     Align2::CENTER_CENTER,
                     ICON_GRAPH,
                     egui::FontId::default(),
-                    Color32::BLACK,
+                    ui.visuals().text_color(),
                 );
 
                 let iri_top_left = available_rect.left_top() + Vec2::new(graph_button_width, ypos);
@@ -409,6 +409,7 @@ impl TypeData {
                     painter,
                     iri_top_left,
                     cell_hovered,
+                    ui.visuals()
                 );
 
                 if primary_clicked && cell_rect.contains(mouse_pos) {
@@ -427,9 +428,9 @@ impl TypeData {
                     s,
                     font_id.clone(),
                     if ref_rect.contains(mouse_pos) {
-                        egui::Color32::DARK_BLUE
+                        ui.visuals().selection.stroke.color
                     } else {
-                        egui::Color32::BLACK
+                        ui.visuals().text_color()
                     },
                 );
                 if primary_clicked && ref_rect.contains(mouse_pos) {
@@ -457,9 +458,9 @@ impl TypeData {
                             cell_hovered = true;
                         }
                         if count > 1 {
-                            painter.rect_filled(cell_rect, 0.0, Color32::LIGHT_YELLOW);
+                            painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
                         }
-                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered);
+                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered, ui.visuals());
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
                             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
@@ -792,7 +793,7 @@ impl TypeData {
     }
 }
 
-fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool) {
+fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, visuals: &egui::Visuals) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -800,9 +801,9 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2,
         egui::TextFormat {
             font_id: egui::FontId::default(),
             color: if cell_hovered {
-                Color32::DARK_BLUE
+                visuals.selection.stroke.color
             } else {
-                Color32::BLACK
+                visuals.text_color()
             },
             ..Default::default()
         },
@@ -815,19 +816,19 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2,
         ..Default::default()
     };
     let galley = painter.layout_job(job);
-    painter.galley(top_left, galley, Color32::BLACK);
+    painter.galley(top_left, galley, visuals.text_color());
 }
 
-fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool) {
+fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool, visuals: &egui::Visuals) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
         0.0,
         egui::TextFormat {
             font_id: egui::FontId::default(),
-            color: Color32::BLUE,
+            color: visuals.hyperlink_color,
             underline: if hovered {
-                Stroke::new(1.0, Color32::BLUE)
+                Stroke::new(1.0, visuals.hyperlink_color)
             } else {
                 Stroke::NONE
             },
@@ -842,7 +843,7 @@ fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: 
         ..Default::default()
     };
     let galley = painter.layout_job(job);
-    painter.galley(top_left, galley, Color32::BLACK);
+    painter.galley(top_left, galley, visuals.text_color());
 }
 
 impl TypeInstanceIndex {
