@@ -1,7 +1,7 @@
 use eframe::egui::{
     vec2, Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui,
 };
-use egui::{Rect, Response, Sense, Vec2, Widget};
+use egui::{text_selection::visuals, Rect, Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(
     ui: &Ui,
@@ -191,5 +191,13 @@ pub fn load_icon() -> eframe::egui::IconData {
         rgba: icon_rgba,
         width: icon_width,
         height: icon_height,
+    }
+}
+
+pub fn primary_color(visuals: &egui::Visuals) -> Color32 {
+    if visuals.dark_mode {
+        egui::Color32::DARK_GREEN
+    } else {
+        egui::Color32::LIGHT_GREEN
     }
 }

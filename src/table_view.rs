@@ -8,7 +8,7 @@ use rayon::prelude::*;
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
+    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
 };
 
 pub struct TypeInstanceIndex {
@@ -242,7 +242,7 @@ impl TypeData {
             egui::Align2::LEFT_TOP,
             "iri",
             font_id.clone(),
-            ui.visuals().text_color(),
+            ui.visuals().strong_text_color(),
         );
 
         let iri_colums_drag_size_rect = egui::Rect::from_min_size(
@@ -281,7 +281,7 @@ impl TypeData {
             egui::Align2::LEFT_TOP,
             "out/in",
             font_id.clone(),
-            ui.visuals().text_color(),
+            ui.visuals().strong_text_color(),
         );
         let ref_column_rec = egui::Rect::from_min_size(
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
@@ -320,7 +320,7 @@ impl TypeData {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let predicate_label =
                 node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
-            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false, ui.visuals());
+            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false, true, ui.visuals());
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
             if column_rect.contains(mouse_pos) {
@@ -460,7 +460,7 @@ impl TypeData {
                         if count > 1 {
                             painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
                         }
-                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered, ui.visuals());
+                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered, false, ui.visuals());
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
                             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
@@ -637,7 +637,7 @@ impl TypeData {
                             }
                         }
                         let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
-                        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
                             close_menu = true;
@@ -700,7 +700,7 @@ impl TypeData {
                             }
                         }
                         let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
-                        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                         let b_resp = ui.add(nav_but);
                         if b_resp.clicked() {
                             close_menu = true;
@@ -793,7 +793,7 @@ impl TypeData {
     }
 }
 
-fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, visuals: &egui::Visuals) {
+fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, strong: bool, visuals: &egui::Visuals) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -803,7 +803,11 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2,
             color: if cell_hovered {
                 visuals.selection.stroke.color
             } else {
-                visuals.text_color()
+                if strong {
+                    visuals.strong_text_color()
+                } else {
+                    visuals.text_color()
+                }
             },
             ..Default::default()
         },
@@ -1221,7 +1225,7 @@ impl TypeInstanceIndex {
                                         close_menu = true;
                                     }
                                     let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
-                                    let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                                    let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                                     let b_resp = ui.add(nav_but);
                                     if b_resp.clicked() {
                                         close_menu = true;

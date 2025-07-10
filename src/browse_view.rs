@@ -4,7 +4,7 @@ use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, GVisualisationStyle, NodeAction, RdfGlanceApp, UIState
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, uitools::primary_color, GVisualisationStyle, NodeAction, RdfGlanceApp, UIState
 };
 
 
@@ -49,7 +49,7 @@ impl RdfGlanceApp {
                         ui.label(full_iri);
                     });
                     let button_text = egui::RichText::new(concatcp!(ICON_GRAPH, " See in Visual Graph")).size(16.0);
-                    let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+                    let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                     let b_resp = ui.add(nav_but);
                     if b_resp.clicked() {
                         action_type_index = NodeAction::ShowVisual(current_iri_index);

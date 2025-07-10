@@ -28,6 +28,8 @@ enum NodeContextAction {
     HideOther,
     HideOtherTypes,
     HideUnrelated,
+    HideOrpfans,
+    HideRedundantEdges,
     Expand,
     ExpandReferenced,
     ExpandReferencedBy,
@@ -54,6 +56,12 @@ impl NodeContextAction {
         }
         if ui.button("Hide unrelated").clicked() {
             return NodeContextAction::HideUnrelated;
+        }
+        if ui.button("Hide Orfan Nodes").clicked() {
+            return NodeContextAction::HideOrpfans;
+        }
+        if ui.button("Hide Redundant Edges").clicked() {
+            return NodeContextAction::HideRedundantEdges;
         }
         if ui.button("Expand").clicked() {
             return NodeContextAction::Expand;
@@ -505,22 +513,7 @@ impl RdfGlanceApp {
                         self.ui_state.node_to_drag = None;
                     }
                 });
-                let mut selected_related_nodes = Vec::new();
-                if self.ui_state.fade_unselected {
-                    if let Some(selected_node) = &self.ui_state.selected_node {
-                        selected_related_nodes.push(*selected_node);
-                        if let Some((_node_iri, node)) = rdf_data.node_data.get_node_by_index(*selected_node) {
-                            for (_predicate_index, ref_iri) in &node.references {
-                                selected_related_nodes.push(*ref_iri);
-                            }
-                            for (_predicate_index, ref_iri) in &node.reverse_references {
-                                selected_related_nodes.push(*ref_iri);
-                            }
-                        }
-                        selected_related_nodes.sort_unstable();
-                        selected_related_nodes.dedup();
-                    }
-                }
+                
 
                 let label_context = LabelContext::new(
                     self.ui_state.display_language,
@@ -528,9 +521,27 @@ impl RdfGlanceApp {
                     &rdf_data.prefix_manager,
                 );
                 edge_count += self.visible_nodes.edges.read().unwrap().len() as u32;
+                let mut selected_related_nodes_pos = Vec::new();
                 if let Ok(positions) = self.visible_nodes.positions.read() {
                     if let Ok(nodes) = self.visible_nodes.nodes.read() {
                         if let Ok(edges) = self.visible_nodes.edges.read() {
+                            if self.ui_state.fade_unselected {
+                                if let Some(selected_node) = &self.ui_state.selected_node {
+                                    let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
+                                    if let Ok(selected_pos) = selected_pos {
+                                        selected_related_nodes_pos.push(selected_pos);
+                                        for edge in edges.iter() {
+                                            if edge.from == selected_pos {
+                                                selected_related_nodes_pos.push(edge.to);
+                                            } else if edge.to == selected_pos {
+                                                selected_related_nodes_pos.push(edge.from);
+                                            }
+                                        }
+                                    }
+                                    selected_related_nodes_pos.sort_unstable();
+                                    selected_related_nodes_pos.dedup();
+                                }
+                            }
                             if let Ok(node_shapes) = self.visible_nodes.node_shapes.read() {
                                 for edge in edges.iter() {
                                     if self.ui_state.hidden_predicates.contains(edge.predicate) {
@@ -549,12 +560,11 @@ impl RdfGlanceApp {
                                     if edge.from != edge.to {
                                         let node_shape_from = &node_shapes[edge.from];
                                         let node_shape_to = &node_shapes[edge.to];
-                                        let ref_object = &nodes[edge.to];
                                         let pos2 = center + positions[edge.to].pos.to_vec2();
-                                        let faded = !selected_related_nodes.is_empty()
-                                            && !(selected_related_nodes.binary_search(&node_layout.node_index).is_ok()
-                                                && selected_related_nodes
-                                                    .binary_search(&ref_object.node_index)
+                                        let faded = !selected_related_nodes_pos.is_empty()
+                                            && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
+                                                && selected_related_nodes_pos
+                                                    .binary_search(&edge.to)
                                                     .is_ok());
                                         drawing::draw_edge(
                                             painter,
@@ -571,8 +581,8 @@ impl RdfGlanceApp {
                                             ui.visuals()
                                         );
                                     } else {
-                                        let faded = !selected_related_nodes.is_empty()
-                                            && selected_related_nodes.binary_search(&node_layout.node_index).is_err();
+                                        let faded = !selected_related_nodes_pos.is_empty()
+                                            && selected_related_nodes_pos.binary_search(&edge.from).is_err();
                                         let node_shape_from = &node_shapes[edge.from];
                                         drawing::draw_self_edge(
                                             painter,
@@ -607,13 +617,13 @@ impl RdfGlanceApp {
                         } else {
                             None
                         };
-                        for (node_layout, node_position) in nodes.iter().zip(positions.iter()) {
+                        for ((node_pos,node_layout), node_position) in nodes.iter().enumerate().zip(positions.iter()) {
                             if let Some((object_iri, object)) =
                                 rdf_data.node_data.get_node_by_index(node_layout.node_index)
                             {
                                 let pos = center + node_position.pos.to_vec2();
-                                let faded = !selected_related_nodes.is_empty()
-                                    && selected_related_nodes.binary_search(&node_layout.node_index).is_err();
+                                let faded = !selected_related_nodes_pos.is_empty()
+                                    && selected_related_nodes_pos.binary_search(&node_pos).is_err();
                                 let (node_rect, node_shape) = draw_node(
                                     &self.visualisation_style,
                                     &rdf_data.node_data.indexers,
@@ -775,6 +785,12 @@ impl RdfGlanceApp {
                                 });
                                 self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 close_menu = true;
+                            }
+                            NodeContextAction::HideOrpfans => {
+                                self.visible_nodes.hide_orphans();
+                            }
+                            NodeContextAction::HideRedundantEdges => {
+                                self.visible_nodes.remove_redundant_edges();
                             }
                             NodeContextAction::Expand => {
                                 let mut node_change_context = NodeChangeContext {

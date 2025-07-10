@@ -21,9 +21,7 @@ pub struct NodeLayout {
 
 impl NodeLayout {
     pub fn new(node_index: IriIndex) -> Self {
-        Self {
-            node_index,
-        }
+        Self { node_index }
     }
 }
 
@@ -205,9 +203,9 @@ impl SortedNodeLayout {
                             e.to -= 1;
                         }
                     });
-                    update_edges_groups(edges);
                 }
             }
+            update_edges_groups(edges);
         });
     }
 
@@ -228,6 +226,35 @@ impl SortedNodeLayout {
                         e.from -= 1;
                     }
                     if e.to > pos {
+                        e.to -= 1;
+                    }
+                });
+            }
+            update_edges_groups(edges);
+        });
+    }
+
+    /**
+     * Removes all nodes by position.
+     *
+     * The position list must be sorted and unique. Otherwise it will crash.
+     */
+    pub fn remove_pos_list(&mut self, pos_to_remove: &[usize]) {
+        self.mut_nodes(|nodes, positions, edges, node_shapes| {
+            for pos in pos_to_remove.iter().rev() {
+                nodes.remove(*pos);
+                if positions.len() > *pos {
+                    positions.remove(*pos);
+                }
+                if node_shapes.len() > *pos {
+                    node_shapes.remove(*pos);
+                }
+                edges.retain(|e| e.from != *pos && e.to != *pos);
+                edges.iter_mut().for_each(|e| {
+                    if e.from > *pos {
+                        e.from -= 1;
+                    }
+                    if e.to > *pos {
                         e.to -= 1;
                     }
                 });
@@ -399,6 +426,59 @@ impl SortedNodeLayout {
         });
         self.layout_handle = Some(handle);
         // println!("Background layout thread started");
+    }
+
+    pub fn hide_orphans(&mut self) {
+        let mut used_positions: Vec<usize> = self
+            .edges
+            .read()
+            .unwrap()
+            .iter()
+            .flat_map(|edge| vec![edge.from, edge.to])
+            .collect();
+        used_positions.sort_unstable();
+        used_positions.dedup();
+        let mut used_positions_cursor = 0;
+        let mut pos_to_remove: Vec<usize> = Vec::new();
+        for pos in 0..self.nodes.read().unwrap().len() {
+            if used_positions_cursor >= used_positions.len() {
+                pos_to_remove.push(pos);
+            } else if pos == used_positions[used_positions_cursor] {
+                used_positions_cursor += 1;
+            } else {
+                pos_to_remove.push(pos);
+            }
+        }
+        self.remove_pos_list(&pos_to_remove);
+    }
+
+    pub fn remove_redundant_edges(&mut self) {
+        if let Ok(mut edges) = self.edges.write() {
+            let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
+            for (edge_index, edge) in edges.iter().enumerate() {
+                groups
+                    .entry(if edge.from > edge.to {
+                        (edge.from, edge.to)
+                    } else {
+                        (edge.to, edge.from)
+                    })
+                    .or_default()
+                    .push(edge_index);
+            }
+            let mut edges_pos_to_remove: Vec<usize> = groups.values().flat_map(|pos_list| {
+                if pos_list.len() > 1 {
+                    pos_list[1..].to_vec() // Keep the first edge, remove the rest
+                } else {
+                    Vec::new() // Keep single edges
+                }
+            }).collect();
+            edges_pos_to_remove.sort_unstable();
+            edges_pos_to_remove.dedup();
+            for pos in edges_pos_to_remove.iter().rev() {
+                edges.remove(*pos);
+            }
+            update_edges_groups(&mut edges);
+        }
     }
 }
 

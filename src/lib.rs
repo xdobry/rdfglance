@@ -33,6 +33,8 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
+use crate::uitools::primary_color;
+
 pub mod browse_view;
 pub mod config;
 pub mod distinct_colors;
@@ -807,7 +809,7 @@ impl RdfGlanceApp {
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
         let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open RDF File")).size(16.0);
-        let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
             self.import_file_dialog(ui);
@@ -818,7 +820,7 @@ impl RdfGlanceApp {
             ui.strong("0 React, 0 HTML, Full Power!");
             ui.strong("Try Desktop version for full functionality! Especially multuthread more performant non-blocking processing.");
             let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Sample Data")).size(16.0);
-            let nav_but = egui::Button::new(button_text).fill(egui::Color32::LIGHT_GREEN);
+            let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
             let b_resp = ui.add(nav_but);
             if b_resp.clicked() {
                 self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref(), ui.visuals().dark_mode);
