@@ -689,7 +689,6 @@ impl RdfGlanceApp {
 
     pub fn join_load(&mut self, is_dark_mode: bool) {
         if let Some(handle) = self.load_handle.take() {
-            println!("Joining load thread");
             match handle.join() {
                 Ok(Some(Ok((triples_count, file_name)))) => {
                     self.set_status_message(&format!("Loaded {} triples", triples_count));

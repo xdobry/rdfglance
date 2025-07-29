@@ -14,7 +14,7 @@ use std::sync::{Arc, RwLock};
 use crate::graph_styles::{
     ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize,
 };
-use crate::layout::{NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout};
+use crate::layout::{update_edges_groups, Edge, NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout};
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::prefix_manager::PrefixManager;
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
@@ -583,6 +583,15 @@ impl SortedNodeLayout {
                     }
                 }
             }
+            if let Ok(edges) = self.edges.read() {
+                leb128::write::unsigned(writer, edges.len() as u64)?;
+                for edge in edges.iter() {
+                    leb128::write::unsigned(writer, edge.from as u64)?;
+                    leb128::write::unsigned(writer, edge.to as u64)?;
+                    leb128::write::unsigned(writer, edge.predicate as u64)?;
+                    leb128::write::unsigned(writer, 0)?;
+                }
+            }
             Ok(())
         })
     }
@@ -592,7 +601,6 @@ impl SortedNodeLayout {
         let mut nodes = Vec::with_capacity(len as usize);
         let mut node_shapes = Vec::with_capacity(len as usize);
         let mut positions = Vec::with_capacity(len as usize);
-        let edges = Vec::new();
         for _ in 0..len {
             let node_index = leb128::read::unsigned(reader)? as IriIndex;
             let x = reader.read_f32::<LittleEndian>()?;
@@ -609,10 +617,25 @@ impl SortedNodeLayout {
                 vel: Vec2::ZERO,
             });
         }
+        let edges_len = leb128::read::unsigned(reader)?;
+        let mut edges = Vec::with_capacity(edges_len as usize);
+        for _ in 0..edges_len {
+            let from = leb128::read::unsigned(reader)? as usize;
+            let to = leb128::read::unsigned(reader)? as usize;
+            let predicate = leb128::read::unsigned(reader)? as IriIndex;
+            let field_number = leb128::read::unsigned(reader)?;
+            for _ in 0..field_number {
+                let (field_type, _field_index) = read_field_index(reader)?;
+                skip_field(reader, field_type)?;
+            }
+            edges.push(Edge { from, to, predicate, bezier_distance: 0.0 });
+        }
+        update_edges_groups(&mut edges);
         Ok(SortedNodeLayout {
             nodes: Arc::new(RwLock::new(nodes)),
             positions: Arc::new(RwLock::new(positions)),
             edges: Arc::new(RwLock::new(edges)),
+            node_shapes: Arc::new(RwLock::new(node_shapes)),
             ..SortedNodeLayout::default()
         })
     }
