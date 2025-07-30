@@ -401,16 +401,22 @@ impl RDFWrap {
                     while let Some(triple) = parser.next() {
                         if !prefix_read {
                             for (prefix, iri) in parser.prefixes() {
-                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                                if tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).is_err() {
+                                    break;
+                                }
                             }
                             prefix_read = true;
                         }
                         match triple {
                             Ok(triple) => {
-                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                                if tx.send(ParseItem::Triple(Ok(triple))).is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
-                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                                if tx.send(ParseItem::Triple(Err(e.into()))).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -421,16 +427,22 @@ impl RDFWrap {
                     while let Some(triple) = parser.next() {
                         if !prefix_read {
                             for (prefix, iri) in parser.prefixes() {
-                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                                if tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).is_err() {
+                                    break;
+                                }
                             }
                             prefix_read = true;
                         }
                         match triple {
                             Ok(triple) => {
-                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                                if tx.send(ParseItem::Triple(Ok(triple))).is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
-                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                                if tx.send(ParseItem::Triple(Err(e.into()))).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -440,10 +452,14 @@ impl RDFWrap {
                     for triple in parser {
                         match triple {
                             Ok(triple) => {
-                                tx.send(ParseItem::Triple(Ok(triple))).unwrap();
+                                if tx.send(ParseItem::Triple(Ok(triple))).is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
-                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                                if tx.send(ParseItem::Triple(Err(e.into()))).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -454,16 +470,22 @@ impl RDFWrap {
                     while let Some(quad) = parser.next() {
                         if !prefix_read {
                             for (prefix, iri) in parser.prefixes() {
-                                tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).unwrap();
+                                if tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).is_err() {
+                                    break;
+                                }
                             }
                             prefix_read = true;
                         }
                         match quad {
                             Ok(quad) => {
-                                tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).unwrap();
+                                if tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
-                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                                if tx.send(ParseItem::Triple(Err(e.into()))).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -473,10 +495,14 @@ impl RDFWrap {
                     for quad in parser {
                         match quad {
                             Ok(quad) => {
-                                tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).unwrap();
+                                if tx.send(ParseItem::Triple(Ok(Triple::from(quad)))).is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
-                                tx.send(ParseItem::Triple(Err(e.into()))).unwrap();
+                                if tx.send(ParseItem::Triple(Err(e.into()))).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -494,6 +520,7 @@ impl RDFWrap {
         for parse_item in rx {
             if let Some(data_loading) = data_loading {
                 if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                    println!("Stopping loading due to user request");
                     break;
                 }
                 data_loading

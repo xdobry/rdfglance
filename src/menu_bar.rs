@@ -73,7 +73,14 @@ impl RdfGlanceApp {
                         }
                         if let Some(last_file_clicked) = last_file_clicked {
                             ui.close_menu();
-                            self.load_ttl(&last_file_clicked, ui.visuals().dark_mode);
+                            let path = Path::new(last_file_clicked.as_ref());
+                            if path.exists() {
+                                if path.is_dir() {
+                                    self.load_ttl_dir(&last_file_clicked);
+                                } else {
+                                    self.load_ttl(&last_file_clicked, ui.visuals().dark_mode);
+                                }
+                            }
                             ui.ctx().request_repaint();
                         }
                     });
