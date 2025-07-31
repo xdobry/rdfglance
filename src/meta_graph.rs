@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use egui::{Color32, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp
+    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
 };
 
 const NODE_RMIN: f32 = 4.0;
@@ -271,7 +271,8 @@ impl RdfGlanceApp {
                             let node_action = TypeNodeContextAction::show_menu(ui);
                             match node_action {
                                 TypeNodeContextAction::Hide => {
-                                    self.meta_nodes.remove(current_index);
+                                    let hidden_predicates = SortedVec::new();
+                                    self.meta_nodes.remove(current_index, &hidden_predicates);
                                     self.meta_nodes.start_layout(&self.persistent_data.config_data);
                                     close_menu = true;
                                 }
@@ -292,8 +293,9 @@ impl RdfGlanceApp {
                                             })
                                             .map(|node| node.node_index)
                                             .collect::<Vec<IriIndex>>();
+                                        let hidden_predicates = SortedVec::new();
                                         for node in to_remove.iter() {
-                                            self.meta_nodes.remove(*node);
+                                            self.meta_nodes.remove(*node, &hidden_predicates);
                                         }
                                     }
                                     close_menu = true;
@@ -482,7 +484,8 @@ fn create_types_layout_edges(layout_nodes: &SortedNodeLayout, type_index: &TypeI
             }
         }
     }
-    update_edges_groups(&mut edges);
+    let hidden_predicates = SortedVec::new();
+    update_edges_groups(&mut edges, &hidden_predicates);
     edges
 }
 

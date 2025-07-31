@@ -119,6 +119,7 @@ impl RdfData {
         iri_index: IriIndex,
         expand_type: ExpandType,
         node_change_context: &mut NodeChangeContext,
+        hidden_predicates: &SortedVec,
     ) -> bool {
         let refs_to_expand = {
             let nnode = self.node_data.get_node_by_index(iri_index);
@@ -154,13 +155,13 @@ impl RdfData {
         if npos.is_empty() {
             false
         } else {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
             true
         }
     }
 
-    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext) -> bool {
+    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -192,7 +193,7 @@ impl RdfData {
         if npos.is_empty() {
             false
         } else {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
             true
         }
@@ -215,7 +216,7 @@ impl RdfData {
         false
     }
 
-    fn expand_all(&mut self, node_change_context: &mut NodeChangeContext) -> bool {
+    fn expand_all(&mut self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -243,7 +244,7 @@ impl RdfData {
         if npos.is_empty() {
             false
         } else {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data);
+            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
             true
         }

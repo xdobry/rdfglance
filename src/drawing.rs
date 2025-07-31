@@ -1,6 +1,6 @@
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
-    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, text_selection::visuals, Align2, FontId, Rect, Shape, StrokeKind, Vec2
+    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
 };
 
 use crate::{

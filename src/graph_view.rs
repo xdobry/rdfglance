@@ -1,13 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, StyleEdit, UIState,
-    drawing::{self, draw_node_label},
-    graph_styles::NodeShape,
-    layout::{Edge, NodeShapeData, SortedNodeLayout, update_edges_groups},
-    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
-    style::{ICON_GRAPH, ICON_WRENCH},
-    uitools::popup_at,
+    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -97,7 +91,7 @@ impl RdfGlanceApp {
                         rdfwrwap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
                     };
-                    if rdf_data.expand_all(&mut node_change_context) {
+                    if rdf_data.expand_all(&mut node_change_context, &self.ui_state.hidden_predicates) {
                         self.visible_nodes.start_layout(&self.persistent_data.config_data);
                     }
                 }
@@ -305,7 +299,7 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         if !npos.is_empty() {
-                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
@@ -337,7 +331,7 @@ impl RdfGlanceApp {
                                             npos.add_by_index(&mut self.visible_nodes, *parent_index, *node_index);
                                         }
                                         if !npos.is_empty() {
-                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
@@ -350,6 +344,9 @@ impl RdfGlanceApp {
                                         // show_but.show_tooltip_text("Show all relations of this type");
                                         if show_but.clicked() {
                                             self.ui_state.hidden_predicates.remove(*reference_index);
+                                            if let Ok(mut edges) = self.visible_nodes.edges.write() {
+                                                update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
+                                            }
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
                                     } else {
@@ -357,6 +354,9 @@ impl RdfGlanceApp {
                                         // hide_but.show_tooltip_text("Hide all relations of this type");
                                         if hide_but.clicked() {
                                             self.ui_state.hidden_predicates.add(*reference_index);
+                                            if let Ok(mut edges) = self.visible_nodes.edges.write() {
+                                                update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
+                                            }
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
                                     }
@@ -407,7 +407,7 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         if !npos.is_empty() {
-                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
@@ -437,7 +437,7 @@ impl RdfGlanceApp {
                                             npos.add_by_index(&mut self.visible_nodes, *root_index, *node_to_add);
                                         }
                                         if !npos.is_empty() {
-                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data);
+                                            update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
                                             self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
@@ -448,9 +448,17 @@ impl RdfGlanceApp {
                                     if self.ui_state.hidden_predicates.contains(*reference_index) {
                                         if ui.button("👁").clicked() {
                                             self.ui_state.hidden_predicates.remove(*reference_index);
+                                            if let Ok(mut edges) = self.visible_nodes.edges.write() {
+                                                update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
+                                            }
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                         }
                                     } else if ui.button("❌").clicked() {
                                         self.ui_state.hidden_predicates.add(*reference_index);
+                                        if let Ok(mut edges) = self.visible_nodes.edges.write() {
+                                            update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
+                                        }
+                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                     }
                                 });
                             }
@@ -733,13 +741,13 @@ impl RdfGlanceApp {
                         let node_action = NodeContextAction::show_menu(ui);
                         match node_action {
                             NodeContextAction::Hide => {
-                                self.visible_nodes.remove(current_index);
+                                self.visible_nodes.remove(current_index, &self.ui_state.hidden_predicates);
                                 self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 close_menu = true;
                             }
                             NodeContextAction::HideThisType => {
                                 let types = current_node.types.clone();
-                                self.visible_nodes.retain(|x| {
+                                self.visible_nodes.retain(&self.ui_state.hidden_predicates,|x| {
                                     let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                     if let Some((_, node)) = node {
                                         !node.has_same_type(&types)
@@ -758,7 +766,7 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::HideOtherTypes => {
                                 let types = current_node.types.clone();
-                                self.visible_nodes.retain(|x| {
+                                self.visible_nodes.retain(&self.ui_state.hidden_predicates,|x| {
                                     let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                     if let Some((_, node)) = node {
                                         node.has_same_type(&types)
@@ -770,7 +778,7 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::HideUnrelated => {
-                                self.visible_nodes.retain(|x| {
+                                self.visible_nodes.retain(&self.ui_state.hidden_predicates,|x| {
                                     if x.node_index == *node_index {
                                         return true;
                                     }
@@ -787,17 +795,17 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::HideOrpfans => {
-                                self.visible_nodes.hide_orphans();
+                                self.visible_nodes.hide_orphans(&self.ui_state.hidden_predicates);
                             }
                             NodeContextAction::HideRedundantEdges => {
-                                self.visible_nodes.remove_redundant_edges();
+                                self.visible_nodes.remove_redundant_edges(&self.ui_state.hidden_predicates);
                             }
                             NodeContextAction::Expand => {
                                 let mut node_change_context = NodeChangeContext {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                if rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context) {
+                                if rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
                                     self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 }
                                 close_menu = true;
@@ -807,7 +815,9 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                if rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context)
+                                if rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context, &self.ui_state.hidden_predicates) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 {
                                     self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 }
@@ -822,6 +832,7 @@ impl RdfGlanceApp {
                                     current_index,
                                     ExpandType::ReverseReferences,
                                     &mut node_change_context,
+                                    &self.ui_state.hidden_predicates,
                                 ) {
                                     self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 }
@@ -833,15 +844,15 @@ impl RdfGlanceApp {
                                     rdfwrwap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
-                                if rdf_data.expand_all_by_types(&types, &mut node_change_context) {
+                                if rdf_data.expand_all_by_types(&types, &mut node_change_context, &self.ui_state.hidden_predicates) {
                                     self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 }
                                 close_menu = true;
                             }
                             NodeContextAction::HideThisTypePreserveEdges => {
                                 let types = current_node.types.clone();
-                                add_preserved_edges(&types, &mut self.visible_nodes, &rdf_data.node_data);
-                                self.visible_nodes.retain(|x| {
+                                add_preserved_edges(&types, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                                self.visible_nodes.retain(&self.ui_state.hidden_predicates, |x| {
                                     let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                     if let Some((_, node)) = node {
                                         !node.has_same_type(&types)
@@ -878,7 +889,7 @@ impl RdfGlanceApp {
                     rdfwrwap: &mut self.rdfwrap,
                     visible_nodes: &mut self.visible_nodes,
                 };
-                if rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context) {
+                if rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
                     self.visible_nodes.start_layout(&self.persistent_data.config_data);
                 }
             }
@@ -981,7 +992,7 @@ pub fn draw_node(
     )
 }
 
-pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData) {
+pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData, hidden_predicates: &SortedVec) {
     let mut visited_nodes: HashSet<IriIndex> = HashSet::new();
     if let Ok(mut edges) = layout_nodes.edges.write() {
         for node_index in new_nodes.iter_values() {
@@ -1031,11 +1042,11 @@ pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNo
             println!("Edge: {} -> {}", edge.from, edge.to);
         }
          */
-        update_edges_groups(&mut edges);
+        update_edges_groups(&mut edges, hidden_predicates);
     }
 }
 
-pub fn add_preserved_edges(hidden_types: &Vec<IriIndex>, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData) {
+pub fn add_preserved_edges(hidden_types: &Vec<IriIndex>, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData, hidden_predicates: &SortedVec) {
     if let Ok(mut edges) = layout_nodes.edges.write() {
         if let Ok(nodes) = layout_nodes.nodes.read() {
             let mut positions_to_preserve: Vec<usize> = Vec::new();
@@ -1131,6 +1142,7 @@ pub fn add_preserved_edges(hidden_types: &Vec<IriIndex>, layout_nodes: &mut Sort
                     }
                 }
                 edges.extend(preserved_edges);
+                update_edges_groups(&mut edges, hidden_predicates);
             });
         }
     }

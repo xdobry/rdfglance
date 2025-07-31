@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use crate::graph_styles::{
     ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize,
@@ -18,7 +19,7 @@ use crate::layout::{update_edges_groups, Edge, NodeLayout, NodePosition, NodeSha
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::prefix_manager::PrefixManager;
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
-use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp};
+use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp, SortedVec};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -125,7 +126,11 @@ impl RdfGlanceApp {
         self.visible_nodes.store(&mut file)?;
         self.visualisation_style.store(&mut file)?;
 
-        file.flush()?;
+        // Is some cases flush will take a long time, probably if os is trying to sync the file to disk 
+        // and make virus check. But all data are written to file, because buffer drop make also the flush
+        // let start = Instant::now();
+        // file.flush()?;
+        // println!("Flush took {:?}", start.elapsed());
         Ok(())
     }
 
@@ -630,7 +635,8 @@ impl SortedNodeLayout {
             }
             edges.push(Edge { from, to, predicate, bezier_distance: 0.0 });
         }
-        update_edges_groups(&mut edges);
+        let hidden_predicates = SortedVec::new();
+        update_edges_groups(&mut edges, &hidden_predicates);
         Ok(SortedNodeLayout {
             nodes: Arc::new(RwLock::new(nodes)),
             positions: Arc::new(RwLock::new(positions)),
@@ -996,7 +1002,8 @@ mod tests {
                 rdfwrwap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
             };
-            rdf_data.expand_all(&mut node_change_context);
+            let hidden_predicates = SortedVec::new();
+            rdf_data.expand_all(&mut node_change_context, &hidden_predicates);
         }
         assert_eq!(true, vs.visible_nodes.nodes.read().unwrap().len() > 0);
         if let Ok(rdf_data) = vs.rdf_data.read() {

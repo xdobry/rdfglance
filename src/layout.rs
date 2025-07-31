@@ -1,4 +1,4 @@
-use crate::{config::Config, graph_styles::NodeShape, nobject::IriIndex};
+use crate::{config::Config, graph_styles::NodeShape, nobject::IriIndex, SortedVec};
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
@@ -158,7 +158,7 @@ impl SortedNodeLayout {
         None
     }
 
-    pub fn remove(&mut self, value: IriIndex) {
+    pub fn remove(&mut self, value: IriIndex, hidden_predicates: &SortedVec) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
                 nodes.remove(pos);
@@ -177,12 +177,12 @@ impl SortedNodeLayout {
                         e.to -= 1;
                     }
                 });
-                update_edges_groups(edges);
+                update_edges_groups(edges, hidden_predicates);
             }
         });
     }
 
-    pub fn remove_all(&mut self, iris_to_remove: &[IriIndex]) {
+    pub fn remove_all(&mut self, iris_to_remove: &[IriIndex], hidden_predicates: &SortedVec) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             for value in iris_to_remove.iter() {
                 // Can be optimized if values are sorted
@@ -205,11 +205,11 @@ impl SortedNodeLayout {
                     });
                 }
             }
-            update_edges_groups(edges);
+            update_edges_groups(edges, hidden_predicates);
         });
     }
 
-    pub fn retain(&mut self, f: impl Fn(&NodeLayout) -> bool) {
+    pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             // Can be optimized to not check nodes multiple time always from begin
             while let Some(pos) = nodes.iter().position(|e| !f(e)) {
@@ -230,7 +230,7 @@ impl SortedNodeLayout {
                     }
                 });
             }
-            update_edges_groups(edges);
+            update_edges_groups(edges, hidden_predicates);
         });
     }
 
@@ -239,7 +239,7 @@ impl SortedNodeLayout {
      *
      * The position list must be sorted and unique. Otherwise it will crash.
      */
-    pub fn remove_pos_list(&mut self, pos_to_remove: &[usize]) {
+    pub fn remove_pos_list(&mut self, pos_to_remove: &[usize], hidden_predicates: &SortedVec) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             for pos in pos_to_remove.iter().rev() {
                 nodes.remove(*pos);
@@ -259,7 +259,7 @@ impl SortedNodeLayout {
                     }
                 });
             }
-            update_edges_groups(edges);
+            update_edges_groups(edges, hidden_predicates);
         });
     }
 
@@ -428,7 +428,7 @@ impl SortedNodeLayout {
         // println!("Background layout thread started");
     }
 
-    pub fn hide_orphans(&mut self) {
+    pub fn hide_orphans(&mut self, hidden_predicates: &SortedVec) {
         let mut used_positions: Vec<usize> = self
             .edges
             .read()
@@ -449,10 +449,10 @@ impl SortedNodeLayout {
                 pos_to_remove.push(pos);
             }
         }
-        self.remove_pos_list(&pos_to_remove);
+        self.remove_pos_list(&pos_to_remove, hidden_predicates);
     }
 
-    pub fn remove_redundant_edges(&mut self) {
+    pub fn remove_redundant_edges(&mut self, hidden_predicates: &SortedVec) {
         if let Ok(mut edges) = self.edges.write() {
             let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
             for (edge_index, edge) in edges.iter().enumerate() {
@@ -477,24 +477,27 @@ impl SortedNodeLayout {
             for pos in edges_pos_to_remove.iter().rev() {
                 edges.remove(*pos);
             }
-            update_edges_groups(&mut edges);
+            println!("Removed {} redundant edges", edges.len());
+            update_edges_groups(&mut edges, hidden_predicates);
         }
     }
 }
 
-pub fn update_edges_groups(edges: &mut [Edge]) {
+pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
     // Each group has all edges that connect same nodes (dispite the direction)
     // It is needed to set parameter for bezier curves
     let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
     for (edge_index, edge) in edges.iter().enumerate() {
-        groups
-            .entry(if edge.from > edge.to {
-                (edge.from, edge.to)
-            } else {
-                (edge.to, edge.from)
-            })
-            .or_default()
-            .push(edge_index);
+        if !hidden_predicates.contains(edge.predicate) {
+            groups
+                .entry(if edge.from > edge.to {
+                    (edge.from, edge.to)
+                } else {
+                    (edge.to, edge.from)
+                })
+                .or_default()
+                .push(edge_index);
+        }
     }
     let bezier_gap: f32 = 30.0;
     for group in groups.values() {
@@ -516,6 +519,10 @@ pub fn update_edges_groups(edges: &mut [Edge]) {
                     edges[*edge].bezier_distance = if t_edge.from > t_edge.to { distance } else { -distance };
                     distance += bezier_gap;
                 }
+            }
+        } else {
+            for edge in group.iter() {
+                edges[*edge].bezier_distance = 0.0;
             }
         }
     }
