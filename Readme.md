@@ -53,7 +53,7 @@ The RDF Data can be loaded by using following formats:
 
 Defined prefixes are taken from the input file if possible.
 
-The program assumes that the RDF nodes (tripples) are organized using RDFS (RDF Schema).
+The program assumes that the RDF nodes (triples) are organized using RDFS (RDF Schema).
 So every node have a assigned rdf type. The program index and show all data using these types.
 
 Some features of RDF are not supported very well. This includes:
@@ -124,7 +124,7 @@ Build for github pages
   ```
 
 
-The last web release is avaiable here [Rdfglance WASM version](https://xdobry.github.io/rdfglance/)
+The last web release is available here [Rdfglance WASM version](https://xdobry.github.io/rdfglance/)
 
 You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferences Open User Settings (JSON). Add option
 
@@ -136,9 +136,9 @@ You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferenc
 ## Known Problems
 
 - Some RDF files can not be read. You will see the error messages in the std output. It seems that the used oxrdf parser is quite sensitive.
-- For WASM (Web) the loading big rdf files the gui may freeze for a while. Mulithread processing is not support for WASM
+- For WASM (Web) the loading big rdf files the gui may freeze for a while. Multithread processing is not support for WASM
 - The is no limitations to shown size of elements in visual graph. If you have more than 10000 Elements the ui may be not very responsible.
-- If your computer has no GPU support the application can be quite slow, esspecially in browser.
+- If your computer has no GPU support the application can be quite slow, especially in browser.
 
 I still hope that the application can be useful for others.
 Maybe I will improve it later if I feel like it again.

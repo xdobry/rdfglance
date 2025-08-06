@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use egui::{Color32, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
+    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
 };
 
 const NODE_RMIN: f32 = 4.0;
@@ -23,15 +23,27 @@ impl RdfGlanceApp {
                 self.meta_nodes.update_node_shapes = true;
             }
             ui.label("nodes force");
-            ui.add(Slider::new(
+            let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
                 0.1..=8.0,
             ));
+            if response.changed() {
+                if let Some(layout_handle) = &self.meta_nodes.layout_handle {
+                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateRepulsionConstant(
+                        self.persistent_data.config_data.m_repulsion_constant));
+                }
+            }
             ui.label("edges force");
-            ui.add(Slider::new(
+            let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_attraction_factor,
                 0.02..=3.0,
             ));
+            if response.changed() {
+                if let Some(layout_handle) = &self.meta_nodes.layout_handle {
+                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateAttractionFactor(
+                        self.persistent_data.config_data.m_attraction_factor));
+                }
+            }
         });
 
         egui::SidePanel::right("right_panel")
@@ -60,7 +72,7 @@ impl RdfGlanceApp {
             let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
 
             let scene = egui::Scene::new().zoom_range(0.3..=4.0);
-            scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
+            scene.show(ui, &mut self.meta_graph_state.scene_rect, |ui| {
                 let available_width = ui.available_width();
                 let available_height = ui.available_height();
                 let size = Vec2::new(available_width, available_height);

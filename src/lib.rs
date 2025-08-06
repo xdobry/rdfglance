@@ -56,6 +56,7 @@ pub mod string_indexer;
 pub mod style;
 pub mod table_view;
 pub mod uitools;
+pub mod quad_tree;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -79,6 +80,7 @@ pub struct RdfGlanceApp {
     visible_nodes: SortedNodeLayout,
     meta_nodes: SortedNodeLayout,
     graph_state: GraphState,
+    meta_graph_state: GraphState,
     visualisation_style: GVisualisationStyle,
     #[cfg(not(target_arch = "wasm32"))]
     sparql_dialog: Option<SparqlDialog>,
@@ -515,6 +517,7 @@ impl RdfGlanceApp {
                 default_node_style: NodeStyle::default(),
             },
             graph_state: GraphState { scene_rect: Rect::ZERO },
+            meta_graph_state: GraphState { scene_rect: Rect::ZERO },
             ui_state: UIState {
                 selected_node: None,
                 node_to_drag: None,

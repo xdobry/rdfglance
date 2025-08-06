@@ -1,4 +1,4 @@
-use crate::{config::Config, graph_styles::NodeShape, nobject::IriIndex, SortedVec};
+use crate::{config::Config, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, SortedVec};
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
@@ -7,10 +7,9 @@ use rayon::prelude::*;
 use std::{
     collections::HashMap,
     sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
     },
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle}, time::Duration,
 };
 
 const MAX_DISTANCE: f32 = 2000.0;
@@ -69,13 +68,24 @@ pub struct SortedNodeLayout {
     pub edges: Arc<RwLock<Vec<Edge>>>,
     pub positions: Arc<RwLock<Vec<NodePosition>>>,
     pub node_shapes: Arc<RwLock<Vec<NodeShapeData>>>,
-    pub layout_temparature: f32,
-    pub force_compute_layout: bool,
+    pub layout_temperature: f32,
+    pub keep_temperature: Arc<AtomicBool>,
     pub compute_layout: bool,
-    pub layout_handle: Option<JoinHandle<()>>,
+    pub layout_handle: Option<LayoutHandle>,
     pub background_layout_finished: Arc<AtomicBool>,
     pub stop_background_layout: Arc<AtomicBool>,
     pub update_node_shapes: bool,
+}
+
+#[derive(Debug)]
+pub enum LayoutConfUpdate {
+    UpdateRepulsionConstant(f32),
+    UpdateAttractionFactor(f32),
+}
+
+pub struct LayoutHandle {
+    pub join_handle: JoinHandle<()>,
+    pub update_sender: mpsc::Sender<LayoutConfUpdate>,
 }
 
 impl Default for SortedNodeLayout {
@@ -86,8 +96,8 @@ impl Default for SortedNodeLayout {
             edges: Arc::new(RwLock::new(Vec::new())),
             node_shapes: Arc::new(RwLock::new(Vec::new())),
             compute_layout: true,
-            force_compute_layout: false,
-            layout_temparature: 0.5,
+            keep_temperature: Arc::new(AtomicBool::new(false)),
+            layout_temperature: 0.5,
             layout_handle: None,
             background_layout_finished: Arc::new(AtomicBool::new(false)),
             stop_background_layout: Arc::new(AtomicBool::new(false)),
@@ -303,18 +313,22 @@ impl SortedNodeLayout {
     }
 
     pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
-        if ui.checkbox(&mut self.force_compute_layout, "Force Layout").changed() && self.force_compute_layout {
-            self.layout_temparature = 100.0;
+        let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
+        if ui.checkbox(&mut keep_temperature, "Keep Temparature").changed() {
+            self.keep_temperature.store(keep_temperature, Ordering::Relaxed);
         }
+        #[cfg(not(target_arch = "wasm32"))]
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
                 // println!("Layout thread finished");
                 if let Some(layout_handle) = self.layout_handle.take() {
-                    layout_handle.join().unwrap();
+                    layout_handle.join_handle.join().unwrap();
                 }
             }
             ctx.request_repaint();
-        } else if self.compute_layout || self.force_compute_layout {
+        }  
+        #[cfg(target_arch = "wasm32")]
+        if self.compute_layout {
             let config = LayoutConfig {
                 repulsion_constant: config.m_repulsion_constant,
                 attraction_factor: config.m_attraction_factor,
@@ -325,18 +339,18 @@ impl SortedNodeLayout {
                 &self.positions.read().unwrap(),
                 &self.edges.read().unwrap(),
                 &config,
-                self.layout_temparature,
+                self.layout_temperature,
             );
             if let Ok(mut positions) = self.positions.write() {
                 *positions = new_positions;
             }
-            if !self.force_compute_layout {
-                self.layout_temparature *= 0.98;
+            if !keep_temperature {
+                self.layout_temperature *= 0.98;
             }
-            if (max_move < 0.8 || self.layout_temparature < 0.5) && !self.force_compute_layout {
+            if (max_move < 0.8 || self.layout_temperature < 0.5) && !keep_temperature {
                 self.compute_layout = false;
             }
-            if self.compute_layout || self.force_compute_layout {
+            if self.compute_layout || keep_temperature {
                 self.compute_layout = true;
                 ctx.request_repaint();
             }
@@ -374,8 +388,8 @@ impl SortedNodeLayout {
         let edges_clone = Arc::clone(&self.edges);
         let positions_clone = Arc::clone(&self.positions);
         let node_shapes_clone = Arc::clone(&self.node_shapes);
-        let force_compute_layout = self.force_compute_layout;
-        let layout_config = LayoutConfig {
+        let keep_temperature = Arc::clone(&self.keep_temperature);
+        let mut layout_config = LayoutConfig {
             repulsion_constant: config.m_repulsion_constant,
             attraction_factor: config.m_attraction_factor,
         };
@@ -383,6 +397,7 @@ impl SortedNodeLayout {
         self.stop_background_layout.store(false, Ordering::Relaxed);
         let is_done = Arc::clone(&self.background_layout_finished);
         let stop_layout = Arc::clone(&self.stop_background_layout);
+        let (tx, rx) = mpsc::channel::<LayoutConfUpdate>();
 
         let handle = thread::spawn(move || {
             let mut temperature = temperature;
@@ -398,6 +413,16 @@ impl SortedNodeLayout {
                     // println!("Layout stoppend");
                     break;
                 }
+                if let Ok(update) = rx.try_recv() {
+                    match update {
+                        LayoutConfUpdate::UpdateRepulsionConstant(value) => {
+                            layout_config.repulsion_constant = value;
+                        }
+                        LayoutConfUpdate::UpdateAttractionFactor(value) => {
+                            layout_config.attraction_factor = value;
+                        }
+                    }
+                }
                 let (max_move, new_positions) = {
                     let positions = positions_clone.read().unwrap();
                     let nodes = nodes_clone.read().unwrap();
@@ -410,21 +435,30 @@ impl SortedNodeLayout {
                     break;
                 }
                 {
+                    // TODO this could wait for ui to make the layout loop
+                    // better could be to use something like double buffering and store it in update are and the ui thread
+                    // copy the positions in changed in its own structure 
+                    // the decision is who should wait ui or layout thread, now the layout thread waits for ui
                     if let Ok(mut positions) = positions_clone.write() {
                         *positions = new_positions;
                     }
                 }
-                if !force_compute_layout {
+                let keep_temperature = keep_temperature.load(Ordering::Relaxed);
+                if !keep_temperature {
                     temperature *= 0.98;
                 }
-                if (max_move < 0.8 || temperature < 0.5) && !force_compute_layout {
-                    // println!("Layout finished with max move: {} temparature: {} lo", max_move, temperature);
+                if keep_temperature && max_move < 10.0 {
+                    // Without sleep the cpu will run at 100% usage even if minimal change are made
+                    thread::sleep(Duration::from_millis(100));
+                }
+                if (max_move < 0.8 && temperature < 0.5) && !keep_temperature {
+                    println!("Layout finished with max move: {} temparature: {} lo", max_move, temperature);
                     break;
                 }
             }
             is_done.store(true, Ordering::Relaxed);
         });
-        self.layout_handle = Some(handle);
+        self.layout_handle = Some(LayoutHandle { join_handle: handle, update_sender: tx.clone() });
         // println!("Background layout thread started");
     }
 
@@ -556,24 +590,29 @@ pub fn layout_graph_nodes(
     // let attraction = k / attraction_constant;
     let attraction = 111.0 / attraction_constant;
 
-    let mut forces: Vec<Vec2> = nodes
-        .par_iter()
-        .zip(positions.par_iter())
-        .map(|(node_layout, node_position)| {
-            let mut f = Vec2::new(0.0, 0.0);
-            for (nnode_layout, nnode_position) in nodes.iter().zip(positions.iter()) {
-                if nnode_layout.node_index != node_layout.node_index {
-                    let direction = node_position.pos - nnode_position.pos;
-                    let distance = direction.length();
-                    if distance > 0.0 && distance < MAX_DISTANCE {
-                        let force = repulsion_factor / distance;
-                        f += (direction / distance) * force;
-                    }
-                }
-            }
-            f
-        })
-        .collect();
+    let mut tree = BHQuadtree::new(0.5);
+     let weight_points: Vec<WeightedPoint> = positions.par_iter().map(|pos| {
+        WeightedPoint {
+            pos: pos.pos.to_vec2(),
+            mass: 1.0,
+        }}).collect(); 
+    tree.build(weight_points, 5);
+
+    let force_fn = |target: Vec2, source: WeightedPoint| {
+        // compute repulsive force
+        let dir = target - source.pos;
+        if dir.x == 0.0 && dir.y == 0.0 {
+            return Vec2::ZERO; // Avoid division by zero
+        }
+        let dist2 = dir.length();
+        let force_mag = (source.mass * repulsion_factor) / dist2;
+        (dir/dist2) * force_mag
+    };
+
+    let mut forces: Vec<Vec2> = positions.par_iter().map(|node_position| {
+        let pos = node_position.pos.to_vec2();
+        tree.accumulate(pos, force_fn)
+       }).collect();
 
     for edge in edges.iter() {
         if edge.from != edge.to {

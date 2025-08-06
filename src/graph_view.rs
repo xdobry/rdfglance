@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{update_edges_groups, Edge, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
+    drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -107,9 +107,21 @@ impl RdfGlanceApp {
              */
             ui.checkbox(&mut self.ui_state.show_properties, "Show Properties");
             ui.label("nodes force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
+            let response = ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
+            if response.changed() {
+                if let Some(layout_handle) = &self.visible_nodes.layout_handle {
+                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateRepulsionConstant(
+                        self.persistent_data.config_data.m_repulsion_constant));
+                }
+            }
             ui.label("edges force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.m_attraction_factor, 0.02..=3.0));
+            let response = ui.add(Slider::new(&mut self.persistent_data.config_data.m_attraction_factor, 0.02..=3.0));
+            if response.changed() {
+                if let Some(layout_handle) = &self.visible_nodes.layout_handle {
+                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateAttractionFactor(
+                        self.persistent_data.config_data.m_attraction_factor));
+                }
+            }
             /*
             ui.label("nodes force");
             ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
