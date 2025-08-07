@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, ptr::addr_of};
 
 use crate::{
     drawing::{self, draw_node_label}, graph_styles::NodeShape, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualisationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
@@ -339,9 +339,7 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         let mut npos = NeighbourPos::new();
-                                        for (parent_index, node_index) in nodes_to_add.iter() {
-                                            npos.add_by_index(&mut self.visible_nodes, *parent_index, *node_index);
-                                        }
+                                        npos.add_many(&mut self.visible_nodes, &nodes_to_add);
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
@@ -445,9 +443,7 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         let mut npos = NeighbourPos::new();
-                                        for (root_index, node_to_add) in nodes_to_add.iter() {
-                                            npos.add_by_index(&mut self.visible_nodes, *root_index, *node_to_add);
-                                        }
+                                        npos.add_many(&mut self.visible_nodes, &nodes_to_add);
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
@@ -1187,6 +1183,12 @@ impl NeighbourPos {
         } else {
             false
         }
+    }
+
+    pub fn add_many(&mut self, node_layout: &mut SortedNodeLayout, nodes_to_add: &[(IriIndex, IriIndex)]) -> bool {
+        node_layout.add_many(nodes_to_add, | (parent_index,node_index)| {
+            self.insert(*parent_index, *node_index);
+        })
     }
 
     pub fn is_empty(&self) -> bool {

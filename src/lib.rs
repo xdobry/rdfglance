@@ -130,7 +130,7 @@ impl RdfData {
                 match expand_type {
                     ExpandType::References | ExpandType::Both => {
                         for (_, ref_iri) in &nnode.references {
-                            refs_to_expand.push(*ref_iri);
+                            refs_to_expand.push((iri_index,*ref_iri));
                         }
                     }
                     _ => {}
@@ -138,7 +138,7 @@ impl RdfData {
                 match expand_type {
                     ExpandType::ReverseReferences | ExpandType::Both => {
                         for (_, ref_iri) in &nnode.reverse_references {
-                            refs_to_expand.push(*ref_iri);
+                            refs_to_expand.push((iri_index,*ref_iri));
                         }
                     }
                     _ => {}
@@ -148,18 +148,17 @@ impl RdfData {
                 vec![]
             }
         };
-        let mut npos = NeighbourPos::new();
-        for ref_index in refs_to_expand {
-            if self.load_object_by_index(ref_index, node_change_context) {
-                npos.insert(iri_index, ref_index);
-            }
+        if refs_to_expand.is_empty() {
+            return false;
         }
-        if npos.is_empty() {
-            false
-        } else {
+        let mut npos = NeighbourPos::new();
+        let was_added = npos.add_many( node_change_context.visible_nodes, &refs_to_expand);
+        if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
             true
+        } else {
+            false
         }
     }
 
@@ -184,20 +183,17 @@ impl RdfData {
                 }
             }
         }
-        let mut npos = NeighbourPos::new();
-        for (parent_index, ref_index) in parent_ref {
-            if !node_change_context.visible_nodes.contains(ref_index)
-                && self.load_object_by_index(ref_index, node_change_context)
-            {
-                npos.insert(parent_index, ref_index);
-            }
+        if parent_ref.is_empty() {
+            return false;
         }
-        if npos.is_empty() {
-            false
-        } else {
+        let mut npos = NeighbourPos::new();
+        let was_added = npos.add_many( node_change_context.visible_nodes, &parent_ref);
+        if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
             true
+        } else {
+            false
         }
     }
 
@@ -235,20 +231,18 @@ impl RdfData {
                 }
             }
         }
-        let mut npos = NeighbourPos::new();
-        for (parent_index, ref_index) in parent_ref {
-            if !node_change_context.visible_nodes.contains(ref_index)
-                && self.load_object_by_index(ref_index, node_change_context)
-            {
-                npos.insert(parent_index, ref_index);
-            }
-        }
-        if npos.is_empty() {
+        if parent_ref.is_empty() {
             false
         } else {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
-            npos.position(node_change_context.visible_nodes);
-            true
+            let mut npos = NeighbourPos::new();
+            let was_added = npos.add_many(&mut node_change_context.visible_nodes, &parent_ref);
+            if was_added {
+                update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
+                npos.position(node_change_context.visible_nodes);
+                true
+            } else {
+                false
+            }
         }
     }
 

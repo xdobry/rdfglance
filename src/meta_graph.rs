@@ -290,30 +290,19 @@ impl RdfGlanceApp {
                                 }
                                 TypeNodeContextAction::HideSameInstCount => {
                                     if let Some(current_node) = self.type_index.types.get(&current_index) {
-                                        let to_remove = self
-                                            .meta_nodes
-                                            .nodes
-                                            .read()
-                                            .unwrap()
-                                            .iter()
-                                            .filter(|node| {
-                                                if let Some(type_data) = self.type_index.types.get(&node.node_index) {
-                                                    type_data.instances.len() <= current_node.instances.len()
-                                                } else {
-                                                    false
-                                                }
-                                            })
-                                            .map(|node| node.node_index)
-                                            .collect::<Vec<IriIndex>>();
                                         let hidden_predicates = SortedVec::new();
-                                        for node in to_remove.iter() {
-                                            self.meta_nodes.remove(*node, &hidden_predicates);
-                                        }
+                                        self.meta_nodes.retain(&hidden_predicates, |node| {
+                                            if let Some(type_data) = self.type_index.types.get(&node.node_index) {
+                                                !type_data.instances.len() <= current_node.instances.len()
+                                            } else {
+                                                true
+                                            }
+                                        });
                                     }
                                     close_menu = true;
                                 }
                                 TypeNodeContextAction::Expand => {
-                                    if let Some(current_type_node) = self.type_index.types.get(&current_index) {
+                                    if let Some(_current_type_node) = self.type_index.types.get(&current_index) {
                                         node_to_click = Some(current_index);
                                     }
                                     close_menu = true;
@@ -344,6 +333,7 @@ impl RdfGlanceApp {
                                 for ref_type in reference_characteristics.types.iter() {
                                     if !self.meta_nodes.contains(*ref_type) {
                                         was_add = true;
+                                        // TODO collect nodes to add
                                         self.meta_nodes.add_by_index(*ref_type);
                                     }
                                 }
@@ -354,6 +344,7 @@ impl RdfGlanceApp {
                                         ref_characteristics.types.contains(&node_to_click)
                                     }) {
                                         was_add = true;
+                                        // TODO collect nodes to add
                                         self.meta_nodes.add_by_index(*type_index);
                                     }
                                 }

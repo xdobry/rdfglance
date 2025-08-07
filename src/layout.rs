@@ -12,8 +12,8 @@ use std::{
     thread::{self, JoinHandle}, time::Duration,
 };
 
-const MAX_DISTANCE: f32 = 2000.0;
 
+#[derive(Clone, Copy)]
 pub struct NodeLayout {
     pub node_index: IriIndex,
 }
@@ -24,6 +24,7 @@ impl NodeLayout {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct NodeShapeData {
     pub size: Vec2,
     pub node_shape: NodeShape,
@@ -63,6 +64,13 @@ impl Default for NodePosition {
     }
 }
 
+// Used to store efficiently all information needed to layout the graph
+// nodes, edges, positions and node shapes
+// It uses mostly indexes of nodes and provide methods to add and remove nodes
+// All nodes are sorted by node index to enable fast check if node exists
+// Edges stores indexes of nodes in nodes vector (not the primary node index)
+// This enable fast access needed to layout the graph but make 
+// it hard to manipulate the structure for add and remove operation
 pub struct SortedNodeLayout {
     pub nodes: Arc<RwLock<Vec<NodeLayout>>>,
     pub edges: Arc<RwLock<Vec<Edge>>>,
@@ -143,8 +151,77 @@ impl SortedNodeLayout {
         false
     }
 
+    // use add_many operation if possible. Do not call it in the loop
     pub fn add_by_index(&mut self, value: IriIndex) -> bool {
         self.add(NodeLayout::new(value))
+    }
+
+    pub fn add_many(&mut self, values: &[(IriIndex, IriIndex)], inserted_callback: impl FnMut(&(IriIndex,IriIndex))) -> bool {
+        let index_to_add = if let Ok(nodes) = self.nodes.read() {
+            // First filter the list only for nodes that are not already in the layout
+            // sort and dedup the nodes the parent node does not matter
+            let mut index_to_add : Vec<(IriIndex,IriIndex)> = values.iter().filter(|(_parent_index, node_index)| {
+                nodes.binary_search_by(|node| node.node_index.cmp(node_index)).is_err()
+            }).map(|p| (p.0,p.1)).collect();
+            index_to_add.sort_unstable_by(|a,b| a.1.cmp(&b.1));
+            index_to_add.dedup_by(| a, b| a.1 == b.1);
+            index_to_add.iter().for_each(inserted_callback);
+            index_to_add
+        } else {
+            Vec::new()
+        };
+        if !index_to_add.is_empty() {
+            if let Ok(mut nodes) = self.nodes.write() {
+                if let Ok(mut node_shapes) = self.node_shapes.write() {
+                    if let Ok(mut positions) = self.positions.write() {
+                        if let Ok(mut edges) = self.edges.write() {
+                            // stores the new indexes for old nodes indexes, needed to update edges from and to fields
+                            let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
+                            for i in 0..nodes.len() {
+                                new_positions.push(i);
+                            }
+                            // we use in place merge on target vector. The vector is resized and the new elements
+                            // are inserted from the end by iterating the new nodes and old nodes from the end.
+                            let orig_len = nodes.len();
+                            let b_len = index_to_add.len();
+
+                            nodes.resize(orig_len + b_len, NodeLayout { node_index: 0 });
+                            node_shapes.resize(orig_len + b_len, NodeShapeData::default());
+                            positions.resize(orig_len + b_len, NodePosition::default());
+
+                            let mut i = orig_len as isize - 1;
+                            let mut j = b_len as isize - 1;
+                            let mut k = (orig_len + b_len) as isize - 1;
+
+                            while j >= 0 {
+                                if i >= 0 && nodes[i as usize].node_index > index_to_add[j as usize].1 {
+                                    nodes[k as usize] = nodes[i as usize];
+                                    node_shapes[k as usize] = node_shapes[i as usize];
+                                    positions[k as usize] = positions[i as usize];
+                                    new_positions[i as usize] = k as usize; 
+                                    i -= 1;
+                                } else {
+                                    nodes[k as usize] = NodeLayout { node_index: index_to_add[j as usize].1};
+                                    node_shapes[k as usize] = NodeShapeData::default();
+                                    positions[k as usize] = NodePosition::default();
+                                    j -= 1;
+                                }
+                                k -= 1;
+                            }
+
+                            // now need to set new edge indexes to new ones
+                            edges.iter_mut().for_each(|edge| {
+                                edge.from = new_positions[edge.from];
+                                edge.to = new_positions[edge.to];                                   
+                            });
+                        }
+                    }
+                }
+            }
+            true
+        } else {
+            false
+        }
     }
 
     pub fn contains(&self, value: IriIndex) -> bool {
@@ -168,6 +245,7 @@ impl SortedNodeLayout {
         None
     }
 
+    // use retain operation if possible. Do not call it in the loop
     pub fn remove(&mut self, value: IriIndex, hidden_predicates: &SortedVec) {
         self.mut_nodes(|nodes, positions, edges, node_shapes| {
             if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
@@ -192,56 +270,60 @@ impl SortedNodeLayout {
         });
     }
 
-    pub fn remove_all(&mut self, iris_to_remove: &[IriIndex], hidden_predicates: &SortedVec) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes| {
-            for value in iris_to_remove.iter() {
-                // Can be optimized if values are sorted
-                if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(value)) {
-                    nodes.remove(pos);
-                    if positions.len() > pos {
-                        positions.remove(pos);
-                    }
-                    if node_shapes.len() > pos {
-                        node_shapes.remove(pos);
-                    }
-                    edges.retain(|e| e.from != pos && e.to != pos);
-                    edges.iter_mut().for_each(|e| {
-                        if e.from > pos {
-                            e.from -= 1;
-                        }
-                        if e.to > pos {
-                            e.to -= 1;
-                        }
-                    });
-                }
-            }
-            update_edges_groups(edges, hidden_predicates);
-        });
-    }
-
     pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes| {
-            // Can be optimized to not check nodes multiple time always from begin
-            while let Some(pos) = nodes.iter().position(|e| !f(e)) {
-                nodes.remove(pos);
-                if positions.len() > pos {
-                    positions.remove(pos);
-                }
-                if node_shapes.len() > pos {
-                    node_shapes.remove(pos);
-                }
-                edges.retain(|e| e.from != pos && e.to != pos);
-                edges.iter_mut().for_each(|e| {
-                    if e.from > pos {
-                        e.from -= 1;
-                    }
-                    if e.to > pos {
-                        e.to -= 1;
-                    }
+        let pos_to_remove = if let Ok(nodes) = self.nodes.read() {
+            let pos_to_remove : Vec<usize> = nodes.iter().enumerate().filter(|(_node_pos, node)| {
+                !f(node)
+            }).map(|(node_pos, _node)| node_pos).collect();
+            pos_to_remove
+        } else {
+            Vec::new()
+        };
+        if !pos_to_remove.is_empty() {
+            self.mut_nodes(|nodes, positions, edges, node_shapes| {
+                edges.retain(|e| {
+                    !pos_to_remove.binary_search(&e.from).is_ok() && !pos_to_remove.binary_search(&e.to).is_ok()
                 });
-            }
-            update_edges_groups(edges, hidden_predicates);
-        });
+                let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
+                for i in 0..nodes.len() {
+                    new_positions.push(i);
+                }
+                
+                let mut remove_iter = pos_to_remove.iter().peekable();
+                let mut write = 0;
+
+                for read in 0..nodes.len() {
+                    // Skip if current index should be removed
+                    if Some(&&read) == remove_iter.peek() {
+                        remove_iter.next();
+                        continue;
+                    }
+                    // Otherwise, move the element to the write position
+                    if write != read {
+                        nodes[write] = std::mem::replace(&mut nodes[read], unsafe {
+                            std::mem::MaybeUninit::uninit().assume_init()
+                        });
+                        node_shapes[write] = std::mem::replace(&mut node_shapes[read], unsafe {
+                            std::mem::MaybeUninit::uninit().assume_init()
+                        });
+                        positions[write] = std::mem::replace(&mut positions[read], unsafe {
+                            std::mem::MaybeUninit::uninit().assume_init()
+                        });
+                        new_positions[read] = write;
+                    }
+                    write += 1;
+                }
+                // Truncate the vector to the new length
+                nodes.truncate(write);
+                node_shapes.truncate(write);
+                positions.truncate(write);
+                edges.iter_mut().for_each(|edge| {
+                    edge.from = new_positions[edge.from];
+                    edge.to = new_positions[edge.to];                                   
+                });
+                update_edges_groups(edges, hidden_predicates);
+            });
+        }        
     }
 
     /**
@@ -452,7 +534,7 @@ impl SortedNodeLayout {
                     thread::sleep(Duration::from_millis(100));
                 }
                 if (max_move < 0.8 && temperature < 0.5) && !keep_temperature {
-                    println!("Layout finished with max move: {} temparature: {} lo", max_move, temperature);
+                    // println!("Layout finished with max move: {} temparature: {} lo", max_move, temperature);
                     break;
                 }
             }
@@ -511,7 +593,7 @@ impl SortedNodeLayout {
             for pos in edges_pos_to_remove.iter().rev() {
                 edges.remove(*pos);
             }
-            println!("Removed {} redundant edges", edges.len());
+            // println!("Removed {} redundant edges", edges.len());
             update_edges_groups(&mut edges, hidden_predicates);
         }
     }
@@ -640,13 +722,72 @@ pub fn layout_graph_nodes(
             v *= 0.4;
             v += *f * 0.01;
             let len = v.length();
-            max_move.fetch_max(len, Ordering::Relaxed);
             if len > temperature {
                 v = (v / len) * temperature;
+                max_move.fetch_max(temperature, Ordering::Relaxed);
+            } else {
+                max_move.fetch_max(len, Ordering::Relaxed);
             }
             NodePosition { pos: pos + v, vel: v }
         })
         .collect();
 
     (max_move.load(Ordering::Relaxed), positions)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::nobject::IriIndex;
+
+    #[test]
+    fn test_graph_nodes() {
+        let mut sorted_nodes = super::SortedNodeLayout::default();
+        let nodes = vec![
+            super::NodeLayout::new(0),
+            super::NodeLayout::new(10),
+            super::NodeLayout::new(5),
+        ];
+        assert!(sorted_nodes.add(nodes[0]));
+        assert!(!sorted_nodes.add(nodes[0]));
+        assert!(sorted_nodes.contains(0));
+        assert!(!sorted_nodes.contains(1));
+        assert_eq!(0,sorted_nodes.get_pos(0).unwrap());
+        assert!(sorted_nodes.get_pos(1).is_none());
+
+        let sorted_vec = super::SortedVec::new();
+        sorted_nodes.remove(0, &sorted_vec);
+        assert!(!sorted_nodes.contains(0));
+
+        for node in nodes.iter() {
+            assert!(sorted_nodes.add(*node));
+        }
+        for node in nodes.iter() {
+            assert!(!sorted_nodes.add(*node));
+            assert!(sorted_nodes.contains(node.node_index));
+        }
+        // new indexes 2, 3, 12
+        let new_pairs: Vec<(IriIndex,IriIndex)> = vec![(0,5),(0,5),(5,2),(5,12),(10,2),(0,3),(0,10)];
+        assert!(sorted_nodes.add_many(&new_pairs, |(_parent_index,node_index)| {
+            assert_ne!(5,*node_index);
+            assert_ne!(10,*node_index);
+        }));
+        assert!(!sorted_nodes.add_many(&new_pairs, |(_parent_index,node_index)| {
+            // This should be never called
+            assert!(*node_index>100);
+        }));
+        for (_parent_idx, node_idx) in &new_pairs {
+            assert!(sorted_nodes.contains(*node_idx));
+        }
+        let to_remove: Vec<IriIndex> = vec![2, 5, 12];
+        sorted_nodes.retain(&sorted_vec, |node| {
+            !to_remove.contains(&node.node_index)
+        });
+        for removed_idx in &to_remove {
+            assert!(!sorted_nodes.contains(*removed_idx));
+        }
+        assert!(sorted_nodes.contains(3));
+        assert!(sorted_nodes.contains(0));
+        assert!(sorted_nodes.contains(10));
+
+    }
 }
