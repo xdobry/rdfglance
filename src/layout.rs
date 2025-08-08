@@ -300,15 +300,10 @@ impl SortedNodeLayout {
                     }
                     // Otherwise, move the element to the write position
                     if write != read {
-                        nodes[write] = std::mem::replace(&mut nodes[read], unsafe {
-                            std::mem::MaybeUninit::uninit().assume_init()
-                        });
-                        node_shapes[write] = std::mem::replace(&mut node_shapes[read], unsafe {
-                            std::mem::MaybeUninit::uninit().assume_init()
-                        });
-                        positions[write] = std::mem::replace(&mut positions[read], unsafe {
-                            std::mem::MaybeUninit::uninit().assume_init()
-                        });
+                        // All types are copy otherwise would need std::mem::replace
+                        nodes[write] = nodes[read];
+                        node_shapes[write] = node_shapes[read];
+                        positions[write] = positions[read];
                         new_positions[read] = write;
                     }
                     write += 1;

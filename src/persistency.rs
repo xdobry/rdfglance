@@ -10,7 +10,6 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use crate::graph_styles::{
     ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize,

@@ -198,7 +198,6 @@ impl RdfData {
     }
 
     fn load_object_by_index(&mut self, index: IriIndex, node_change_context: &mut NodeChangeContext) -> bool {
-        // self.visible_nodes.start_layout(&self.persistent_data.config_data);
         let node = self.node_data.get_node_by_index_mut(index);
         if let Some((node_iri, node)) = node {
             if node.has_subject {

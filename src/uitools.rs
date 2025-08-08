@@ -1,7 +1,7 @@
 use eframe::egui::{
     vec2, Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui,
 };
-use egui::{text_selection::visuals, Rect, Response, Sense, Vec2, Widget};
+use egui::{Rect, Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(
     ui: &Ui,

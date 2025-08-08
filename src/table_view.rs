@@ -1,7 +1,7 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
-use egui::{text_selection::visuals, Align, Align2, Color32, CursorIcon, Frame, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
 

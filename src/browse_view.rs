@@ -1,5 +1,3 @@
-use std::cell::Ref;
-
 use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
