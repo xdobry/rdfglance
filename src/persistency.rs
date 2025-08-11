@@ -18,7 +18,7 @@ use crate::layout::{update_edges_groups, Edge, NodeLayout, NodePosition, NodeSha
 use crate::nobject::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::prefix_manager::PrefixManager;
 use crate::string_indexer::{IndexSpan, StringCache, StringIndexer};
-use crate::{EdgeStyle, GVisualisationStyle, RdfGlanceApp, SortedVec};
+use crate::{EdgeStyle, GVisualizationStyle, RdfGlanceApp, SortedVec};
 
 // it is just ascii "rdfg"
 const MAGIC_NUMBER: u32 = 0x47464452;
@@ -123,7 +123,7 @@ impl RdfGlanceApp {
             rdf_data.prefix_manager.store(&mut file)?;
         }
         self.visible_nodes.store(&mut file)?;
-        self.visualisation_style.store(&mut file)?;
+        self.visualization_style.store(&mut file)?;
 
         // Is some cases flush will take a long time, probably if os is trying to sync the file to disk 
         // and make virus check. But all data are written to file, because buffer drop make also the flush
@@ -211,8 +211,8 @@ impl RdfGlanceApp {
                                     SortedNodeLayout::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::VisualStyles => {
-                                app.visualisation_style =
-                                    GVisualisationStyle::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
+                                app.visualization_style =
+                                    GVisualizationStyle::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Literals => {
                                 app.mut_rdf_data(|rdf_data| {
@@ -646,7 +646,7 @@ impl SortedNodeLayout {
     }
 }
 
-impl GVisualisationStyle {
+impl GVisualizationStyle {
     pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
         with_header_len(writer, HeaderType::VisualStyles, &|writer| {
             leb128::write::unsigned(writer, self.node_styles.len() as u64)?;
@@ -717,10 +717,13 @@ impl GVisualisationStyle {
     }
 
     pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
-        let mut styles = GVisualisationStyle {
+        let mut styles = GVisualizationStyle {
             node_styles: HashMap::new(),
             edge_styles: HashMap::new(),
             default_node_style: crate::NodeStyle::default(),
+            use_size_overwrite: false,
+            min_size: 5.0,
+            max_size: 20.0,
         };
         let len_types = leb128::read::unsigned(reader)?;
         for _ in 0..len_types {
@@ -1010,7 +1013,7 @@ mod tests {
             assert_eq!("dbr:Rust_(programming_language)", node_iri.to_string());
             assert_eq!(1, node_object.types.len());
             let type_index = node_object.types.get(0).unwrap();
-            let type_style = vs.visualisation_style.node_styles.get_mut(type_index).unwrap();
+            let type_style = vs.visualization_style.node_styles.get_mut(type_index).unwrap();
             type_style.max_lines = 2;
             type_style.node_shape = NodeShape::Rect;
             type_style.label_position = LabelPosition::Above;
@@ -1032,8 +1035,8 @@ mod tests {
                 }
             });
             let edge_index = node_object.references.get(0).unwrap().0;
-            vs.visualisation_style.get_edge_syle(edge_index, true);
-            let edge = vs.visualisation_style.edge_styles.get_mut(&edge_index).unwrap();
+            vs.visualization_style.get_edge_syle(edge_index, true);
+            let edge = vs.visualization_style.edge_styles.get_mut(&edge_index).unwrap();
             edge.color = Color32::YELLOW;
             edge.width = 3.0;
             edge.line_style = LineStyle::Dashed;
@@ -1110,7 +1113,7 @@ mod tests {
                 });
                 assert_eq!(1, rust_node.types.len());
                 let type_index = rust_node.types.get(0).unwrap();
-                let type_style = restored.visualisation_style.node_styles.get_mut(type_index).unwrap();
+                let type_style = restored.visualization_style.node_styles.get_mut(type_index).unwrap();
                 assert_eq!(type_style.max_lines, 2);
                 assert_eq!(type_style.node_shape, NodeShape::Rect);
                 assert_eq!(type_style.label_position, LabelPosition::Above);
@@ -1191,8 +1194,8 @@ mod tests {
             restored.visible_nodes.nodes.read().unwrap().len()
         );
         assert_eq!(
-            vs.visualisation_style.node_styles.len(),
-            restored.visualisation_style.node_styles.len()
+            vs.visualization_style.node_styles.len(),
+            restored.visualization_style.node_styles.len()
         );
         assert_eq!(true, vs.visible_nodes.nodes.read().unwrap().len() > 0);
 

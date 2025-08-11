@@ -2,7 +2,7 @@ use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, uitools::primary_color, GVisualisationStyle, NodeAction, RdfGlanceApp, UIState
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, uitools::primary_color, GVisualizationStyle, NodeAction, RdfGlanceApp, UIState
 };
 
 
@@ -75,7 +75,7 @@ impl RdfGlanceApp {
                             ui,
                             current_node,
                             &rdf_data.node_data,
-                            &self.visualisation_style,
+                            &self.visualization_style,
                             &self.ui_state,
                             h,
                             &label_context,
@@ -135,7 +135,7 @@ impl RdfGlanceApp {
                                     ui,
                                     current_node,
                                     &rdf_data.node_data,
-                                    &self.visualisation_style,
+                                    &self.visualization_style,
                                     &self.ui_state,
                                     h,
                                     &label_context,
@@ -164,7 +164,7 @@ pub fn show_refs_table(
     ui: &mut egui::Ui,
     current_node: &NObject,
     node_data: &NodeData,
-    color_cache: &GVisualisationStyle,
+    color_cache: &GVisualizationStyle,
     layout_data: &UIState,
     h: f32,
     label_context: &LabelContext,
@@ -215,7 +215,7 @@ pub fn show_refs_table(
 
 pub fn show_references(
     node_data: &NodeData,
-    color_cache: &GVisualisationStyle,
+    color_cache: &GVisualizationStyle,
     ui: &mut egui::Ui,
     label: &str,
     references: &[(IriIndex, IriIndex)],

@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
 
-use crate::{config::IriDisplay, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, GVisualisationStyle};
+use crate::{config::IriDisplay, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, GVisualizationStyle};
 
 pub type IriIndex = u32;
 pub type LangIndex = u16;
@@ -116,7 +116,7 @@ impl NObject {
         false
     }
 
-    pub fn node_label<'a>(&'a self, iri: &'a str, styles: &GVisualisationStyle, should_short_iri: bool, language_index: LangIndex, indexers: &'a Indexers) -> &'a str {
+    pub fn node_label<'a>(&'a self, iri: &'a str, styles: &GVisualizationStyle, should_short_iri: bool, language_index: LangIndex, indexers: &'a Indexers) -> &'a str {
         let label_opt = self.node_label_opt(styles, language_index, indexers);
         if let Some(label) = label_opt {
             return label;
@@ -127,7 +127,7 @@ impl NObject {
         iri
     }
 
-    pub fn node_label_opt<'a>(&self, styles: &GVisualisationStyle, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
+    pub fn node_label_opt<'a>(&self, styles: &GVisualizationStyle, language_index: LangIndex, indexers: &'a Indexers) -> Option<&'a str> {
         for type_index in self.types.iter() {
             if let Some(type_style) = styles.node_styles.get(type_index) {
                 let prop = self.get_property(type_style.label_index, language_index);

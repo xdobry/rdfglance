@@ -265,7 +265,7 @@ impl TryFrom<u8> for ArrowLocation {
 
 impl RdfGlanceApp {
     pub fn display_node_style(&mut self, ui: &mut egui::Ui, type_style_edit: IriIndex) {
-        let type_style = self.visualisation_style.node_styles.get_mut(&type_style_edit);
+        let type_style = self.visualization_style.node_styles.get_mut(&type_style_edit);
         if let Some(type_style) = type_style {
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let label_context = LabelContext::new(
@@ -365,7 +365,7 @@ impl RdfGlanceApp {
     }
 
     pub fn display_edge_style(&mut self, ui: &mut egui::Ui, edge_style_edit: IriIndex) {
-        let edge_style = self.visualisation_style.edge_styles.get_mut(&edge_style_edit);
+        let edge_style = self.visualization_style.edge_styles.get_mut(&edge_style_edit);
         if let Some(edge_style) = edge_style {
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let label_context = LabelContext::new(

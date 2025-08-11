@@ -8,8 +8,9 @@ use poll_promise::Promise;
 use rfd::AsyncFileDialog;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
+use strum::IntoEnumIterator;
 
-use crate::{RdfGlanceApp, SystemMessage, style::ICON_LANG};
+use crate::{graph_algorithms::GraphAlgorithm, style::ICON_LANG, RdfGlanceApp, SystemMessage};
 
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
@@ -89,6 +90,17 @@ impl RdfGlanceApp {
                 if ui.button("Clean Data").clicked() {
                     self.clean_data();
                     ui.close_menu();
+                }
+            });
+            ui.menu_button("Statistics", |ui| {
+                for entry in GraphAlgorithm::iter() {
+                    let label = entry.to_string();
+                    if ui.button(label).clicked() {
+                        self.visible_nodes.run_algorithm(entry, &self.visualization_style);
+                        // TODO ask for confirmation
+                        self.visualization_style.use_size_overwrite = true;
+                        ui.close_menu();
+                    }
                 }
             });
             global_theme_preference_switch(ui);
@@ -209,8 +221,8 @@ impl RdfGlanceApp {
                 self.ui_state = app_data.ui_state;
                 self.visible_nodes = app_data.visible_nodes;
                 self.update_data_indexes(is_dark_mode);
-                if !app_data.visualisation_style.node_styles.is_empty() {
-                    self.visualisation_style = app_data.visualisation_style;
+                if !app_data.visualization_style.node_styles.is_empty() {
+                    self.visualization_style = app_data.visualization_style;
                 }
                 let file_name: Box<str> = Box::from(path.display().to_string());
                 if !self.persistent_data.last_projects.iter().any(|f| *f == file_name) {

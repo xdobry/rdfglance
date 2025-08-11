@@ -42,6 +42,7 @@ RDFGlance offers the following visualization capabilities for RDF data:
 - data tables organized by instance types.
 - You can navigate the nodes like in browser from node to node.
 - Display of statistical information about types, data properties, and references, sorted by type
+- Can safe all data, graph and styles as project in own binary format for fast loading.
 
 The RDF Data can be loaded by using following formats:
 

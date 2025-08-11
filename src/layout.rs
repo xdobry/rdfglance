@@ -1,4 +1,4 @@
-use crate::{config::Config, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, SortedVec};
+use crate::{config::Config, graph_algorithms::{run_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, GVisualizationStyle, SortedVec};
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
@@ -39,6 +39,23 @@ impl Default for NodeShapeData {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct IndividualNodeStyleData {
+    // Set from statistics to overwrite the size of the node
+    pub size_overwrite: f32,
+    pub color_overwrite: u16,
+}
+
+impl Default for IndividualNodeStyleData {
+    fn default() -> Self {
+        Self {
+            size_overwrite: f32::NAN,
+            color_overwrite: 0,
+        }
+    }
+}
+
+
 pub struct Edge {
     pub from: usize,
     pub to: usize,
@@ -76,6 +93,7 @@ pub struct SortedNodeLayout {
     pub edges: Arc<RwLock<Vec<Edge>>>,
     pub positions: Arc<RwLock<Vec<NodePosition>>>,
     pub node_shapes: Arc<RwLock<Vec<NodeShapeData>>>,
+    pub individual_node_style: Arc<RwLock<Vec<IndividualNodeStyleData>>>,
     pub layout_temperature: f32,
     pub keep_temperature: Arc<AtomicBool>,
     pub compute_layout: bool,
@@ -103,6 +121,7 @@ impl Default for SortedNodeLayout {
             positions: Arc::new(RwLock::new(Vec::new())),
             edges: Arc::new(RwLock::new(Vec::new())),
             node_shapes: Arc::new(RwLock::new(Vec::new())),
+            individual_node_style: Arc::new(RwLock::new(Vec::new())),
             compute_layout: true,
             keep_temperature: Arc::new(AtomicBool::new(false)),
             layout_temperature: 0.5,
@@ -157,6 +176,7 @@ impl SortedNodeLayout {
     }
 
     pub fn add_many(&mut self, values: &[(IriIndex, IriIndex)], inserted_callback: impl FnMut(&(IriIndex,IriIndex))) -> bool {
+        self.stop_layout();
         let index_to_add = if let Ok(nodes) = self.nodes.read() {
             // First filter the list only for nodes that are not already in the layout
             // sort and dedup the nodes the parent node does not matter
@@ -487,7 +507,7 @@ impl SortedNodeLayout {
                 count += 1;
                  */
                 if stop_layout.load(Ordering::Relaxed) {
-                    // println!("Layout stoppend");
+                    // println!("Layout stoppen");
                     break;
                 }
                 if let Ok(update) = rx.try_recv() {
@@ -592,6 +612,28 @@ impl SortedNodeLayout {
             update_edges_groups(&mut edges, hidden_predicates);
         }
     }
+
+     pub fn run_algorithm(&mut self, graph_algorithm: GraphAlgorithm, visualization_style: &GVisualizationStyle) {
+        if let Ok(nodes) = self.nodes.read() {
+            if !nodes.is_empty() {
+                if let Ok(edges) = self.edges.read() {
+                    println!("run algorithm: {:?}", graph_algorithm);
+                    let values = run_algorithm(graph_algorithm, nodes.len(), &edges);
+                    if let Ok(mut individual_node_style) = self.individual_node_style.write() {
+                        if individual_node_style.len() != nodes.len() {
+                            individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
+                        }
+                        for (index, value) in values.iter().enumerate() {
+                            let mapped_size = visualization_style.min_size + *value * (visualization_style.max_size - visualization_style.min_size);
+                            individual_node_style[index].size_overwrite = mapped_size;
+                        }
+                        self.update_node_shapes = true;
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
@@ -668,11 +710,11 @@ pub fn layout_graph_nodes(
     let attraction = 111.0 / attraction_constant;
 
     let mut tree = BHQuadtree::new(0.5);
-     let weight_points: Vec<WeightedPoint> = positions.par_iter().map(|pos| {
+    let weight_points: Vec<WeightedPoint> = positions.par_iter().map(|pos| {
         WeightedPoint {
             pos: pos.pos.to_vec2(),
             mass: 1.0,
-        }}).collect(); 
+    }}).collect(); 
     tree.build(weight_points, 5);
 
     let force_fn = |target: Vec2, source: WeightedPoint| {

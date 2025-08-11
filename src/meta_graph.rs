@@ -140,7 +140,7 @@ impl RdfGlanceApp {
                                         reference_label.as_str().to_owned()
                                     };
                                     let pos1 = center + positions[edge.from].pos.to_vec2();
-                                    let p_edge_style = self.visualisation_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode);
+                                    let p_edge_style = self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode);
                                     edge_style.color = p_edge_style.color;
                                     if edge.from != edge.to {
                                         let node_shape_from = &node_shapes[edge.from];
@@ -186,7 +186,7 @@ impl RdfGlanceApp {
                             };
                             for (node_layout, node_position) in nodes.iter().zip(positions.iter()) {
                                 let pos = center + node_position.pos.to_vec2();
-                                let type_style = self.visualisation_style.get_type_style_one(node_layout.node_index);
+                                let type_style = self.visualization_style.get_type_style_one(node_layout.node_index);
                                 node_style.color = type_style.color;
                                 if self.ui_state.meta_count_to_size
                                     && self.type_index.min_instance_type_count < self.type_index.max_instance_type_count
@@ -224,6 +224,7 @@ impl RdfGlanceApp {
                                     new_node_shapes.push(NodeShapeData {
                                         node_shape,
                                         size: node_rect.size(),
+                                        ..Default::default()
                                     });
                                 }   
                                 if self.ui_state.context_menu_node.is_none() || was_action {

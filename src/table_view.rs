@@ -8,7 +8,7 @@ use rayon::prelude::*;
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualisationStyle, NodeAction, RdfData, UIState
+    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualizationStyle, NodeAction, RdfData, UIState
 };
 
 pub struct TypeInstanceIndex {
@@ -172,7 +172,7 @@ impl TypeData {
         table_action: &mut TableAction,
         instance_action: &mut NodeAction,
         node_data: &mut NodeData,
-        color_cache: &GVisualisationStyle,
+        color_cache: &GVisualizationStyle,
         prefix_manager: &PrefixManager,
         layout_data: &UIState,
         iri_display: IriDisplay,
@@ -1079,7 +1079,7 @@ impl TypeInstanceIndex {
         ui: &mut egui::Ui,
         rdf_data: &mut RdfData,
         layout_data: &mut UIState,
-        color_cache: &GVisualisationStyle,
+        color_cache: &GVisualizationStyle,
         iri_display: IriDisplay,
     ) -> NodeAction {
         let mut instance_action = NodeAction::None;

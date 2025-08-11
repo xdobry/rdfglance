@@ -33,7 +33,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::uitools::primary_color;
+use crate::{graph_algorithms::{run_algorithm, GraphAlgorithm}, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -57,6 +57,8 @@ pub mod style;
 pub mod table_view;
 pub mod uitools;
 pub mod quad_tree;
+pub mod graph_algorithms;
+
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -81,7 +83,7 @@ pub struct RdfGlanceApp {
     meta_nodes: SortedNodeLayout,
     graph_state: GraphState,
     meta_graph_state: GraphState,
-    visualisation_style: GVisualisationStyle,
+    visualization_style: GVisualizationStyle,
     #[cfg(not(target_arch = "wasm32"))]
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
@@ -278,10 +280,13 @@ impl SystemMessage {
     }
 }
 
-pub struct GVisualisationStyle {
+pub struct GVisualizationStyle {
     pub node_styles: HashMap<IriIndex, NodeStyle>,
     pub default_node_style: NodeStyle,
     pub edge_styles: HashMap<IriIndex, EdgeStyle>,
+    pub use_size_overwrite: bool,
+    pub min_size: f32,
+    pub max_size: f32,
 }
 
 pub struct UIState {
@@ -353,7 +358,7 @@ impl UIState {
     }
 }
 
-impl GVisualisationStyle {
+impl GVisualizationStyle {
     pub fn preset_styles(&mut self, cache_statistics: &TypeInstanceIndex, is_dark_mode: bool) {
         for (type_index, _type_desc) in cache_statistics.types.iter() {
             let type_style = self.node_styles.get(type_index);
@@ -504,10 +509,13 @@ impl RdfGlanceApp {
                 node_data: NodeData::new(),
                 prefix_manager: PrefixManager::new(),
             })),
-            visualisation_style: GVisualisationStyle {
+            visualization_style: GVisualizationStyle {
                 node_styles: HashMap::new(),
                 edge_styles: HashMap::new(),
                 default_node_style: NodeStyle::default(),
+                use_size_overwrite: false,
+                min_size: 5.0,
+                max_size: 50.0,
             },
             graph_state: GraphState { scene_rect: Rect::ZERO },
             meta_graph_state: GraphState { scene_rect: Rect::ZERO },
@@ -795,7 +803,7 @@ impl RdfGlanceApp {
             }
             self.type_index.update(&rdf_data.node_data);
 
-            self.visualisation_style.preset_styles(&self.type_index, is_dark_mode);
+            self.visualization_style.preset_styles(&self.type_index, is_dark_mode);
             rdf_data.node_data.indexers.predicate_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.type_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.language_indexer.map.shrink_to_fit();
@@ -907,7 +915,7 @@ impl RdfGlanceApp {
     fn clean_data(&mut self) {
         self.ui_state.clean();
         self.type_index.clean();
-        self.visualisation_style.clean();
+        self.visualization_style.clean();
         self.display_type = DisplayType::Table;
         self.nav_history.clear();
         self.nav_pos = 0;
@@ -941,6 +949,8 @@ impl RdfGlanceApp {
             visible_nodes: &mut self.visible_nodes,
         }
     }
+
+
 }
 
 impl eframe::App for RdfGlanceApp {
@@ -1055,7 +1065,7 @@ impl eframe::App for RdfGlanceApp {
                                         ui,
                                         &mut rdf_data,
                                         &mut self.ui_state,
-                                        &self.visualisation_style,
+                                        &self.visualization_style,
                                         self.persistent_data.config_data.iri_display,
                                     )
                                 } else {
