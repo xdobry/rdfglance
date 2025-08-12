@@ -22,7 +22,7 @@ enum NodeContextAction {
     HideOther,
     HideOtherTypes,
     HideUnrelated,
-    HideOrpfans,
+    HideOrphans,
     HideRedundantEdges,
     Expand,
     ExpandReferenced,
@@ -52,7 +52,7 @@ impl NodeContextAction {
             return NodeContextAction::HideUnrelated;
         }
         if ui.button("Hide Orfan Nodes").clicked() {
-            return NodeContextAction::HideOrpfans;
+            return NodeContextAction::HideOrphans;
         }
         if ui.button("Hide Redundant Edges").clicked() {
             return NodeContextAction::HideRedundantEdges;
@@ -88,7 +88,7 @@ impl RdfGlanceApp {
             if ui.button("Expand all").clicked() {
                 if let Ok(mut rdf_data) = self.rdf_data.write() {
                     let mut node_change_context =  NodeChangeContext {
-                        rdfwrwap: &mut self.rdfwrap,
+                        rdfwrap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
                     };
                     if rdf_data.expand_all(&mut node_change_context, &self.ui_state.hidden_predicates) {
@@ -219,11 +219,11 @@ impl RdfGlanceApp {
                                         &rdf_data.prefix_manager,
                                     );
                                     for (predicate_index, prop_value) in &current_node.properties {
-                                        if self.persistent_data.config_data.supress_other_language_data {
+                                        if self.persistent_data.config_data.suppress_other_language_data {
                                             if let Literal::LangString(lang, _) = prop_value {
                                                 if *lang != self.ui_state.display_language {
                                                     if *lang == 0 && self.ui_state.display_language != 0 {
-                                                        // it is fallback language so display if reall language could not be found
+                                                        // it is fallback language so display if real language could not be found
                                                         let mut found = false;
                                                         for (predicate_index2, prop_value2) in &current_node.properties
                                                         {
@@ -304,7 +304,7 @@ impl RdfGlanceApp {
                                         &rdf_data.node_data.indexers,
                                     );
                                     if ui.button(reference_label.as_str()).clicked() {
-                                        let mut npos = NeighbourPos::new();
+                                        let mut npos = NeighborPos::new();
                                         for (predicate_index, ref_iri) in &current_node.references {
                                             if predicate_index == reference_index {
                                                 npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
@@ -338,7 +338,7 @@ impl RdfGlanceApp {
                                                 }
                                             }
                                         }
-                                        let mut npos = NeighbourPos::new();
+                                        let mut npos = NeighborPos::new();
                                         npos.add_many(&mut self.visible_nodes, &nodes_to_add);
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
@@ -410,7 +410,7 @@ impl RdfGlanceApp {
                                         &rdf_data.node_data.indexers,
                                     );
                                     if ui.button(reference_label.as_str()).clicked() {
-                                        let mut npos = NeighbourPos::new();
+                                        let mut npos = NeighborPos::new();
                                         for (predicate_index, ref_iri) in &current_node.reverse_references {
                                             if predicate_index == reference_index {
                                                 npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
@@ -442,7 +442,7 @@ impl RdfGlanceApp {
                                                 }
                                             }
                                         }
-                                        let mut npos = NeighbourPos::new();
+                                        let mut npos = NeighborPos::new();
                                         npos.add_many(&mut self.visible_nodes, &nodes_to_add);
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
@@ -806,7 +806,7 @@ impl RdfGlanceApp {
                                 self.visible_nodes.start_layout(&self.persistent_data.config_data);
                                 close_menu = true;
                             }
-                            NodeContextAction::HideOrpfans => {
+                            NodeContextAction::HideOrphans => {
                                 self.visible_nodes.hide_orphans(&self.ui_state.hidden_predicates);
                             }
                             NodeContextAction::HideRedundantEdges => {
@@ -814,7 +814,7 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::Expand => {
                                 let mut node_change_context = NodeChangeContext {
-                                    rdfwrwap: &mut self.rdfwrap,
+                                    rdfwrap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
@@ -824,7 +824,7 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::ExpandReferenced => {
                                 let mut node_change_context = NodeChangeContext {
-                                    rdfwrwap: &mut self.rdfwrap,
+                                    rdfwrap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context, &self.ui_state.hidden_predicates) {
@@ -837,7 +837,7 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::ExpandReferencedBy => {
                                 let mut node_change_context = NodeChangeContext {
-                                    rdfwrwap: &mut self.rdfwrap,
+                                    rdfwrap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_node(
@@ -853,7 +853,7 @@ impl RdfGlanceApp {
                             NodeContextAction::ExpandThisType => {
                                 let types = current_node.types.clone();
                                 let mut node_change_context = NodeChangeContext {
-                                    rdfwrwap: &mut self.rdfwrap,
+                                    rdfwrap: &mut self.rdfwrap,
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_all_by_types(&types, &mut node_change_context, &self.ui_state.hidden_predicates) {
@@ -898,7 +898,7 @@ impl RdfGlanceApp {
         if let Some(node_to_click) = node_to_click {
             if let Ok(mut rdf_data) = self.rdf_data.write() {
                 let mut node_change_context = NodeChangeContext {
-                    rdfwrwap: &mut self.rdfwrap,
+                    rdfwrap: &mut self.rdfwrap,
                     visible_nodes: &mut self.visible_nodes,
                 };
                 if rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
@@ -1028,7 +1028,7 @@ pub fn draw_node(
     )
 }
 
-pub fn update_layout_edges(new_nodes: &NeighbourPos, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData, hidden_predicates: &SortedVec) {
+pub fn update_layout_edges(new_nodes: &NeighborPos, layout_nodes: &mut SortedNodeLayout, node_data: &NodeData, hidden_predicates: &SortedVec) {
     let mut visited_nodes: HashSet<IriIndex> = HashSet::new();
     if let Ok(mut edges) = layout_nodes.edges.write() {
         for node_index in new_nodes.iter_values() {
@@ -1184,17 +1184,17 @@ pub fn add_preserved_edges(hidden_types: &Vec<IriIndex>, layout_nodes: &mut Sort
     }
 }
 
-pub struct NeighbourPos {
+pub struct NeighborPos {
     nodes: HashMap<IriIndex, Vec<IriIndex>>,
 }
 
-impl Default for NeighbourPos {
+impl Default for NeighborPos {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl NeighbourPos {
+impl NeighborPos {
     pub fn new() -> Self {
         Self { nodes: HashMap::new() }
     }

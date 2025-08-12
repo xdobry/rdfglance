@@ -994,14 +994,14 @@ mod tests {
         assert_eq!(true, node_index.is_some());
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
             let mut node_change_context =  NodeChangeContext {
-                rdfwrwap: &mut vs.rdfwrap,
+                rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
             };
             assert_eq!(true, rdf_data.load_object_by_index(node_index.unwrap(),&mut node_change_context));
         };
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
             let mut node_change_context =  NodeChangeContext {
-                rdfwrwap: &mut vs.rdfwrap,
+                rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
             };
             let hidden_predicates = SortedVec::new();

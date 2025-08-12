@@ -91,7 +91,7 @@ impl RdfGlanceApp {
                                     .max_col_width(avialable_width)
                                     .show(ui, |ui| {
                                         for (predicate_index, prop_value) in &current_node.properties {
-                                            if self.persistent_data.config_data.supress_other_language_data {
+                                            if self.persistent_data.config_data.suppress_other_language_data {
                                                 if let Literal::LangString(lang, _) = prop_value {
                                                     if *lang != self.ui_state.display_language {
                                                         if *lang == 0 && self.ui_state.display_language != 0 {

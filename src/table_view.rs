@@ -91,7 +91,7 @@ enum TableContextMenu {
     ColumnMenu(Pos2, IriIndex),
     CellMenu(Pos2, IriIndex, IriIndex),
     RefMenu(Pos2, IriIndex),
-    IriColomnMenu(Pos2),
+    IriColumnMenu(Pos2),
     RefColumnMenu(Pos2),
 }
 
@@ -102,7 +102,7 @@ impl TableContextMenu {
             TableContextMenu::CellMenu(pos, _, _) => *pos,
             TableContextMenu::RefMenu(pos, _) => *pos,
             TableContextMenu::RefColumnMenu(pos) => *pos,
-            TableContextMenu::IriColomnMenu(pos) => *pos,
+            TableContextMenu::IriColumnMenu(pos) => *pos,
             TableContextMenu::None => Pos2::new(0.0, 0.0),
         }
     }
@@ -245,7 +245,7 @@ impl TypeData {
             ui.visuals().strong_text_color(),
         );
 
-        let iri_colums_drag_size_rect = egui::Rect::from_min_size(
+        let iri_columns_drag_size_rect = egui::Rect::from_min_size(
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width - 3.0, 0.0),
             Vec2::new(6.0, ROW_HIGHT),
         );
@@ -259,7 +259,7 @@ impl TypeData {
 
         let mut was_context_click = false;
 
-        if iri_colums_drag_size_rect.contains(mouse_pos) {
+        if iri_columns_drag_size_rect.contains(mouse_pos) {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
             if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
                 self.instance_view.column_resize =
@@ -274,7 +274,7 @@ impl TypeData {
         if secondary_clicked && iri_column_rec.contains(mouse_pos) {
             was_context_click = true;
             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-            self.instance_view.context_menu = TableContextMenu::IriColomnMenu(mouse_pos);
+            self.instance_view.context_menu = TableContextMenu::IriColumnMenu(mouse_pos);
         }
         painter.text(
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
@@ -287,7 +287,7 @@ impl TypeData {
             available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
             Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
         );
-        let refs_colums_drag_size_rect = egui::Rect::from_min_size(
+        let refs_columns_drag_size_rect = egui::Rect::from_min_size(
             available_rect.left_top()
                 + Vec2::new(
                     self.instance_view.iri_width + self.instance_view.ref_count_width - 3.0,
@@ -295,7 +295,7 @@ impl TypeData {
                 ),
             Vec2::new(6.0, ROW_HIGHT),
         );
-        if refs_colums_drag_size_rect.contains(mouse_pos) {
+        if refs_columns_drag_size_rect.contains(mouse_pos) {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
             if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
                 self.instance_view.column_resize =
@@ -333,11 +333,11 @@ impl TypeData {
                     ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
                 }
             }
-            let colums_drag_size_rect = egui::Rect::from_min_size(
+            let columns_drag_size_rect = egui::Rect::from_min_size(
                 top_left + Vec2::new(column_desc.width - 3.0, 0.0),
                 Vec2::new(6.0, ROW_HIGHT),
             );
-            if colums_drag_size_rect.contains(mouse_pos) {
+            if columns_drag_size_rect.contains(mouse_pos) {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
                 if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
                     self.instance_view.column_resize = InstanceColumnResize::Predicate(
@@ -543,7 +543,7 @@ impl TypeData {
             self.instance_view.context_menu.pos(),
             width,
             |ui| match self.instance_view.context_menu {
-                TableContextMenu::IriColomnMenu(_pos) => {
+                TableContextMenu::IriColumnMenu(_pos) => {
                     let mut close_menu: bool = false;
                     if ui.button("Sort Asc").clicked() {
                         *table_action = TableAction::SortIriAsc();
@@ -573,30 +573,30 @@ impl TypeData {
                         ui.memory_mut(|mem| mem.close_popup());
                     }
                 }
-                TableContextMenu::ColumnMenu(_pos, column_predictate) => {
+                TableContextMenu::ColumnMenu(_pos, column_predicate) => {
                     let mut close_menu = false;
                     if self.instance_view.visible_columns() > 0 && ui.button("Hide column").clicked() {
-                        *table_action = TableAction::HideColumn(column_predictate);
+                        *table_action = TableAction::HideColumn(column_predicate);
                         close_menu = true;
                     }
                     if ui.button("Sort Asc").clicked() {
-                        *table_action = TableAction::SortColumnAsc(column_predictate);
+                        *table_action = TableAction::SortColumnAsc(column_predicate);
                         close_menu = true;
                     }
                     if ui.button("Sort Desc").clicked() {
-                        *table_action = TableAction::SortColumnDesc(column_predictate);
+                        *table_action = TableAction::SortColumnDesc(column_predicate);
                         close_menu = true;
                     }
                     if ui.button("Show Only Value Exists").clicked() {
-                        *table_action = TableAction::HidePropExists(column_predictate);
+                        *table_action = TableAction::HidePropExists(column_predicate);
                         close_menu = true;
                     }
                     if ui.button("Show Only Value Not Exists").clicked() {
-                        *table_action = TableAction::HidePropNotExists(column_predictate);
+                        *table_action = TableAction::HidePropNotExists(column_predicate);
                         close_menu = true;
                     }
-                    if ui.button("Show Only Mutivalue").clicked() {
-                        *table_action = TableAction::HidePropNonMulti(column_predictate);
+                    if ui.button("Show Only Multivalue").clicked() {
+                        *table_action = TableAction::HidePropNonMulti(column_predicate);
                         close_menu = true;
                     }
                     let hidden_columns: Vec<&ColumnDesc> = self
@@ -615,7 +615,7 @@ impl TypeData {
                                     &node_data.indexers,
                                 );
                                 if ui.button(predicate_label.as_str()).clicked() {
-                                    *table_action = TableAction::UhideColumn(column_desc.predicate_index);
+                                    *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
                                     close_menu = true;
                                 }
                             }
@@ -627,12 +627,12 @@ impl TypeData {
                         ui.memory_mut(|mem| mem.close_popup());
                     }
                 }
-                TableContextMenu::CellMenu(_pos, instance_index, predictate) => {
+                TableContextMenu::CellMenu(_pos, instance_index, predicate) => {
                     let mut close_menu = false;
                     let node = node_data.get_node_by_index(instance_index);
                     if let Some((_node_iri, node)) = node {
                         for (predicate_index, value) in &node.properties {
-                            if predictate == *predicate_index {
+                            if predicate == *predicate_index {
                                 ui.label(value.as_str_ref(&node_data.indexers));
                             }
                         }
@@ -726,13 +726,13 @@ impl TypeData {
             ui.strong("Min Card.");
             ui.strong("Max Card.");
             ui.end_row();
-            for (predicate_index, pcharecteristics) in &self.properties {
+            for (predicate_index, p_characteristics) in &self.properties {
                 let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                 ui.label(predicate_label.as_str());
-                ui.label(pcharecteristics.count.to_string());
-                ui.label(pcharecteristics.max_len.to_string());
-                ui.label(pcharecteristics.min_cardinality.to_string());
-                ui.label(pcharecteristics.max_cardinality.to_string());
+                ui.label(p_characteristics.count.to_string());
+                ui.label(p_characteristics.max_len.to_string());
+                ui.label(p_characteristics.min_cardinality.to_string());
+                ui.label(p_characteristics.max_cardinality.to_string());
                 ui.end_row();
             }
         });
@@ -793,7 +793,7 @@ impl TypeData {
     }
 }
 
-fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, strong: bool, visuals: &egui::Visuals) {
+pub fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, strong: bool, visuals: &egui::Visuals) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -823,7 +823,7 @@ fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2,
     painter.galley(top_left, galley, visuals.text_color());
 }
 
-fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool, visuals: &egui::Visuals) {
+pub fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool, visuals: &egui::Visuals) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -891,7 +891,7 @@ impl TypeInstanceIndex {
         let start = Instant::now();
         let node_len = node_data.len();
         // TODO concurrent optimization
-        // 1. partion the instances in groups (count  rayon::current_num_threads()) in dependency to type
+        // 1. partition the instances in groups (count  rayon::current_num_threads()) in dependency to type
         // 2. build hash map of each group (there are disjuct)
         // 3. merge all hash maps
         for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
@@ -1210,9 +1210,9 @@ impl TypeInstanceIndex {
                             match self.type_cell_action {
                                 TypeCellAction::ShowRefTypes(_pos, predicate_index) => {
                                     let mut close_menu = false;
-                                    let charteristics = type_data.references.get(&predicate_index);
-                                    if let Some(characterisics) = charteristics {
-                                        for type_index in &characterisics.types {
+                                    let characteristics = type_data.references.get(&predicate_index);
+                                    if let Some(characteristics) = characteristics {
+                                        for type_index in &characteristics.types {
                                             ui.label(
                                                 rdf_data.node_data.type_display(
                                                     *type_index,
@@ -1247,13 +1247,13 @@ impl TypeInstanceIndex {
             if let Some(type_data) = self.types.get_mut(&selected_type) {
                 let mut table_action: TableAction = TableAction::None;
                 ui.horizontal(|ui| {
-                    let filter_immandiately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
+                    let filter_immediately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
                     if ui.ctx().input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command) {
                         text_edit_response.request_focus();
                     }
-                    if filter_immandiately {
+                    if filter_immediately {
                         if text_edit_response.changed() {
                             table_action = TableAction::Filter;
                         }
@@ -1321,10 +1321,10 @@ impl TypeInstanceIndex {
                             }
                         }
                     }
-                    TableAction::UhideColumn(preducate_to_unhide) => {
+                    TableAction::UnhideColumn(predicate_to_unhide) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
                             for column_desc in type_data.instance_view.display_properties.iter_mut() {
-                                if column_desc.predicate_index == preducate_to_unhide {
+                                if column_desc.predicate_index == predicate_to_unhide {
                                     column_desc.visible = true;
                                     break;
                                 }
@@ -1662,7 +1662,7 @@ impl Default for TypeInstanceIndex {
 pub enum TableAction {
     None,
     HideColumn(IriIndex),
-    UhideColumn(IriIndex),
+    UnhideColumn(IriIndex),
     SortColumnAsc(IriIndex),
     SortColumnDesc(IriIndex),
     SortRefAsc(),

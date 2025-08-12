@@ -20,7 +20,7 @@ use eframe::{
 use egui::{Rangef, Rect};
 use egui_extras::StripBuilder;
 use graph_styles::{EdgeStyle, NodeStyle};
-use graph_view::{NeighbourPos, update_layout_edges};
+use graph_view::{NeighborPos, update_layout_edges};
 use layout::SortedNodeLayout;
 use nobject::{IriIndex, LangIndex, NodeData};
 #[cfg(target_arch = "wasm32")]
@@ -33,7 +33,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::{graph_algorithms::{run_algorithm, GraphAlgorithm}, uitools::primary_color};
+use crate::{graph_algorithms::{run_algorithm, GraphAlgorithm}, statistics::StatisticsData, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -58,6 +58,7 @@ pub mod table_view;
 pub mod uitools;
 pub mod quad_tree;
 pub mod graph_algorithms;
+pub mod statistics;
 
 
 #[derive(Debug, PartialEq)]
@@ -68,6 +69,7 @@ pub enum DisplayType {
     Prefixes,
     Configuration,
     MetaGraph,
+    Statistics,
 }
 
 // Define the application structure
@@ -84,6 +86,7 @@ pub struct RdfGlanceApp {
     graph_state: GraphState,
     meta_graph_state: GraphState,
     visualization_style: GVisualizationStyle,
+    statistics_data: Option<StatisticsData>,
     #[cfg(not(target_arch = "wasm32"))]
     sparql_dialog: Option<SparqlDialog>,
     status_message: String,
@@ -113,7 +116,7 @@ pub struct RdfData {
 }
 
 pub struct NodeChangeContext<'a> {
-    pub rdfwrwap: &'a mut Box<dyn rdfwrap::RDFAdapter>,
+    pub rdfwrap: &'a mut Box<dyn rdfwrap::RDFAdapter>,
     pub visible_nodes: &'a mut SortedNodeLayout,
 }
 
@@ -153,7 +156,7 @@ impl RdfData {
         if refs_to_expand.is_empty() {
             return false;
         }
-        let mut npos = NeighbourPos::new();
+        let mut npos = NeighborPos::new();
         let was_added = npos.add_many( node_change_context.visible_nodes, &refs_to_expand);
         if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
@@ -188,7 +191,7 @@ impl RdfData {
         if parent_ref.is_empty() {
             return false;
         }
-        let mut npos = NeighbourPos::new();
+        let mut npos = NeighborPos::new();
         let was_added = npos.add_many( node_change_context.visible_nodes, &parent_ref);
         if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
@@ -206,7 +209,7 @@ impl RdfData {
                 return node_change_context.visible_nodes.add_by_index(index);
             } else {
                 let node_iri = node_iri.clone();
-                let new_object = node_change_context.rdfwrwap.load_object(&node_iri, &mut self.node_data);
+                let new_object = node_change_context.rdfwrap.load_object(&node_iri, &mut self.node_data);
                 if let Some(new_object) = new_object {
                     self.node_data.put_node_replace(&node_iri, new_object);
                 }
@@ -235,7 +238,7 @@ impl RdfData {
         if parent_ref.is_empty() {
             false
         } else {
-            let mut npos = NeighbourPos::new();
+            let mut npos = NeighborPos::new();
             let was_added = npos.add_many(&mut node_change_context.visible_nodes, &parent_ref);
             if was_added {
                 update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
@@ -471,7 +474,7 @@ impl SortedVec {
 // Implement default values for MyApp
 impl RdfGlanceApp {
     pub fn new(storage: Option<&dyn Storage>) -> Self {
-        let presistentdata: Option<AppPersistentData> = match storage {
+        let persistent_data: Option<AppPersistentData> = match storage {
             Some(storage) => {
                 let persistent_data_string = storage.get_string("persistent_data");
                 if let Some(persistent_data_string) = persistent_data_string {
@@ -499,7 +502,7 @@ impl RdfGlanceApp {
             system_message: SystemMessage::None,
             visible_nodes: SortedNodeLayout::new(),
             meta_nodes: SortedNodeLayout::new(),
-            persistent_data: presistentdata.unwrap_or(AppPersistentData {
+            persistent_data: persistent_data.unwrap_or(AppPersistentData {
                 last_files: vec![],
                 last_endpoints: vec![],
                 last_projects: vec![],
@@ -519,6 +522,7 @@ impl RdfGlanceApp {
             },
             graph_state: GraphState { scene_rect: Rect::ZERO },
             meta_graph_state: GraphState { scene_rect: Rect::ZERO },
+            statistics_data: None,
             ui_state: UIState {
                 selected_node: None,
                 node_to_drag: None,
@@ -945,7 +949,7 @@ impl RdfGlanceApp {
 
     pub fn node_change_context(&mut self) -> NodeChangeContext {
         NodeChangeContext {
-            rdfwrwap: &mut self.rdfwrap,
+            rdfwrap: &mut self.rdfwrap,
             visible_nodes: &mut self.visible_nodes,
         }
     }
@@ -1033,6 +1037,11 @@ impl eframe::App for RdfGlanceApp {
                             self.build_meta_graph();
                         }
                     }
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::Statistics,
+                        concatcp!(ICON_STATISTICS, " Statistics"),
+                    );
                 });
                 ui.selectable_value(
                     &mut self.display_type,
@@ -1075,6 +1084,7 @@ impl eframe::App for RdfGlanceApp {
                             DisplayType::Configuration => self.show_config(ctx, ui),
                             DisplayType::Prefixes => self.show_prefixes(ctx, ui),
                             DisplayType::MetaGraph => self.show_meta_graph(ctx, ui),
+                            DisplayType::Statistics => self.show_statistics(ctx, ui),
                         };
                     });
                     strip.cell(|ui| {

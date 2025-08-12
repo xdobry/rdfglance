@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, style::ICON_LANG, RdfGlanceApp, SystemMessage};
+use crate::{graph_algorithms::GraphAlgorithm, statistics::StatisticsData, style::ICON_LANG, RdfGlanceApp, SystemMessage};
 
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
@@ -96,7 +96,10 @@ impl RdfGlanceApp {
                 for entry in GraphAlgorithm::iter() {
                     let label = entry.to_string();
                     if ui.button(label).clicked() {
-                        self.visible_nodes.run_algorithm(entry, &self.visualization_style);
+                        if self.statistics_data.is_none() {
+                            self.statistics_data = Some(StatisticsData::default());
+                        }
+                        self.visible_nodes.run_algorithm(entry, &self.visualization_style, &mut self.statistics_data.as_mut().unwrap());
                         // TODO ask for confirmation
                         self.visualization_style.use_size_overwrite = true;
                         ui.close_menu();

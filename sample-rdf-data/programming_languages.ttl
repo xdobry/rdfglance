@@ -20,7 +20,7 @@
     dbo:influencedBy dbr:Datalog ;
     dbp:paradigm dbr:Logic_programming_language,
         dbr:Multi-paradigm_programming_language,
-        dbr:Object-oriented_programming_language ;
+        dbr:Object-oriented_programming ;
     dbp:typing dbr:Static_typing,
         dbr:Strong_typing .
 
@@ -215,7 +215,7 @@ dbr:Alma-0 a dbo:ProgrammingLanguage ;
 
 dbr:AltaRica a dbo:ProgrammingLanguage ;
     rdfs:label "AltaRica"@en ;
-    dbp:paradigm "Object-oriented, Prototype-oriented"@en .
+    dbp:paradigm "Object-oriented_programming, Prototype-oriented"@en .
 
 dbr:AmbientTalk a dbo:ProgrammingLanguage ;
     rdfs:label "AmbientTalk"@en ;
@@ -633,7 +633,7 @@ dbr:Catrobat a dbo:ProgrammingLanguage ;
 dbr:Cecil_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Cecil (programming language)"@en ;
     dbo:designer dbr:Craig_Chambers ;
-    dbp:paradigm dbr:Object-oriented_Programming ;
+    dbp:paradigm dbr:Object-oriented_programming ;
     dbp:typing "dynamic"@en .
 
 dbr:Ceylon_\(programming_language\) a dbo:ProgrammingLanguage ;
@@ -831,7 +831,7 @@ dbr:Cool_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:ML_\(programming_language\),
         dbr:Pascal_\(programming_language\),
         dbr:Sather ;
-    dbp:paradigm dbr:Object-oriented_programming_language ;
+    dbp:paradigm dbr:Object-oriented_programming ;
     dbp:typing dbr:Manifest_typing,
         dbr:Strongly-typed_programming_language,
         dbr:Type_system .
@@ -982,7 +982,7 @@ dbr:Dolittle_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Dolittle (programming language)"@en ;
     dbo:influencedBy dbr:Logo_\(programming_language\) ;
     dbp:paradigm dbr:Multi-paradigm_programming_language,
-        dbr:Object-oriented_programming_language .
+        dbr:Object-oriented_programming .
 
 dbr:Don_Syme a dbo:Person ;
     rdfs:label "Don Syme"@en .
@@ -3155,7 +3155,7 @@ dbr:StaDyn_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:OCaml,
         dbr:StrongTalk ;
     dbo:latestReleaseDate "2022-05-11"^^xsd:date ;
-    dbp:paradigm dbr:Object_oriented ;
+    dbp:paradigm dbr:Object-oriented_programming ;
     dbp:typing "Hybrid static and dynamic typing, gradual typing, strong, inferred"@en .
 
 dbr:Stalin_\(Scheme_implementation\) a dbo:ProgrammingLanguage ;
@@ -4946,7 +4946,7 @@ dbr:Oaklisp a dbo:ProgrammingLanguage ;
     dbo:latestReleaseDate "2000-01-07"^^xsd:date ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Multi-paradigm_programming_language,
-        dbr:Object-oriented,
+        dbr:Object-oriented_programming,
         dbr:Procedural_programming ;
     dbp:typing dbr:Dynamic_typing,
         dbr:Strong_typing .
@@ -4956,10 +4956,6 @@ dbr:ObjVlisp a dbo:ProgrammingLanguage ;
 
 dbr:Object-capability_model a <yago:Paradigm113804375> .
 
-dbr:Object-oriented a <yago:Paradigm113804375> .
-
-dbr:Object-oriented_Programming a <yago:Paradigm113804375> .
-
 dbr:Object-oriented_analysis_and_design a <yago:Paradigm113804375> .
 
 dbr:Object_REXX a dbo:ProgrammingLanguage ;
@@ -4968,8 +4964,6 @@ dbr:Object_REXX a dbo:ProgrammingLanguage ;
         dbr:Smalltalk ;
     dbo:latestReleaseDate "2014-02-24"^^xsd:date ;
     dbp:paradigm "Object-oriented"@en .
-
-dbr:Object_oriented a <yago:Paradigm113804375> .
 
 dbr:Ole-Johan_Dahl a dbo:Person ;
     rdfs:label "Ole-Johan Dahl"@en .
@@ -6324,8 +6318,6 @@ dbr:Modula a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Static_typing,
         dbr:Strong_and_weak_typing,
         dbr:Type_system .
-
-dbr:Object-oriented_programming_language a <yago:Paradigm113804375> .
 
 dbr:Object_Pascal a dbo:ProgrammingLanguage ;
     rdfs:label "Object Pascal"@en ;

@@ -14,7 +14,7 @@ pub struct Config {
     pub m_attraction_factor: f32,
     pub language_filter: String,
     #[serde(default = "default_true")]
-    pub supress_other_language_data: bool,
+    pub suppress_other_language_data: bool,
     #[serde(default = "default_true")]
     pub create_iri_prefixes_automatically: bool,
     #[serde(default = "default_iri_display")]
@@ -39,7 +39,7 @@ impl Default for Config {
             repulsion_constant: 1.5,
             attraction_factor: 0.0015,
             language_filter: "en".to_string(),
-            supress_other_language_data: true,
+            suppress_other_language_data: true,
             create_iri_prefixes_automatically: true,
             iri_display: IriDisplay::LabelOrShorten,
             resolve_rdf_lists: true,
@@ -74,7 +74,7 @@ impl RdfGlanceApp {
             ui.label("language filter (comma separated):");
             ui.text_edit_singleline(&mut self.persistent_data.config_data.language_filter);
         });
-        ui.checkbox(&mut self.persistent_data.config_data.supress_other_language_data, "Supress data in not display language");
+        ui.checkbox(&mut self.persistent_data.config_data.suppress_other_language_data, "Supress data in not display language");
         ui.label("Predicate and Type display:");
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::Label, "Label");
         ui.radio_value(&mut self.persistent_data.config_data.iri_display, IriDisplay::LabelOrShorten, "Label or IRI Shorten");

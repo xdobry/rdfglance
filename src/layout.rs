@@ -1,4 +1,4 @@
-use crate::{config::Config, graph_algorithms::{run_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, GVisualizationStyle, SortedVec};
+use crate::{config::Config, graph_algorithms::{run_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, GVisualizationStyle, SortedVec};
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
@@ -613,12 +613,13 @@ impl SortedNodeLayout {
         }
     }
 
-     pub fn run_algorithm(&mut self, graph_algorithm: GraphAlgorithm, visualization_style: &GVisualizationStyle) {
+     pub fn run_algorithm(&mut self, graph_algorithm: GraphAlgorithm, visualization_style: &GVisualizationStyle, statistics_data: &mut StatisticsData) {
         if let Ok(nodes) = self.nodes.read() {
             if !nodes.is_empty() {
                 if let Ok(edges) = self.edges.read() {
-                    println!("run algorithm: {:?}", graph_algorithm);
-                    let values = run_algorithm(graph_algorithm, nodes.len(), &edges);
+                    // println!("run algorithm: {:?}", graph_algorithm);
+                    let nodes_len = nodes.len();
+                    let values = run_algorithm(graph_algorithm, nodes_len, &edges);
                     if let Ok(mut individual_node_style) = self.individual_node_style.write() {
                         if individual_node_style.len() != nodes.len() {
                             individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
@@ -626,6 +627,16 @@ impl SortedNodeLayout {
                         for (index, value) in values.iter().enumerate() {
                             let mapped_size = visualization_style.min_size + *value * (visualization_style.max_size - visualization_style.min_size);
                             individual_node_style[index].size_overwrite = mapped_size;
+                        }
+                        statistics_data.nodes.resize(nodes_len, 0);
+                        for (index, node) in nodes.iter().enumerate() {
+                            statistics_data.nodes[index] = node.node_index;
+                        }
+                        match graph_algorithm {
+                            GraphAlgorithm::BetweennessCentrality => {
+                                statistics_data.results.clear();
+                                statistics_data.results.push(StatisticsResult::BetweennessCentrality(values));
+                            }
                         }
                         self.update_node_shapes = true;
                     }
