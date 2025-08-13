@@ -59,6 +59,7 @@ pub mod uitools;
 pub mod quad_tree;
 pub mod graph_algorithms;
 pub mod statistics;
+pub mod sorting;
 
 
 #[derive(Debug, PartialEq)]

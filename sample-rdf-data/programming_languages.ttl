@@ -1614,7 +1614,6 @@ dbr:Itk a dbo:ProgrammingLanguage ;
 
 dbr:JR-BASIC a dbo:ProgrammingLanguage ;
     rdfs:label "JR-BASIC"@en ;
-    dbo:influencedBy dbr:Microsoft ;
     dbp:paradigm dbr:Algorithmic_programming,
         dbr:Imperative_programming .
 
@@ -5893,8 +5892,7 @@ dbr:Distributed_computing a <yago:Paradigm113804375> .
 dbr:Dynamic_type a dbo:Typing ;
     rdfs:label "Dynamic type"@en .
 
-dbr:ECMAScript a <dbo:Person>,
-        dbo:ProgrammingLanguage ;
+dbr:ECMAScript a dbo:ProgrammingLanguage ;
     rdfs:label "ECMAScript"@en ;
     dbo:designer dbr:Brendan_Eich,
         dbr:Ecma_International ;
@@ -6736,8 +6734,7 @@ dbr:Lua_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Dynamic_typing,
         dbr:Strong_and_weak_typing .
 
-dbr:Microsoft a <dbo:ProgrammingLanguage>,
-        dbo:Person ;
+dbr:Microsoft a dbo:Person ;
     rdfs:label "Microsoft"@en .
 
 dbr:Oberon_\(programming_language\) a dbo:ProgrammingLanguage ;
@@ -7145,7 +7142,6 @@ dbr:C_Sharp_\(programming_language\) a dbo:ProgrammingLanguage ;
 dbr:JavaScript a dbo:ProgrammingLanguage ;
     rdfs:label "JavaScript"@en ;
     dbo:designer dbr:Brendan_Eich,
-        dbr:ECMAScript ;
     dbo:influencedBy dbr:AWK,
         dbr:HyperTalk,
         dbr:Java_\(programming_language\),

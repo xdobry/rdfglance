@@ -1,24 +1,23 @@
-use std::cmp::min;
+use std::{borrow::Cow, cmp::min};
 
 use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
-use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
+use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, sorting::sort_with_callbacks_keys, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
 
 const ROW_HIGHT: f32 = 17.0;
-const CHAR_WIDTH: f32 = 8.0;
 const COLUMN_GAP: f32 = 2.0;
 const IRI_WIDTH: f32 = 300.0;
 const RESULT_WIDTH: f32 = 50.0;
+
+const FIX_LABELS: [&str; 3] = ["iri", "label", "type"];
 
 pub struct StatisticsData {
     pub nodes: Vec<IriIndex>,
     pub results: Vec<StatisticsResult>,
     pub pos: f32,
     pub drag_pos: Option<f32>,
-    pub iri_width: f32,
-    pub label_width: f32,
-    pub type_width: f32,
+    pub column_widths: [f32;3],
 }
 
 impl Default for StatisticsData {
@@ -28,14 +27,19 @@ impl Default for StatisticsData {
             results: Vec::new(),
             pos: 0.0,
             drag_pos: None,
-            iri_width: IRI_WIDTH,
-            label_width: 200.0,
-            type_width: 200.0,
+            // Default widths for iri, label, and type
+            column_widths: [IRI_WIDTH, 200.0, 200.0], 
         }
     }
 }  
 pub enum StatisticsResult {
     BetweennessCentrality(Vec<f32>),
+}
+
+
+enum StatisticsTableAction {
+    None,
+    SortResult(usize),
 }
 
 impl StatisticsResult {
@@ -105,7 +109,7 @@ impl RdfGlanceApp {
 
 impl StatisticsData {
    pub fn instance_table(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         rfd_data: &mut RdfData,
@@ -128,6 +132,7 @@ impl StatisticsData {
         let primary_clicked = response.clicked();
         let mut xpos = 0.0;
         let font_id = egui::FontId::default();
+        let mut table_action = StatisticsTableAction::None;
 
         painter.rect_filled(
             Rect::from_min_size(available_rect.left_top(), Vec2::new(available_width, ROW_HIGHT)),
@@ -135,46 +140,40 @@ impl StatisticsData {
             ui.visuals().code_bg_color,
         );
 
-        painter.text(
-            available_rect.left_top(),
-            egui::Align2::LEFT_TOP,
-            "iri",
-            font_id.clone(),
-            ui.visuals().strong_text_color(),
-        );
-
-
         let mut primary_down = false;
         ctx.input(|input| {
             if input.pointer.button_pressed(egui::PointerButton::Primary) {
                 primary_down = true;
             }
         });
-        painter.text(
-            available_rect.left_top() + Vec2::new(self.iri_width, 0.0),
-            egui::Align2::LEFT_TOP,
-            "label",
-            font_id.clone(),
-            ui.visuals().strong_text_color(),
-        );
-        painter.text(
-            available_rect.left_top() + Vec2::new(self.iri_width+self.label_width, 0.0),
-            egui::Align2::LEFT_TOP,
-            "type",
-            font_id.clone(),
-            ui.visuals().strong_text_color(),
-        );
 
-        xpos += self.iri_width + self.type_width + self.label_width;
+
+        for ((i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
+            painter.text(
+                available_rect.left_top() + Vec2::new(xpos, 0.0),
+                egui::Align2::LEFT_TOP,
+                label,
+                font_id.clone(),
+                ui.visuals().strong_text_color(),
+            );
+            xpos += width + COLUMN_GAP;
+        }
 
         let label_context = LabelContext::new(layout_data.display_language, iri_display, &rfd_data.prefix_manager);
-        for statistics_result in self
+        for (result_idx,statistics_result) in self
             .results
-            .iter()
+            .iter().enumerate()
         {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let result_label = statistics_result.graph_algorithm().to_string();
             text_wrapped(result_label.as_str(),RESULT_WIDTH, painter, top_left, false, true, ui.visuals());
+            let result_rect = egui::Rect::from_min_size(
+                        top_left,
+                        Vec2::new(xpos+RESULT_WIDTH, ROW_HIGHT),
+                    );
+            if primary_down && result_rect.contains(mouse_pos) {
+                table_action = StatisticsTableAction::SortResult(result_idx);
+            }
             xpos += RESULT_WIDTH + COLUMN_GAP;
         }
 
@@ -197,73 +196,65 @@ impl StatisticsData {
                 }
                 start_pos += 1;
 
-                let iri_top_left = available_rect.left_top() + Vec2::new(0.0, ypos);
+                xpos = 0.0;
 
-                let iri_rect = egui::Rect::from_min_size(
-                    iri_top_left,
-                    Vec2::new(self.iri_width, ROW_HIGHT),
-                );
-
-                let mut cell_hovered = false;
-                if iri_rect.contains(mouse_pos) {
-                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-                    cell_hovered = true;
-                }
-
-                text_wrapped_link(
-                    &rfd_data.prefix_manager.get_prefixed(node_iri),
-                    self.iri_width,
-                    painter,
-                    iri_top_left,
-                    cell_hovered,
-                    ui.visuals()
-                );
-
-
-
-                let mut xpos = self.iri_width + self.type_width + self.label_width;
-
-                if primary_clicked && iri_rect.contains(mouse_pos) {
-                    *instance_action = NodeAction::BrowseNode(*instance_index);
-                } else if secondary_clicked && iri_rect.contains(mouse_pos) {
-                    *instance_action = NodeAction::ShowVisual(*instance_index);
-                }
-                let node_label = node.node_label(node_iri, styles, layout_data.short_iri, layout_data.display_language, &rfd_data.node_data.indexers);
-                let label_rect = egui::Rect::from_min_size(
-                    available_rect.left_top() + Vec2::new(self.iri_width, ypos),
-                    Vec2::new(self.type_width, ROW_HIGHT),
-                );
-                text_wrapped(node_label, self.label_width, painter, label_rect.left_top(), false, false, ui.visuals());
-
-                let type_rect = egui::Rect::from_min_size(
-                    available_rect.left_top() + Vec2::new(self.iri_width+self.label_width, ypos),
-                    Vec2::new(self.type_width, ROW_HIGHT),
-                );
-                let mut types_label: String = String::new();
-                node.types.iter().for_each(|type_index| {
-                    if !types_label.is_empty() {
-                        types_label.push_str(", ");
-                    }
-                    types_label.push_str(
-                        rfd_data.node_data
-                            .type_display(*type_index, &label_context, &rfd_data.node_data.indexers)
-                            .as_str(),
+                // Draw fixed labels
+                for ((i, _label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
+                    let label_top_left = available_rect.left_top() + Vec2::new(xpos, ypos);
+                    let label_rect = egui::Rect::from_min_size(
+                        label_top_left,
+                        Vec2::new(width+COLUMN_GAP, ROW_HIGHT),
                     );
-                });
-                text_wrapped(&types_label, self.type_width, painter, type_rect.left_top(), false, false, ui.visuals());              
+                    if i == 0 {
+                        let mut cell_hovered = false;
+                        if label_rect.contains(mouse_pos) {
+                            ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                            cell_hovered = true;
+                        }
+                        text_wrapped_link(
+                            &rfd_data.prefix_manager.get_prefixed(node_iri),
+                            *width,
+                            painter,
+                            label_top_left,
+                            cell_hovered,
+                            ui.visuals()
+                        );
+                        if primary_clicked && label_rect.contains(mouse_pos) {
+                            println!("Primary clicked on node: {}", node_iri);
+                            *instance_action = NodeAction::BrowseNode(*instance_index);
+                        } else if secondary_clicked && label_rect.contains(mouse_pos) {
+                            *instance_action = NodeAction::ShowVisual(*instance_index);
+                        }
+                    } else {
+                        let label: Cow<'_,str> = if i == 1 {
+                            Cow::Borrowed(node.node_label(node_iri, styles, layout_data.short_iri, layout_data.display_language, &rfd_data.node_data.indexers))
+                        } else {
+                            let mut types_label = String::new();
+                            node.types.iter().for_each(|type_index| {
+                                if !types_label.is_empty() {
+                                    types_label.push_str(", ");
+                                }
+                                types_label.push_str(
+                                    rfd_data.node_data
+                                        .type_display(*type_index, &label_context, &rfd_data.node_data.indexers)
+                                        .as_str(),
+                                );
+                            });
+                            Cow::Owned(types_label)
+                        };
+                        text_wrapped(&label, *width, painter, label_rect.left_top(), false, false, ui.visuals());
+                    }
+                    xpos += width + COLUMN_GAP;
+                }
 
-
+                // Draw results
                 for result in self.results.iter() {
                     let value_str = result.get_value_str(node_index);
                     let cell_rect = egui::Rect::from_min_size(
                         available_rect.left_top() + Vec2::new(xpos, ypos),
                         Vec2::new(RESULT_WIDTH, ROW_HIGHT),
                     );
-                    let mut cell_hovered = false;
-                    if cell_rect.contains(mouse_pos) {
-                        cell_hovered = true;
-                    }
-                    text_wrapped(value_str.as_str(), RESULT_WIDTH, painter, cell_rect.left_top(), cell_hovered, false, ui.visuals());
+                    text_wrapped(value_str.as_str(), RESULT_WIDTH, painter, cell_rect.left_top(), false, false, ui.visuals());
                     xpos += RESULT_WIDTH + COLUMN_GAP;
                     if xpos > available_rect.width() {
                         break;
@@ -273,58 +264,24 @@ impl StatisticsData {
             }
         }
         // Draw vertical lines
-        painter.line(
-            [
-                Pos2::new(
-                    available_rect.left() + self.iri_width - COLUMN_GAP,
-                    available_rect.top(),
-                ),
-                Pos2::new(
-                    available_rect.left() + self.iri_width - COLUMN_GAP,
-                    available_rect.top() + ypos,
-                ),
-            ]
-            .to_vec(),
-            Stroke::new(1.0, Color32::DARK_GRAY),
-        );
-        painter.line(
-            [
-                Pos2::new(
-                    available_rect.left()
-                        + self.iri_width
-                        + self.label_width
-                        + -COLUMN_GAP,
-                    available_rect.top(),
-                ),
-                Pos2::new(
-                    available_rect.left() + self.iri_width + self.label_width
-                        - COLUMN_GAP,
-                    available_rect.top() + ypos,
-                ),
-            ]
-            .to_vec(),
-            Stroke::new(1.0, Color32::DARK_GRAY),
-        );
-        painter.line(
-            [
-                Pos2::new(
-                    available_rect.left()
-                        + self.iri_width
-                        + self.type_width
-                        + self.label_width
-                        + -COLUMN_GAP,
-                    available_rect.top(),
-                ),
-                Pos2::new(
-                    available_rect.left() + self.iri_width + self.type_width + self.label_width
-                        - COLUMN_GAP,
-                    available_rect.top() + ypos,
-                ),
-            ]
-            .to_vec(),
-            Stroke::new(1.0, Color32::DARK_GRAY),
-        );
-        xpos = self.iri_width + self.type_width + self.label_width;
+        xpos = 0.0;
+        for ((i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
+            xpos += width + COLUMN_GAP;
+            painter.line(
+                [
+                    Pos2::new(
+                        available_rect.left() + xpos - COLUMN_GAP,
+                        available_rect.top(),
+                    ),
+                    Pos2::new(
+                        available_rect.left() + xpos - COLUMN_GAP,
+                        available_rect.top() + ypos,
+                    ),
+                ]
+                .to_vec(),
+                Stroke::new(1.0, Color32::DARK_GRAY),
+            );
+        }
         for _result in self.results.iter() {
             xpos += RESULT_WIDTH;
             painter.line(
@@ -336,6 +293,20 @@ impl StatisticsData {
                 Stroke::new(1.0, Color32::DARK_GRAY),
             );
             xpos += COLUMN_GAP;
+        }
+        match table_action {
+            StatisticsTableAction::None => {},
+            StatisticsTableAction::SortResult(column_index) => {
+                if column_index < self.results.len() {
+                    match &mut (self.results[column_index]) {
+                        StatisticsResult::BetweennessCentrality(data) => {
+                            sort_with_callbacks_keys(data, |i,j| {
+                                self.nodes.swap(i,j);
+                            });
+                        }
+                    }
+                }
+            },
         }
     } 
 }
