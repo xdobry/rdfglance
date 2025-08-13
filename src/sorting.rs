@@ -55,13 +55,13 @@ mod tests {
                 col3.swap(i, j);                    
             },
         );
-
-        assert_eq!(col1, vec![5,3,1,2,4]);
-        assert_eq!(col2, vec![0.0, 0.3, 0.5, 0.8, 1.2]);
-        assert_eq!(col3, vec![0.5, 0.3, 0.1, 0.2, 0.4]);
-
         println!("{:?}", col1);
         println!("{:?}", col2);
         println!("{:?}", col3);
+
+        assert_eq!(col1, vec![4,2,1,3,5]);
+        assert_eq!(col2, vec![1.2, 0.8, 0.5, 0.3, 0.0]);
+        assert_eq!(col3, vec![0.4, 0.2, 0.1, 0.3, 0.5]);
+
     }
 }
