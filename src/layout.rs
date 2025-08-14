@@ -1,4 +1,12 @@
-use crate::{config::Config, graph_algorithms::{run_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, GVisualizationStyle, SortedVec};
+use crate::{
+    GVisualizationStyle, SortedVec,
+    config::Config,
+    graph_algorithms::{GraphAlgorithm, run_algorithm},
+    graph_styles::NodeShape,
+    nobject::IriIndex,
+    quad_tree::{BHQuadtree, WeightedPoint},
+    statistics::{StatisticsData, StatisticsResult},
+};
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
@@ -7,11 +15,13 @@ use rayon::prelude::*;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
     },
-    thread::{self, JoinHandle}, time::Duration,
+    thread::{self, JoinHandle},
+    time::Duration,
 };
-
 
 #[derive(Clone, Copy)]
 pub struct NodeLayout {
@@ -40,10 +50,59 @@ impl Default for NodeShapeData {
 }
 
 #[derive(Clone, Copy)]
+pub struct LayerInterval {
+    // 0 is open interval, so 0 has special meaning!
+    // layers are build 1..10 1 is first layer with all nodes
+    // semantic zoom is done 0..10 (0,1 - all nodes, 10 zoom out)
+    // so the number can be interpreted as zoom magnitude (if more the magnitude then less details (nodes) you see)
+    // from and to are used because there could be nodes that are visible on in one layer (for example node that represent a cluster)
+    // 10..10 can be see only in magnitude 10 but not 9
+    // 0..10 can be seen in all magnitudes
+    // 0..5 can be see in magnitudes 0,1,2,3,4,5
+    pub from: u8,
+    pub to: u8,
+}
+
+impl Default for LayerInterval {
+    fn default() -> Self {
+        Self { from: 0, to: 0 }
+    }
+}
+
+impl LayerInterval {
+    pub fn new(from: u8, to: u8) -> Self {
+        Self { from, to }
+    }
+
+    pub fn is_visible(&self, layer: u8) -> bool {
+        if (self.from == 0 && self.to == 0) || layer == 0 {
+            return true; // always visible
+        }
+        if self.from == 0 {
+            return layer <= self.to; // visible in all layers up to to
+        }
+        if self.to == 0 {
+            return layer >= self.from; // visible in all layers from from
+        }
+        layer >= self.from && layer <= self.to // visible in range from to
+    }
+
+    // map 0.0..=1.0 f32 normalized value to 1..10
+    // by linear mapping
+    pub fn set_from_normalized(&mut self, value: f32) {
+        let clamped = value.clamp(0.0, 1.0); // ensure input is in [0, 1]
+        let scaled = clamped * 9.0 + 1.0; // 0→1, 1→10
+        self.to = scaled.round() as u8;
+        self.from = 0;
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct IndividualNodeStyleData {
     // Set from statistics to overwrite the size of the node
     pub size_overwrite: f32,
     pub color_overwrite: u16,
+    pub semantic_zoom_interval: LayerInterval,
 }
 
 impl Default for IndividualNodeStyleData {
@@ -51,10 +110,10 @@ impl Default for IndividualNodeStyleData {
         Self {
             size_overwrite: f32::NAN,
             color_overwrite: 0,
+            semantic_zoom_interval: LayerInterval::default(),
         }
     }
 }
-
 
 pub struct Edge {
     pub from: usize,
@@ -86,14 +145,14 @@ impl Default for NodePosition {
 // It uses mostly indexes of nodes and provide methods to add and remove nodes
 // All nodes are sorted by node index to enable fast check if node exists
 // Edges stores indexes of nodes in nodes vector (not the primary node index)
-// This enable fast access needed to layout the graph but make 
+// This enable fast access needed to layout the graph but make
 // it hard to manipulate the structure for add and remove operation
 pub struct SortedNodeLayout {
     pub nodes: Arc<RwLock<Vec<NodeLayout>>>,
     pub edges: Arc<RwLock<Vec<Edge>>>,
     pub positions: Arc<RwLock<Vec<NodePosition>>>,
     pub node_shapes: Arc<RwLock<Vec<NodeShapeData>>>,
-    pub individual_node_style: Arc<RwLock<Vec<IndividualNodeStyleData>>>,
+    pub individual_node_styles: Arc<RwLock<Vec<IndividualNodeStyleData>>>,
     pub layout_temperature: f32,
     pub keep_temperature: Arc<AtomicBool>,
     pub compute_layout: bool,
@@ -101,6 +160,7 @@ pub struct SortedNodeLayout {
     pub background_layout_finished: Arc<AtomicBool>,
     pub stop_background_layout: Arc<AtomicBool>,
     pub update_node_shapes: bool,
+    pub has_semantic_zoom: bool,
 }
 
 #[derive(Debug)]
@@ -121,7 +181,7 @@ impl Default for SortedNodeLayout {
             positions: Arc::new(RwLock::new(Vec::new())),
             edges: Arc::new(RwLock::new(Vec::new())),
             node_shapes: Arc::new(RwLock::new(Vec::new())),
-            individual_node_style: Arc::new(RwLock::new(Vec::new())),
+            individual_node_styles: Arc::new(RwLock::new(Vec::new())),
             compute_layout: true,
             keep_temperature: Arc::new(AtomicBool::new(false)),
             layout_temperature: 0.5,
@@ -129,6 +189,7 @@ impl Default for SortedNodeLayout {
             background_layout_finished: Arc::new(AtomicBool::new(false)),
             stop_background_layout: Arc::new(AtomicBool::new(false)),
             update_node_shapes: true,
+            has_semantic_zoom: false,
         }
     }
 }
@@ -143,26 +204,29 @@ impl SortedNodeLayout {
         if let Ok(mut nodes) = self.nodes.write() {
             if let Ok(mut node_shapes) = self.node_shapes.write() {
                 if let Ok(mut positions) = self.positions.write() {
-                    if let Ok(mut edges) = self.edges.write() {
-                        return match nodes.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
-                            Ok(_) => false, // Value already exists, do nothing
-                            Err(pos) => {
-                                // Insert at correct position
-                                nodes.insert(pos, value);
-                                positions.insert(pos, NodePosition::default());
-                                node_shapes.insert(pos, NodeShapeData::default());
-                                self.update_node_shapes = true;
-                                for i in 0..edges.len() {
-                                    if edges[i].from >= pos {
-                                        edges[i].from += 1;
+                    if let Ok(mut individual_node_styles) = self.individual_node_styles.write() {
+                        if let Ok(mut edges) = self.edges.write() {
+                            return match nodes.binary_search_by(|e| e.node_index.cmp(&value.node_index)) {
+                                Ok(_) => false, // Value already exists, do nothing
+                                Err(pos) => {
+                                    // Insert at correct position
+                                    nodes.insert(pos, value);
+                                    positions.insert(pos, NodePosition::default());
+                                    node_shapes.insert(pos, NodeShapeData::default());
+                                    individual_node_styles.insert(pos, IndividualNodeStyleData::default());
+                                    self.update_node_shapes = true;
+                                    for i in 0..edges.len() {
+                                        if edges[i].from >= pos {
+                                            edges[i].from += 1;
+                                        }
+                                        if edges[i].to >= pos {
+                                            edges[i].to += 1;
+                                        }
                                     }
-                                    if edges[i].to >= pos {
-                                        edges[i].to += 1;
-                                    }
+                                    true
                                 }
-                                true
-                            }
-                        };
+                            };
+                        }
                     }
                 }
             }
@@ -175,16 +239,24 @@ impl SortedNodeLayout {
         self.add(NodeLayout::new(value))
     }
 
-    pub fn add_many(&mut self, values: &[(IriIndex, IriIndex)], inserted_callback: impl FnMut(&(IriIndex,IriIndex))) -> bool {
+    pub fn add_many(
+        &mut self,
+        values: &[(IriIndex, IriIndex)],
+        inserted_callback: impl FnMut(&(IriIndex, IriIndex)),
+    ) -> bool {
         self.stop_layout();
         let index_to_add = if let Ok(nodes) = self.nodes.read() {
             // First filter the list only for nodes that are not already in the layout
             // sort and dedup the nodes the parent node does not matter
-            let mut index_to_add : Vec<(IriIndex,IriIndex)> = values.iter().filter(|(_parent_index, node_index)| {
-                nodes.binary_search_by(|node| node.node_index.cmp(node_index)).is_err()
-            }).map(|p| (p.0,p.1)).collect();
-            index_to_add.sort_unstable_by(|a,b| a.1.cmp(&b.1));
-            index_to_add.dedup_by(| a, b| a.1 == b.1);
+            let mut index_to_add: Vec<(IriIndex, IriIndex)> = values
+                .iter()
+                .filter(|(_parent_index, node_index)| {
+                    nodes.binary_search_by(|node| node.node_index.cmp(node_index)).is_err()
+                })
+                .map(|p| (p.0, p.1))
+                .collect();
+            index_to_add.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+            index_to_add.dedup_by(|a, b| a.1 == b.1);
             index_to_add.iter().for_each(inserted_callback);
             index_to_add
         } else {
@@ -194,46 +266,53 @@ impl SortedNodeLayout {
             if let Ok(mut nodes) = self.nodes.write() {
                 if let Ok(mut node_shapes) = self.node_shapes.write() {
                     if let Ok(mut positions) = self.positions.write() {
-                        if let Ok(mut edges) = self.edges.write() {
-                            // stores the new indexes for old nodes indexes, needed to update edges from and to fields
-                            let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
-                            for i in 0..nodes.len() {
-                                new_positions.push(i);
-                            }
-                            // we use in place merge on target vector. The vector is resized and the new elements
-                            // are inserted from the end by iterating the new nodes and old nodes from the end.
-                            let orig_len = nodes.len();
-                            let b_len = index_to_add.len();
-
-                            nodes.resize(orig_len + b_len, NodeLayout { node_index: 0 });
-                            node_shapes.resize(orig_len + b_len, NodeShapeData::default());
-                            positions.resize(orig_len + b_len, NodePosition::default());
-
-                            let mut i = orig_len as isize - 1;
-                            let mut j = b_len as isize - 1;
-                            let mut k = (orig_len + b_len) as isize - 1;
-
-                            while j >= 0 {
-                                if i >= 0 && nodes[i as usize].node_index > index_to_add[j as usize].1 {
-                                    nodes[k as usize] = nodes[i as usize];
-                                    node_shapes[k as usize] = node_shapes[i as usize];
-                                    positions[k as usize] = positions[i as usize];
-                                    new_positions[i as usize] = k as usize; 
-                                    i -= 1;
-                                } else {
-                                    nodes[k as usize] = NodeLayout { node_index: index_to_add[j as usize].1};
-                                    node_shapes[k as usize] = NodeShapeData::default();
-                                    positions[k as usize] = NodePosition::default();
-                                    j -= 1;
+                        if let Ok(mut individual_node_styles) = self.individual_node_styles.write() {
+                            if let Ok(mut edges) = self.edges.write() {
+                                // stores the new indexes for old nodes indexes, needed to update edges from and to fields
+                                let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
+                                for i in 0..nodes.len() {
+                                    new_positions.push(i);
                                 }
-                                k -= 1;
-                            }
+                                // we use in place merge on target vector. The vector is resized and the new elements
+                                // are inserted from the end by iterating the new nodes and old nodes from the end.
+                                let orig_len = nodes.len();
+                                let b_len = index_to_add.len();
 
-                            // now need to set new edge indexes to new ones
-                            edges.iter_mut().for_each(|edge| {
-                                edge.from = new_positions[edge.from];
-                                edge.to = new_positions[edge.to];                                   
-                            });
+                                nodes.resize(orig_len + b_len, NodeLayout { node_index: 0 });
+                                node_shapes.resize(orig_len + b_len, NodeShapeData::default());
+                                positions.resize(orig_len + b_len, NodePosition::default());
+                                individual_node_styles.resize(orig_len + b_len, IndividualNodeStyleData::default());
+
+                                let mut i = orig_len as isize - 1;
+                                let mut j = b_len as isize - 1;
+                                let mut k = (orig_len + b_len) as isize - 1;
+
+                                while j >= 0 {
+                                    if i >= 0 && nodes[i as usize].node_index > index_to_add[j as usize].1 {
+                                        nodes[k as usize] = nodes[i as usize];
+                                        node_shapes[k as usize] = node_shapes[i as usize];
+                                        positions[k as usize] = positions[i as usize];
+                                        new_positions[i as usize] = k as usize;
+                                        individual_node_styles[k as usize] = individual_node_styles[i as usize];
+                                        i -= 1;
+                                    } else {
+                                        nodes[k as usize] = NodeLayout {
+                                            node_index: index_to_add[j as usize].1,
+                                        };
+                                        node_shapes[k as usize] = NodeShapeData::default();
+                                        positions[k as usize] = NodePosition::default();
+                                        individual_node_styles[k as usize] = IndividualNodeStyleData::default();
+                                        j -= 1;
+                                    }
+                                    k -= 1;
+                                }
+
+                                // now need to set new edge indexes to new ones
+                                edges.iter_mut().for_each(|edge| {
+                                    edge.from = new_positions[edge.from];
+                                    edge.to = new_positions[edge.to];
+                                });
+                            }
                         }
                     }
                 }
@@ -250,14 +329,16 @@ impl SortedNodeLayout {
 
     pub fn mut_nodes<R>(
         &mut self,
-        mutator: impl Fn(&mut Vec<NodeLayout>, &mut Vec<NodePosition>, &mut Vec<Edge>, &mut Vec<NodeShapeData>) -> R,
+        mutator: impl Fn(&mut Vec<NodeLayout>, &mut Vec<NodePosition>, &mut Vec<Edge>, &mut Vec<NodeShapeData>, &mut Vec<IndividualNodeStyleData>) -> R,
     ) -> Option<R> {
         self.stop_layout();
         if let Ok(mut nodes) = self.nodes.write() {
             if let Ok(mut positions) = self.positions.write() {
                 if let Ok(mut edges) = self.edges.write() {
                     if let Ok(mut node_shapes) = self.node_shapes.write() {
-                        return Some(mutator(&mut nodes, &mut positions, &mut edges, &mut node_shapes));
+                        if let Ok(mut individual_node_styles) = self.individual_node_styles.write() {
+                            return Some(mutator(&mut nodes, &mut positions, &mut edges, &mut node_shapes, &mut individual_node_styles));
+                        }
                     }
                 }
             }
@@ -267,7 +348,7 @@ impl SortedNodeLayout {
 
     // use retain operation if possible. Do not call it in the loop
     pub fn remove(&mut self, value: IriIndex, hidden_predicates: &SortedVec) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes| {
+        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
             if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
                 nodes.remove(pos);
                 if positions.len() > pos {
@@ -275,6 +356,9 @@ impl SortedNodeLayout {
                 }
                 if node_shapes.len() > pos {
                     node_shapes.remove(pos);
+                }
+                if individual_node_styles.len() > pos {
+                    individual_node_styles.remove(pos);
                 }
                 edges.retain(|e| e.from != pos && e.to != pos);
                 edges.iter_mut().for_each(|e| {
@@ -292,15 +376,18 @@ impl SortedNodeLayout {
 
     pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) {
         let pos_to_remove = if let Ok(nodes) = self.nodes.read() {
-            let pos_to_remove : Vec<usize> = nodes.iter().enumerate().filter(|(_node_pos, node)| {
-                !f(node)
-            }).map(|(node_pos, _node)| node_pos).collect();
+            let pos_to_remove: Vec<usize> = nodes
+                .iter()
+                .enumerate()
+                .filter(|(_node_pos, node)| !f(node))
+                .map(|(node_pos, _node)| node_pos)
+                .collect();
             pos_to_remove
         } else {
             Vec::new()
         };
         if !pos_to_remove.is_empty() {
-            self.mut_nodes(|nodes, positions, edges, node_shapes| {
+            self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                 edges.retain(|e| {
                     !pos_to_remove.binary_search(&e.from).is_ok() && !pos_to_remove.binary_search(&e.to).is_ok()
                 });
@@ -308,7 +395,7 @@ impl SortedNodeLayout {
                 for i in 0..nodes.len() {
                     new_positions.push(i);
                 }
-                
+
                 let mut remove_iter = pos_to_remove.iter().peekable();
                 let mut write = 0;
 
@@ -324,6 +411,7 @@ impl SortedNodeLayout {
                         nodes[write] = nodes[read];
                         node_shapes[write] = node_shapes[read];
                         positions[write] = positions[read];
+                        individual_node_styles[write] = individual_node_styles[read];
                         new_positions[read] = write;
                     }
                     write += 1;
@@ -332,13 +420,14 @@ impl SortedNodeLayout {
                 nodes.truncate(write);
                 node_shapes.truncate(write);
                 positions.truncate(write);
+                individual_node_styles.truncate(write);
                 edges.iter_mut().for_each(|edge| {
                     edge.from = new_positions[edge.from];
-                    edge.to = new_positions[edge.to];                                   
+                    edge.to = new_positions[edge.to];
                 });
                 update_edges_groups(edges, hidden_predicates);
             });
-        }        
+        }
     }
 
     /**
@@ -347,7 +436,7 @@ impl SortedNodeLayout {
      * The position list must be sorted and unique. Otherwise it will crash.
      */
     pub fn remove_pos_list(&mut self, pos_to_remove: &[usize], hidden_predicates: &SortedVec) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes| {
+        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
             for pos in pos_to_remove.iter().rev() {
                 nodes.remove(*pos);
                 if positions.len() > *pos {
@@ -355,6 +444,9 @@ impl SortedNodeLayout {
                 }
                 if node_shapes.len() > *pos {
                     node_shapes.remove(*pos);
+                }
+                if individual_node_styles.len() > *pos {
+                    individual_node_styles.remove(*pos);
                 }
                 edges.retain(|e| e.from != *pos && e.to != *pos);
                 edges.iter_mut().for_each(|e| {
@@ -401,11 +493,12 @@ impl SortedNodeLayout {
     }
 
     pub fn clear(&mut self) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes| {
+        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
             positions.clear();
             nodes.clear();
             edges.clear();
             node_shapes.clear();
+            individual_node_styles.clear();
         });
     }
 
@@ -423,7 +516,7 @@ impl SortedNodeLayout {
                 }
             }
             ctx.request_repaint();
-        }  
+        }
         #[cfg(target_arch = "wasm32")]
         if self.compute_layout {
             let config = LayoutConfig {
@@ -534,7 +627,7 @@ impl SortedNodeLayout {
                 {
                     // TODO this could wait for ui to make the layout loop
                     // better could be to use something like double buffering and store it in update are and the ui thread
-                    // copy the positions in changed in its own structure 
+                    // copy the positions in changed in its own structure
                     // the decision is who should wait ui or layout thread, now the layout thread waits for ui
                     if let Ok(mut positions) = positions_clone.write() {
                         *positions = new_positions;
@@ -555,7 +648,10 @@ impl SortedNodeLayout {
             }
             is_done.store(true, Ordering::Relaxed);
         });
-        self.layout_handle = Some(LayoutHandle { join_handle: handle, update_sender: tx.clone() });
+        self.layout_handle = Some(LayoutHandle {
+            join_handle: handle,
+            update_sender: tx.clone(),
+        });
         // println!("Background layout thread started");
     }
 
@@ -596,13 +692,16 @@ impl SortedNodeLayout {
                     .or_default()
                     .push(edge_index);
             }
-            let mut edges_pos_to_remove: Vec<usize> = groups.values().flat_map(|pos_list| {
-                if pos_list.len() > 1 {
-                    pos_list[1..].to_vec() // Keep the first edge, remove the rest
-                } else {
-                    Vec::new() // Keep single edges
-                }
-            }).collect();
+            let mut edges_pos_to_remove: Vec<usize> = groups
+                .values()
+                .flat_map(|pos_list| {
+                    if pos_list.len() > 1 {
+                        pos_list[1..].to_vec() // Keep the first edge, remove the rest
+                    } else {
+                        Vec::new() // Keep single edges
+                    }
+                })
+                .collect();
             edges_pos_to_remove.sort_unstable();
             edges_pos_to_remove.dedup();
             for pos in edges_pos_to_remove.iter().rev() {
@@ -613,20 +712,29 @@ impl SortedNodeLayout {
         }
     }
 
-     pub fn run_algorithm(&mut self, graph_algorithm: GraphAlgorithm, visualization_style: &GVisualizationStyle, statistics_data: &mut StatisticsData) {
+    pub fn run_algorithm(
+        &mut self,
+        graph_algorithm: GraphAlgorithm,
+        visualization_style: &GVisualizationStyle,
+        statistics_data: &mut StatisticsData,
+    ) {
         if let Ok(nodes) = self.nodes.read() {
             if !nodes.is_empty() {
                 if let Ok(edges) = self.edges.read() {
                     // println!("run algorithm: {:?}", graph_algorithm);
                     let nodes_len = nodes.len();
                     let values = run_algorithm(graph_algorithm, nodes_len, &edges);
-                    if let Ok(mut individual_node_style) = self.individual_node_style.write() {
+                    if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
                         if individual_node_style.len() != nodes.len() {
                             individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
                         }
                         for (index, value) in values.iter().enumerate() {
-                            let mapped_size = visualization_style.min_size + *value * (visualization_style.max_size - visualization_style.min_size);
+                            let mapped_size: f32 = visualization_style.min_size
+                                + *value * (visualization_style.max_size - visualization_style.min_size);
                             individual_node_style[index].size_overwrite = mapped_size;
+                            individual_node_style[index]
+                                .semantic_zoom_interval
+                                .set_from_normalized(*value);
                         }
                         statistics_data.nodes.resize(nodes_len, 0);
                         for (index, node) in nodes.iter().enumerate() {
@@ -635,16 +743,18 @@ impl SortedNodeLayout {
                         match graph_algorithm {
                             GraphAlgorithm::BetweennessCentrality => {
                                 statistics_data.results.clear();
-                                statistics_data.results.push(StatisticsResult::BetweennessCentrality(values));
+                                statistics_data
+                                    .results
+                                    .push(StatisticsResult::BetweennessCentrality(values));
                             }
                         }
                         self.update_node_shapes = true;
+                        self.has_semantic_zoom = true;
                     }
                 }
             }
         }
     }
-
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
@@ -721,11 +831,13 @@ pub fn layout_graph_nodes(
     let attraction = 111.0 / attraction_constant;
 
     let mut tree = BHQuadtree::new(0.5);
-    let weight_points: Vec<WeightedPoint> = positions.par_iter().map(|pos| {
-        WeightedPoint {
+    let weight_points: Vec<WeightedPoint> = positions
+        .par_iter()
+        .map(|pos| WeightedPoint {
             pos: pos.pos.to_vec2(),
             mass: 1.0,
-    }}).collect(); 
+        })
+        .collect();
     tree.build(weight_points, 5);
 
     let force_fn = |target: Vec2, source: WeightedPoint| {
@@ -736,13 +848,16 @@ pub fn layout_graph_nodes(
         }
         let dist2 = dir.length();
         let force_mag = (source.mass * repulsion_factor) / dist2;
-        (dir/dist2) * force_mag
+        (dir / dist2) * force_mag
     };
 
-    let mut forces: Vec<Vec2> = positions.par_iter().map(|node_position| {
-        let pos = node_position.pos.to_vec2();
-        tree.accumulate(pos, force_fn)
-       }).collect();
+    let mut forces: Vec<Vec2> = positions
+        .par_iter()
+        .map(|node_position| {
+            let pos = node_position.pos.to_vec2();
+            tree.accumulate(pos, force_fn)
+        })
+        .collect();
 
     for edge in edges.iter() {
         if edge.from != edge.to {
@@ -799,7 +914,7 @@ mod tests {
         assert!(!sorted_nodes.add(nodes[0]));
         assert!(sorted_nodes.contains(0));
         assert!(!sorted_nodes.contains(1));
-        assert_eq!(0,sorted_nodes.get_pos(0).unwrap());
+        assert_eq!(0, sorted_nodes.get_pos(0).unwrap());
         assert!(sorted_nodes.get_pos(1).is_none());
 
         let sorted_vec = super::SortedVec::new();
@@ -814,28 +929,25 @@ mod tests {
             assert!(sorted_nodes.contains(node.node_index));
         }
         // new indexes 2, 3, 12
-        let new_pairs: Vec<(IriIndex,IriIndex)> = vec![(0,5),(0,5),(5,2),(5,12),(10,2),(0,3),(0,10)];
-        assert!(sorted_nodes.add_many(&new_pairs, |(_parent_index,node_index)| {
-            assert_ne!(5,*node_index);
-            assert_ne!(10,*node_index);
+        let new_pairs: Vec<(IriIndex, IriIndex)> = vec![(0, 5), (0, 5), (5, 2), (5, 12), (10, 2), (0, 3), (0, 10)];
+        assert!(sorted_nodes.add_many(&new_pairs, |(_parent_index, node_index)| {
+            assert_ne!(5, *node_index);
+            assert_ne!(10, *node_index);
         }));
-        assert!(!sorted_nodes.add_many(&new_pairs, |(_parent_index,node_index)| {
+        assert!(!sorted_nodes.add_many(&new_pairs, |(_parent_index, node_index)| {
             // This should be never called
-            assert!(*node_index>100);
+            assert!(*node_index > 100);
         }));
         for (_parent_idx, node_idx) in &new_pairs {
             assert!(sorted_nodes.contains(*node_idx));
         }
         let to_remove: Vec<IriIndex> = vec![2, 5, 12];
-        sorted_nodes.retain(&sorted_vec, |node| {
-            !to_remove.contains(&node.node_index)
-        });
+        sorted_nodes.retain(&sorted_vec, |node| !to_remove.contains(&node.node_index));
         for removed_idx in &to_remove {
             assert!(!sorted_nodes.contains(*removed_idx));
         }
         assert!(sorted_nodes.contains(3));
         assert!(sorted_nodes.contains(0));
         assert!(sorted_nodes.contains(10));
-
     }
 }

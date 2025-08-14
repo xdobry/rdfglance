@@ -3,7 +3,7 @@ use std::{borrow::Cow, cmp::min};
 use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
-use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, sorting::sort_with_callbacks_keys, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
+use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
 
 const ROW_HIGHT: f32 = 17.0;
 const COLUMN_GAP: f32 = 2.0;
@@ -166,11 +166,17 @@ impl StatisticsData {
         {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let result_label = statistics_result.graph_algorithm().to_string();
-            text_wrapped(result_label.as_str(),RESULT_WIDTH, painter, top_left, false, true, ui.visuals());
             let result_rect = egui::Rect::from_min_size(
                         top_left,
                         Vec2::new(xpos+RESULT_WIDTH, ROW_HIGHT),
                     );
+            let cell_hovered = if result_rect.contains(mouse_pos) {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                true
+            } else {
+                false
+            };
+            text_wrapped(result_label.as_str(),RESULT_WIDTH, painter, top_left, cell_hovered, true, ui.visuals());
             if primary_down && result_rect.contains(mouse_pos) {
                 table_action = StatisticsTableAction::SortResult(result_idx);
             }
@@ -265,7 +271,7 @@ impl StatisticsData {
         }
         // Draw vertical lines
         xpos = 0.0;
-        for ((i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
+        for width in self.column_widths.iter() {
             xpos += width + COLUMN_GAP;
             painter.line(
                 [
@@ -298,15 +304,50 @@ impl StatisticsData {
             StatisticsTableAction::None => {},
             StatisticsTableAction::SortResult(column_index) => {
                 if column_index < self.results.len() {
-                    match &mut (self.results[column_index]) {
+                    match &self.results[column_index] {
                         StatisticsResult::BetweennessCentrality(data) => {
-                            sort_with_callbacks_keys(data, |i,j| {
-                                self.nodes.swap(i,j);
-                            });
+                            let mut values_with_indices: Vec<_> = data
+                                .iter()
+                                .enumerate()    
+                                .map(|(i, &v)| (v, i as u32))
+                                .collect();
+                                values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+                            self.reorder_in_place(&values_with_indices);
                         }
                     }
                 }
             },
         }
     } 
+
+    fn reorder_in_place<T: Clone>(&mut self, new_indexes: &[(T, u32)]) {
+        // Reorder the values in place based on the new indexes
+        let nodes_len = self.nodes.len();
+        assert_eq!(nodes_len, new_indexes.len());
+
+        let mut visited = vec![false; nodes_len];
+
+        for i in 0..nodes_len {
+            if visited[i] || new_indexes[i].1 as usize == i {
+                continue;
+            }
+
+            let mut current = i;
+            while !visited[current] {
+                visited[current] = true;
+                let next = new_indexes[current].1 as usize;
+                if next != i {
+                    self.nodes.swap(current, next);
+                    for result in self.results.iter_mut() {
+                        match result {
+                            StatisticsResult::BetweennessCentrality(values) => {
+                                values.swap(current, next);
+                            }
+                        }
+                    }
+                }
+                current = next;
+            }
+        }
+    }
 }

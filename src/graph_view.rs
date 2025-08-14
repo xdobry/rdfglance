@@ -100,11 +100,11 @@ impl RdfGlanceApp {
                 self.graph_state.scene_rect = Rect::ZERO;
                 self.visible_nodes.to_center();
             }
-            /*
-            if ui.button("Show all").clicked() {
-                self.show_all();
+            if self.visible_nodes.has_semantic_zoom {
+                ui.label("Semantic zoom");
+                ui.add(Slider::new(&mut self.ui_state.semantic_zoom_magnitude, 1..=10));
             }
-             */
+
             ui.checkbox(&mut self.ui_state.show_properties, "Show Properties");
             ui.label("nodes force");
             let response = ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
@@ -538,78 +538,88 @@ impl RdfGlanceApp {
                 );
                 edge_count += self.visible_nodes.edges.read().unwrap().len() as u32;
                 let mut selected_related_nodes_pos = Vec::new();
-                if let Ok(positions) = self.visible_nodes.positions.read() {
-                    if let Ok(nodes) = self.visible_nodes.nodes.read() {
-                        if let Ok(edges) = self.visible_nodes.edges.read() {
-                            if self.ui_state.fade_unselected {
-                                if let Some(selected_node) = &self.ui_state.selected_node {
-                                    let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
-                                    if let Ok(selected_pos) = selected_pos {
-                                        selected_related_nodes_pos.push(selected_pos);
-                                        for edge in edges.iter() {
-                                            if edge.from == selected_pos {
-                                                selected_related_nodes_pos.push(edge.to);
-                                            } else if edge.to == selected_pos {
-                                                selected_related_nodes_pos.push(edge.from);
+                if let Ok(nodes) = self.visible_nodes.nodes.read() {
+                    if let Ok(positions) = self.visible_nodes.positions.read() {
+                        if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
+                            if let Ok(edges) = self.visible_nodes.edges.read() {
+                                if self.ui_state.fade_unselected {
+                                    if let Some(selected_node) = &self.ui_state.selected_node {
+                                        let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
+                                        if let Ok(selected_pos) = selected_pos {
+                                            selected_related_nodes_pos.push(selected_pos);
+                                            for edge in edges.iter() {
+                                                if edge.from == selected_pos {
+                                                    selected_related_nodes_pos.push(edge.to);
+                                                } else if edge.to == selected_pos {
+                                                    selected_related_nodes_pos.push(edge.from);
+                                                }
                                             }
                                         }
+                                        selected_related_nodes_pos.sort_unstable();
+                                        selected_related_nodes_pos.dedup();
                                     }
-                                    selected_related_nodes_pos.sort_unstable();
-                                    selected_related_nodes_pos.dedup();
                                 }
-                            }
-                            if let Ok(node_shapes) = self.visible_nodes.node_shapes.read() {
-                                for edge in edges.iter() {
-                                    if self.ui_state.hidden_predicates.contains(edge.predicate) {
-                                        continue;
-                                    }
-                                    let node_label = || {
-                                        let reference_label = rdf_data.node_data.predicate_display(
-                                            edge.predicate,
-                                            &label_context,
-                                            &rdf_data.node_data.indexers,
-                                        );
-                                        reference_label.as_str().to_owned()
-                                    };
-                                    let pos1 = center + positions[edge.from].pos.to_vec2();
-                                    if edge.from != edge.to {
-                                        let node_shape_from = &node_shapes[edge.from];
-                                        let node_shape_to = &node_shapes[edge.to];
-                                        let pos2 = center + positions[edge.to].pos.to_vec2();
-                                        let faded = !selected_related_nodes_pos.is_empty()
-                                            && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
-                                                && selected_related_nodes_pos
-                                                    .binary_search(&edge.to)
-                                                    .is_ok());
-                                        drawing::draw_edge(
-                                            painter,
-                                            pos1,
-                                            node_shape_from.size,
-                                            node_shape_from.node_shape,
-                                            pos2,
-                                            node_shape_to.size,
-                                            node_shape_to.node_shape,
-                                            self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
-                                            node_label,
-                                            faded,
-                                            edge.bezier_distance,
-                                            ui.visuals()
-                                        );
-                                    } else {
-                                        let faded = !selected_related_nodes_pos.is_empty()
-                                            && selected_related_nodes_pos.binary_search(&edge.from).is_err();
-                                        let node_shape_from = &node_shapes[edge.from];
-                                        drawing::draw_self_edge(
-                                            painter,
-                                            pos1,
-                                            node_shape_from.size,
-                                            edge.bezier_distance,
-                                            node_shape_from.node_shape,
-                                            self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
-                                            faded,
-                                            node_label,
-                                            ui.visuals()
-                                        );
+                                if let Ok(node_shapes) = self.visible_nodes.node_shapes.read() {
+                                    for edge in edges.iter() {
+                                        if self.ui_state.hidden_predicates.contains(edge.predicate) {
+                                            continue;
+                                        }
+                                        if self.visible_nodes.has_semantic_zoom {
+                                            if !individual_node_styles[edge.from].semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude) ||
+                                                !individual_node_styles[edge.to].semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude)
+                                            {
+                                                continue;
+                                            }
+                                        }
+
+                                        let node_label = || {
+                                            let reference_label = rdf_data.node_data.predicate_display(
+                                                edge.predicate,
+                                                &label_context,
+                                                &rdf_data.node_data.indexers,
+                                            );
+                                            reference_label.as_str().to_owned()
+                                        };
+                                        let pos1 = center + positions[edge.from].pos.to_vec2();
+                                        if edge.from != edge.to {
+                                            let node_shape_from = &node_shapes[edge.from];
+                                            let node_shape_to = &node_shapes[edge.to];
+                                            let pos2 = center + positions[edge.to].pos.to_vec2();
+                                            let faded = !selected_related_nodes_pos.is_empty()
+                                                && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
+                                                    && selected_related_nodes_pos
+                                                        .binary_search(&edge.to)
+                                                        .is_ok());
+                                            drawing::draw_edge(
+                                                painter,
+                                                pos1,
+                                                node_shape_from.size,
+                                                node_shape_from.node_shape,
+                                                pos2,
+                                                node_shape_to.size,
+                                                node_shape_to.node_shape,
+                                                self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
+                                                node_label,
+                                                faded,
+                                                edge.bezier_distance,
+                                                ui.visuals()
+                                            );
+                                        } else {
+                                            let faded = !selected_related_nodes_pos.is_empty()
+                                                && selected_related_nodes_pos.binary_search(&edge.from).is_err();
+                                            let node_shape_from = &node_shapes[edge.from];
+                                            drawing::draw_self_edge(
+                                                painter,
+                                                pos1,
+                                                node_shape_from.size,
+                                                edge.bezier_distance,
+                                                node_shape_from.node_shape,
+                                                self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode),
+                                                faded,
+                                                node_label,
+                                                ui.visuals()
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -627,7 +637,7 @@ impl RdfGlanceApp {
                 }
                 if let Ok(positions) = self.visible_nodes.positions.read() {
                     if let Ok(nodes) = self.visible_nodes.nodes.read() {
-                        if let Ok(individual_node_style) = self.visible_nodes.individual_node_style.read() {
+                        if let Ok(individual_node_style) = self.visible_nodes.individual_node_styles.read() {
                             let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.visible_nodes.update_node_shapes {
                                 Some(Vec::with_capacity(nodes.len()))
                             } else {
@@ -637,6 +647,11 @@ impl RdfGlanceApp {
                                 if let Some((object_iri, object)) =
                                     rdf_data.node_data.get_node_by_index(node_layout.node_index)
                                 {
+                                    if self.visible_nodes.has_semantic_zoom {
+                                        if !individual_node_style[node_pos].semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude) {
+                                            continue;
+                                        }
+                                    }
                                     let pos = center + node_position.pos.to_vec2();
                                     let faded = !selected_related_nodes_pos.is_empty()
                                         && selected_related_nodes_pos.binary_search(&node_pos).is_err();
@@ -985,7 +1000,8 @@ pub fn draw_node(
     visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let node_type_style = visualization_style.get_type_style(&node_object.types);
-    let type_style = if visualization_style.use_size_overwrite && individual_node_style.is_some() {
+    let type_style = if visualization_style.use_size_overwrite && individual_node_style.is_some()
+        && !individual_node_style.as_ref().unwrap().size_overwrite.is_nan() {
         let individual_node_style = individual_node_style.unwrap();
         &NodeStyle {
             color: node_type_style.color,

@@ -28,7 +28,7 @@ pub fn compute_betweenness_centrality(nodes_len: usize, edges: &[Edge]) -> Vec<B
         .into_par_iter()
         .map(|i| {
             let mut distances = vec![-1; nodes_len];
-            let mut sigma = vec![0u32; nodes_len];
+            let mut sigma = vec![0u64; nodes_len];
             let mut stack = Vec::with_capacity(nodes_len);
             let mut queue = VecDeque::with_capacity(nodes_len);
             let mut predecessors: Vec<Vec<u32>> = vec![Vec::new(); nodes_len];

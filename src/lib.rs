@@ -59,8 +59,6 @@ pub mod uitools;
 pub mod quad_tree;
 pub mod graph_algorithms;
 pub mod statistics;
-pub mod sorting;
-
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -301,6 +299,8 @@ pub struct UIState {
     // Set if dragging for difference to dragged node center
     drag_diff: Pos2,
     hidden_predicates: SortedVec,
+    // 1 - magnitude see most nodes, 0 - should be not used, meaning all nodes (also the possible cluster nodes)
+    semantic_zoom_magnitude: u8,
     meta_count_to_size: bool,
     display_language: LangIndex,
     language_sort: Vec<LangIndex>,
@@ -541,6 +541,7 @@ impl RdfGlanceApp {
                 fade_unselected: false,
                 meta_count_to_size: true,
                 cpu_usage: 0.0,
+                semantic_zoom_magnitude: 1,
             },
             help_open: false,
             load_handle: None,
