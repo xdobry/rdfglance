@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, statistics::StatisticsData, style::ICON_LANG, RdfGlanceApp, SystemMessage};
+use crate::{graph_algorithms::GraphAlgorithm, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
 
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
@@ -45,6 +45,10 @@ impl RdfGlanceApp {
                 }
                 if ui.button("Import RDF File").clicked() {
                     self.import_file_dialog(ui);
+                    ui.close_menu();
+                }
+                if ui.button("Import RDF File from URL").clicked() {
+                    self.import_file_from_url_dialog(ui);
                     ui.close_menu();
                 }
                 #[cfg(not(target_arch = "wasm32"))]
@@ -135,6 +139,14 @@ impl RdfGlanceApp {
             }
         });
     }
+    pub fn import_file_from_url_dialog(&mut self, ui: &mut egui::Ui) {
+        self.import_from_url = Some(ImportFromUrlData {
+            url: String::new(),
+            format: ImportFormat::Turtle,
+            focus_requested: false,
+        });
+    }
+
     pub fn import_file_dialog(&mut self, ui: &mut egui::Ui) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()

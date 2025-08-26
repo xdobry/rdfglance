@@ -134,7 +134,7 @@ impl RdfGlanceApp {
     }
 
     pub fn restore(path: &Path) -> Result<Self> {
-        let mut app = RdfGlanceApp::new(None);
+        let mut app = RdfGlanceApp::new(None, vec![]);
         let file = File::open(path)?;
         let mut reader = BufReader::new(&file);
         let magic_number = reader.read_u32::<LittleEndian>()?;
@@ -971,7 +971,7 @@ mod tests {
     fn test_store() -> std::io::Result<()> {
         let store_path = get_test_file_path("store.rdfglance");
 
-        let mut vs = RdfGlanceApp::new(None);
+        let mut vs = RdfGlanceApp::new(None, vec![]);
         let start = Instant::now();
         vs.load_ttl("sample-rdf-data/programming_languages.ttl", true);
         vs.join_load(true);

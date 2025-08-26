@@ -3,10 +3,11 @@ use oxrdf::vocab::xsd;
 use oxrdf::{NamedNodeRef, Subject, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
 use oxttl::TurtleParser;
+use reqwest::blocking::Client;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
-use crate::{DataLoading, RdfData};
+use crate::{DataLoading, ImportFormat, RdfData};
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
 use std::path::Path;
@@ -136,6 +137,41 @@ impl RDFWrap {
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
         Self::load_file_reader(file_extension, reader, rdf_data, language_filter, data_loading)
+    }
+
+    pub fn load_from_url(
+        url: &str,
+        rdf_data: &mut RdfData,
+        language_filter: &[String],
+        format: ImportFormat,
+        data_loading: Option<&DataLoading>,
+    ) -> Result<u32> {
+        let client = Client::new();
+        let response = client
+            .get(url)
+            .header("Accept", format.mime_type())
+            .send()
+            .with_context(|| format!("Failed to fetch URL {}", url))?;
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Failed to fetch URL {}: HTTP {}",
+                url,
+                response.status()
+            ));
+        }
+        if let Some(data_loading) = data_loading {
+            if data_loading.total_size.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+                if let Some(content_length) = response.content_length() {
+                    data_loading
+                        .total_size
+                        .store(content_length as usize, std::sync::atomic::Ordering::Relaxed);
+                } else {
+                    println!("Content-Length header not found for URL {}", url);
+                }
+            }
+        }
+        let reader = BufReader::new(response);
+        Self::load_file_reader(format.file_extension(), reader, rdf_data, language_filter, data_loading)
     }
 
     #[cfg(target_arch = "wasm32")]

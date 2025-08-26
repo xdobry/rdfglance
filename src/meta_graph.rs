@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_meta_graph() -> std::io::Result<()> {
-        let mut vs = RdfGlanceApp::new(None);
+        let mut vs = RdfGlanceApp::new(None, vec![]);
         vs.load_ttl("sample-rdf-data/programming_languages.ttl",true);
         vs.join_load(true);
         for (type_index, _type_node) in vs.type_index.types.iter() {

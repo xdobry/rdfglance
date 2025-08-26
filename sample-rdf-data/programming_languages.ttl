@@ -7141,7 +7141,7 @@ dbr:C_Sharp_\(programming_language\) a dbo:ProgrammingLanguage ;
 
 dbr:JavaScript a dbo:ProgrammingLanguage ;
     rdfs:label "JavaScript"@en ;
-    dbo:designer dbr:Brendan_Eich,
+    dbo:designer dbr:Brendan_Eich;
     dbo:influencedBy dbr:AWK,
         dbr:HyperTalk,
         dbr:Java_\(programming_language\),

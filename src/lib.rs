@@ -94,10 +94,11 @@ pub struct RdfGlanceApp {
     type_index: TypeInstanceIndex,
     pub persistent_data: AppPersistentData,
     help_open: bool,
-    load_handle: Option<JoinHandle<Option<Result<(u32, String), Error>>>>,
+    load_handle: Option<JoinHandle<Option<Result<LoadResult, Error>>>>,
     #[cfg(target_arch = "wasm32")]
     file_upload: Option<Promise<Result<File, anyhow::Error>>>,
     data_loading: Option<Arc<DataLoading>>,
+    import_from_url: Option<ImportFromUrlData>,
 }
 
 pub struct DataLoading {
@@ -107,6 +108,42 @@ pub struct DataLoading {
     pub read_pos: Arc<AtomicUsize>,
     pub total_size: Arc<AtomicUsize>,
     pub finished: Arc<AtomicBool>,
+}
+
+pub struct ImportFromUrlData {
+    pub url: String,
+    pub format: ImportFormat,
+    pub focus_requested: bool,
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum ImportFormat {
+    Turtle,
+    RdfXml,
+    NTriples,
+}
+
+impl ImportFormat {
+    pub fn mime_type(&self) -> &str {
+        match self {
+            ImportFormat::Turtle => "text/turtle",
+            ImportFormat::RdfXml => "application/rdf+xml",
+            ImportFormat::NTriples => "application/n-triples",
+        }
+    }
+
+    pub fn file_extension(&self) -> &str {
+        match self {
+            ImportFormat::Turtle => "ttl",
+            ImportFormat::RdfXml => "rdf",
+            ImportFormat::NTriples => "nt",
+        }
+    }
+}
+
+pub struct LoadResult {
+    pub triples_count: u32,
+    pub file_name: Option<String>,
 }
 
 pub struct RdfData {
@@ -474,7 +511,7 @@ impl SortedVec {
 
 // Implement default values for MyApp
 impl RdfGlanceApp {
-    pub fn new(storage: Option<&dyn Storage>) -> Self {
+    pub fn new(storage: Option<&dyn Storage>, args: Vec<String>) -> Self {
         let persistent_data: Option<AppPersistentData> = match storage {
             Some(storage) => {
                 let persistent_data_string = storage.get_string("persistent_data");
@@ -489,7 +526,7 @@ impl RdfGlanceApp {
             }
             None => None,
         };
-        Self {
+        let mut app = Self {
             object_iri: String::new(),
             current_iri: None,
             rdfwrap: Box::new(rdfwrap::RDFWrap::empty()),
@@ -548,7 +585,17 @@ impl RdfGlanceApp {
             data_loading: None,
             #[cfg(target_arch = "wasm32")]
             file_upload: None,
+            import_from_url: None,
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if args.len() > 0 {
+                let first_arg = args[0].as_str();
+                // TODO does not know the dark mode yet.
+                app.load_ttl(first_arg, false);
+            }
         }
+        app
     }
 }
 
@@ -664,6 +711,10 @@ impl RdfGlanceApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_ttl(&mut self, file_name: &str, _is_dark_mode: bool) {
+        if self.load_handle.is_some() || self.data_loading.is_some() {
+            self.system_message = SystemMessage::Info("Loading in progress".to_string());
+            return;
+        }
         let rdf_data_clone = Arc::clone(&self.rdf_data);
         let language_filter = self.persistent_data.config_data.language_filter();
         let file_name_cpy = file_name.to_string();
@@ -687,7 +738,47 @@ impl RdfGlanceApp {
                         &language_filter,
                         Some(my_data_loading),
                     )
-                    .map(|triples_count| (triples_count, file_name_cpy)),
+                    .map(|triples_count| LoadResult {triples_count, file_name: Some(file_name_cpy) }),
+                )
+            } else {
+                None
+            };
+            my_data_loading.finished.store(true, Ordering::Relaxed);
+            erg
+        });
+        self.load_handle = Some(handle);
+    }
+
+    pub fn load_ttl_from_url(&mut self, url: &str, format: ImportFormat, _is_dark_mode: bool) {
+        if self.load_handle.is_some() {
+            self.system_message = SystemMessage::Info("Loading in progress".to_string());
+            return;
+        }
+        let rdf_data_clone = Arc::clone(&self.rdf_data);
+        let language_filter = self.persistent_data.config_data.language_filter();
+        let url_cpy = url.to_string();
+        let data_loading = Arc::new(DataLoading {
+            stop_loading: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(AtomicUsize::new(0)),
+            total_triples: Arc::new(AtomicUsize::new(0)),
+            read_pos: Arc::new(AtomicUsize::new(0)),
+            total_size: Arc::new(AtomicUsize::new(0)),
+            finished: Arc::new(AtomicBool::new(false)),
+        });
+        let data_loading_clone = Arc::clone(&data_loading);
+        self.data_loading = Some(data_loading);
+        let handle = thread::spawn(move || {
+            let my_data_loading = data_loading_clone.as_ref();
+            let erg = if let Ok(mut rdf_data) = rdf_data_clone.write() {
+                Some(
+                    rdfwrap::RDFWrap::load_from_url(
+                        url_cpy.as_ref(),
+                        &mut rdf_data,
+                        &language_filter,
+                        format,
+                        Some(my_data_loading),
+                    )
+                    .map(|triples_count| LoadResult {triples_count, file_name: None}),
                 )
             } else {
                 None
@@ -701,12 +792,14 @@ impl RdfGlanceApp {
     pub fn join_load(&mut self, is_dark_mode: bool) {
         if let Some(handle) = self.load_handle.take() {
             match handle.join() {
-                Ok(Some(Ok((triples_count, file_name)))) => {
-                    self.set_status_message(&format!("Loaded {} triples", triples_count));
+                Ok(Some(Ok(load_result))) => {
+                    self.set_status_message(&format!("Loaded {} triples", load_result.triples_count));
                     self.update_data_indexes(is_dark_mode);
-                    let file_name = file_name.as_str();
-                    if !self.persistent_data.last_files.iter().any(|f| *f == file_name.into()) {
-                        self.persistent_data.last_files.push(file_name.into());
+                    if let Some(file_name) = load_result.file_name {
+                        let file_name_cpy = file_name.into_boxed_str();
+                        if !self.persistent_data.last_files.iter().any(|f| *f == file_name_cpy) {
+                            self.persistent_data.last_files.push(file_name_cpy);
+                        }
                     }
                 }
                 Ok(Some(Err(err))) => {
@@ -750,6 +843,10 @@ impl RdfGlanceApp {
         }
     }
     fn load_ttl_dir(&mut self, dir_name: &str) {
+        if self.load_handle.is_some() {
+            self.system_message = SystemMessage::Info("Loading in progress".to_string());
+            return;
+        }
         let rdf_data_clone = Arc::clone(&self.rdf_data);
         let language_filter = self.persistent_data.config_data.language_filter();
         let dir_name_cpy = dir_name.to_string();
@@ -773,7 +870,7 @@ impl RdfGlanceApp {
                         &language_filter,
                         Some(my_data_loading),
                     )
-                    .map(|triples_count| (triples_count, dir_name_cpy)),
+                    .map(|triples_count| LoadResult { triples_count, file_name: Some(dir_name_cpy)}),
                 )
             } else {
                 None
@@ -960,6 +1057,8 @@ impl RdfGlanceApp {
 }
 
 impl eframe::App for RdfGlanceApp {
+    
+    
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(cpu_usage) = frame.info().cpu_usage {
             self.ui_state.cpu_usage = self.ui_state.cpu_usage * 0.95 + cpu_usage * 0.05;
@@ -1002,6 +1101,51 @@ impl eframe::App for RdfGlanceApp {
                     });
                 ui.disable();
             }
+            let mut cancel_clicked = false;
+            let mut ok_clicked = false;
+            if let Some(import_from_url_data) = &mut self.import_from_url {
+                egui::Window::new("Import from URL")
+                    .collapsible(false)
+                    .resizable(true)
+                    .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]) // Center the modal
+                    .show(ctx, |ui| {
+                        ui.label("Import RDF data from URL:");
+                        ui.horizontal(|ui| {
+                            ui.label("URL:");
+                            ui.text_edit_singleline(&mut import_from_url_data.url);
+                        });
+                        ui.horizontal(|ui| {                          
+                            let import_but = ui.add_enabled(import_from_url_data.url.len()>0, egui::Button::new("Import"));
+                            if !import_from_url_data.focus_requested {
+                                import_but.request_focus();
+                                import_from_url_data.focus_requested = true;
+                            }
+                            if import_but.clicked() {
+                                ok_clicked = true;
+                            }
+                            if ui.button("Cancel").clicked() {
+                                cancel_clicked = true;
+                            }
+                        });
+                    });
+                ui.disable();
+            }
+            if cancel_clicked {
+                self.import_from_url = None;
+            }
+            if ok_clicked {
+                if let Some(import_from_url_data) = &self.import_from_url {
+                    if import_from_url_data.url.is_empty() {
+                        self.system_message = SystemMessage::Error("URL cannot be empty".to_string());
+                    } else {
+                        let url = import_from_url_data.url.clone();
+                        self.load_ttl_from_url(&url,import_from_url_data.format, ui.visuals().dark_mode);
+                    }
+                }
+                self.import_from_url = None;
+            }
+
+
             self.menu_bar(ui);
             // The menu bar action could start loading data, so we check if data is being loaded
             // if loading data the display coud block on waiting access to rdf_data
@@ -1147,6 +1291,30 @@ impl eframe::App for RdfGlanceApp {
             #[cfg(target_arch = "wasm32")]
             {
                 self.handle_files(ctx, ui.visuals());
+            }
+        });
+
+        ctx.input(|i| {
+            for file in &i.raw.dropped_files {
+                if let Some(file_path) = &file.path {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let path = Path::new(file_path);
+                        if path.exists() {
+                            if path.is_dir() {
+                                self.load_ttl_dir(file_path.to_str().unwrap());
+                            } else {
+                                let file_path = path.to_str();
+                                if let Some(file_path) = file_path {
+                                    self.load_ttl(file_path, false);
+                                } else {
+                                    println!("File dropped path is not valid UTF-8: {:?}", path);
+                                }
+                                
+                            }
+                        }
+                    }
+                }
             }
         });
     }
