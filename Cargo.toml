@@ -38,4 +38,5 @@ getrandom = { version = "0.3.2", features = ["wasm_js"] }
 # this is needed to set 'js' feature in dependend older version from oxrdf
 getrandom_2 = { package="getrandom", version = "0.2.16", features = ["js"] }
 wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["UrlSearchParams", "Window", "Location"] }
 poll-promise = { version = "0.3", features = ["web"] }

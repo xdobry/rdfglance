@@ -557,7 +557,7 @@ impl SortedNodeLayout {
     #[cfg(target_arch = "wasm32")]
     pub fn start_layout(&mut self, _config: &Config) {
         self.compute_layout = true;
-        self.layout_temparature = 100.0;
+        self.layout_temperature = 100.0;
     }
 
     #[cfg(not(target_arch = "wasm32"))]

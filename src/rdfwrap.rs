@@ -3,7 +3,6 @@ use oxrdf::vocab::xsd;
 use oxrdf::{NamedNodeRef, Subject, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
 use oxttl::TurtleParser;
-use reqwest::blocking::Client;
 
 use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
 use crate::prefix_manager::PrefixManager;
@@ -139,6 +138,7 @@ impl RDFWrap {
         Self::load_file_reader(file_extension, reader, rdf_data, language_filter, data_loading)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_from_url(
         url: &str,
         rdf_data: &mut RdfData,
@@ -146,6 +146,8 @@ impl RDFWrap {
         format: ImportFormat,
         data_loading: Option<&DataLoading>,
     ) -> Result<u32> {
+        use reqwest::blocking::Client;
+
         let client = Client::new();
         let response = client
             .get(url)
@@ -172,6 +174,17 @@ impl RDFWrap {
         }
         let reader = BufReader::new(response);
         Self::load_file_reader(format.file_extension(), reader, rdf_data, language_filter, data_loading)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_from_url(
+        url: &str,
+        rdf_data: &mut RdfData,
+        language_filter: &[String],
+        format: ImportFormat,
+        data_loading: Option<&DataLoading>,
+    ) -> Result<u32> {
+        Ok(0)
     }
 
     #[cfg(target_arch = "wasm32")]

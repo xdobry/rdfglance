@@ -25,12 +25,23 @@ fn main() {
     // Web start
 
     use eframe::{wasm_bindgen::JsCast, web_sys};
+    use web_sys::UrlSearchParams;
 
     wasm_bindgen_futures::spawn_local(async {
         let document = web_sys::window()
             .expect("No window")
             .document()
             .expect("No document");
+
+        let query_parameter = web_sys::window().expect("No window").location().search().unwrap_or_default();
+
+        let mut argumetns: Vec<String> = Vec::new();
+
+        UrlSearchParams::new_with_str(&query_parameter).ok()
+            .and_then(|params| params.get("url"))
+            .map(|url| {
+                argumetns.push(url);
+            });
 
         let canvas = document
             .get_element_by_id("the_canvas")
@@ -42,7 +53,7 @@ fn main() {
             .start(
                 canvas, // matches id in index.html
                 eframe::WebOptions::default(),
-                Box::new(|cc| Ok(Box::new(RdfGlanceApp::new(cc.storage)))),
+                Box::new(|cc| Ok(Box::new(RdfGlanceApp::new(cc.storage,argumetns)))),
             )
             .await
             .expect("failed to start eframe");

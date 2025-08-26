@@ -588,12 +588,15 @@ impl RdfGlanceApp {
             import_from_url: None,
         };
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            if args.len() > 0 {
-                let first_arg = args[0].as_str();
-                // TODO does not know the dark mode yet.
-                app.load_ttl(first_arg, false);
-            }
+        if args.len() > 0 {
+            let first_arg = args[0].as_str();
+            // TODO does not know the dark mode yet.
+            app.load_ttl(first_arg, false);
+        }
+        #[cfg(target_arch = "wasm32")]
+        if args.len() > 0 {
+            let first_arg = args[0].as_str();
+            app.load_ttl_from_url(first_arg, ImportFormat::Turtle, true);
         }
         app
     }
@@ -749,6 +752,7 @@ impl RdfGlanceApp {
         self.load_handle = Some(handle);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_ttl_from_url(&mut self, url: &str, format: ImportFormat, _is_dark_mode: bool) {
         if self.load_handle.is_some() {
             self.system_message = SystemMessage::Info("Loading in progress".to_string());
@@ -787,6 +791,29 @@ impl RdfGlanceApp {
             erg
         });
         self.load_handle = Some(handle);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_ttl_from_url(&mut self, url: &str, _format: ImportFormat, _is_dark_mode: bool) {
+        let url_cpy = url.to_string();
+        self.file_upload = Some(Promise::spawn_local(async move {
+            let client = reqwest::Client::new();
+            let request = client.get(url_cpy.as_str()).header("Accept", "text/turtle");
+            match request.send().await {
+                Ok(resp) => {
+                    if let Ok(bytes) = resp.bytes().await {
+                        return Ok(crate::File {
+                            path: "url.ttl".to_string(),
+                            data: bytes.to_vec(),
+                        });
+                    }
+                }
+                Err(err) => {
+                    return Err(anyhow::anyhow!("Error downloading from URL {}", err));
+                }
+            }
+            Err(anyhow::anyhow!("Upload: no file Selected"))
+        }));
     }
 
     pub fn join_load(&mut self, is_dark_mode: bool) {
@@ -1087,6 +1114,13 @@ impl eframe::App for RdfGlanceApp {
                     self.join_load(ui.visuals().dark_mode);
                 }
             }
+            #[cfg(target_arch = "wasm32")]
+            if self.file_upload.is_some() {
+                ui.label("RDF data is currently being loaded. Please wait...");
+                ctx.request_repaint_after(Duration::from_millis(100));
+                self.handle_files(ctx, ui.visuals());
+                return;
+            }
 
             if self.system_message.has_message() {
                 egui::Window::new("System Message")
@@ -1288,10 +1322,6 @@ impl eframe::App for RdfGlanceApp {
                 });
             }
              */
-            #[cfg(target_arch = "wasm32")]
-            {
-                self.handle_files(ctx, ui.visuals());
-            }
         });
 
         ctx.input(|i| {

@@ -3452,6 +3452,7 @@ dependencies = [
  "strum_macros 0.27.2",
  "unicode_names2",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

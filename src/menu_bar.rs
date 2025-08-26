@@ -209,6 +209,7 @@ impl RdfGlanceApp {
                     self.file_upload = None;
                 }
                 Some(Err(e)) => {
+                    self.system_message = SystemMessage::Error(format!("Can not load file: {}", e));
                     self.file_upload = None;
                 }
                 None => {}

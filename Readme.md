@@ -16,6 +16,11 @@ RDFGlance is an open-source application designed to provide a visual representat
 Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
 The WASM version does not offer all functionality. Especially no multithread non-blocking processing.
 
+You may pass query parameter with url of ttl data to be loaded.
+https://xdobry.github.io/rdfglance/?url=https://purl.humanatlas.io/asct-b/kidney
+
+The server with ttl data should allow cors by setting the http header "access-control-allow-origin: *" in the response.
+
 ## Description
 
 RDFGlance allows users to easily visualize and interact with RDF data. 
@@ -43,6 +48,8 @@ RDFGlance offers the following visualization capabilities for RDF data:
 - You can navigate the nodes like in browser from node to node.
 - Display of statistical information about types, data properties, and references, sorted by type
 - Can safe all data, graph and styles as project in own binary format for fast loading.
+- Can open ttl file passed as start parameter
+- Can open ttl file dropped from explorer
 
 The RDF Data can be loaded by using following formats:
 
