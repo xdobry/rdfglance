@@ -17,7 +17,7 @@ use eframe::{
     Storage,
     egui::{self, Pos2},
 };
-use egui::{Rangef, Rect};
+use egui::{Key, Rangef, Rect};
 use egui_extras::StripBuilder;
 use graph_styles::{EdgeStyle, NodeStyle};
 use graph_view::{NeighborPos, update_layout_edges};
@@ -33,7 +33,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::{graph_algorithms::{run_algorithm, GraphAlgorithm}, statistics::StatisticsData, uitools::primary_color};
+use crate::{statistics::StatisticsData, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -1146,14 +1146,17 @@ impl eframe::App for RdfGlanceApp {
                         ui.label("Import RDF data from URL:");
                         ui.horizontal(|ui| {
                             ui.label("URL:");
-                            ui.text_edit_singleline(&mut import_from_url_data.url);
+                            let import_url = ui.text_edit_singleline(&mut import_from_url_data.url);
+                            if !import_from_url_data.focus_requested {
+                                import_url.request_focus();
+                                import_from_url_data.focus_requested = true;
+                            }
+                            if import_url.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                               ok_clicked = true;
+                            }
                         });
                         ui.horizontal(|ui| {                          
                             let import_but = ui.add_enabled(import_from_url_data.url.len()>0, egui::Button::new("Import"));
-                            if !import_from_url_data.focus_requested {
-                                import_but.request_focus();
-                                import_from_url_data.focus_requested = true;
-                            }
                             if import_but.clicked() {
                                 ok_clicked = true;
                             }

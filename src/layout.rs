@@ -762,10 +762,11 @@ impl SortedNodeLayout {
                             // no action the data is already but we need to set the individual node styles
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
                                 for (index, value) in result.get_data_vec().iter().enumerate() {
+                                    let node_index = statistics_data.nodes[index].1 as usize;
                                     let mapped_size: f32 = visualization_style.min_size
                                         + *value * (visualization_style.max_size - visualization_style.min_size);
-                                    individual_node_style[index].size_overwrite = mapped_size;
-                                    individual_node_style[index]
+                                    individual_node_style[node_index].size_overwrite = mapped_size;
+                                    individual_node_style[node_index]
                                         .semantic_zoom_interval
                                         .set_from_normalized(*value);
                                 }
@@ -775,7 +776,7 @@ impl SortedNodeLayout {
                             // the values could be already resorted so use position index to get them in right order
                             let sorted_values = statistics_data.nodes.iter().map(|(_iri, pos)| values[*pos as usize]).collect::<Vec<f32>>();
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                for (index, value) in sorted_values.iter().enumerate() {
+                                for (index, value) in values.iter().enumerate() {
                                     let mapped_size: f32 = visualization_style.min_size
                                         + *value * (visualization_style.max_size - visualization_style.min_size);
                                     individual_node_style[index].size_overwrite = mapped_size;
