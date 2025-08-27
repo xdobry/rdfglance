@@ -647,7 +647,7 @@ impl RdfGlanceApp {
                                 if let Some((object_iri, object)) =
                                     rdf_data.node_data.get_node_by_index(node_layout.node_index)
                                 {
-                                    if self.visible_nodes.has_semantic_zoom {
+                                    if self.visible_nodes.has_semantic_zoom && !self.visible_nodes.update_node_shapes {
                                         if !individual_node_style[node_pos].semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude) {
                                             continue;
                                         }
@@ -669,6 +669,9 @@ impl RdfGlanceApp {
                                         faded,
                                         ui.visuals()
                                     );
+                                    // TODO Error can not refresh nodes_shapes if semantic zoom is enabled.
+                                    // because it will produce too few of them
+                                    // quick fix always compute new shapes if semantic zoom is 0
                                     if let Some(new_node_shapes) = &mut new_node_shapes {
                                         new_node_shapes.push(NodeShapeData {
                                             node_shape,

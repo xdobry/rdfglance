@@ -48,6 +48,14 @@ RDFGlance offers the following visualization capabilities for RDF data:
 - You can navigate the nodes like in browser from node to node.
 - Display of statistical information about types, data properties, and references, sorted by type
 - Can safe all data, graph and styles as project in own binary format for fast loading.
+- Compute some graph statistics and adapt node size of their result. Following graph statistics are implemented:
+  - betweenness centrality
+  - closeness centrality
+  - degree centrality
+  - page rank
+  - k-core centrality
+  - eigenvector centrality
+- Semantic zoom based on graph statistics
 - Can open ttl file passed as start parameter
 - Can open ttl file dropped from explorer
 

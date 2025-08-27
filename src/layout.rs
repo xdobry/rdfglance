@@ -161,6 +161,7 @@ pub struct SortedNodeLayout {
     pub stop_background_layout: Arc<AtomicBool>,
     pub update_node_shapes: bool,
     pub has_semantic_zoom: bool,
+    pub data_epoch: u32,
 }
 
 #[derive(Debug)]
@@ -190,6 +191,7 @@ impl Default for SortedNodeLayout {
             stop_background_layout: Arc::new(AtomicBool::new(false)),
             update_node_shapes: true,
             has_semantic_zoom: false,
+            data_epoch: 1,
         }
     }
 }
@@ -201,6 +203,7 @@ impl SortedNodeLayout {
 
     fn add(&mut self, value: NodeLayout) -> bool {
         self.stop_layout();
+        self.data_epoch += 1;
         if let Ok(mut nodes) = self.nodes.write() {
             if let Ok(mut node_shapes) = self.node_shapes.write() {
                 if let Ok(mut positions) = self.positions.write() {
@@ -317,6 +320,7 @@ impl SortedNodeLayout {
                     }
                 }
             }
+            self.data_epoch += 1;
             true
         } else {
             false
@@ -372,6 +376,7 @@ impl SortedNodeLayout {
                 update_edges_groups(edges, hidden_predicates);
             }
         });
+        self.data_epoch += 1;
     }
 
     pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) {
@@ -387,6 +392,7 @@ impl SortedNodeLayout {
             Vec::new()
         };
         if !pos_to_remove.is_empty() {
+            self.data_epoch += 1;
             self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                 edges.retain(|e| {
                     !pos_to_remove.binary_search(&e.from).is_ok() && !pos_to_remove.binary_search(&e.to).is_ok()
@@ -436,6 +442,7 @@ impl SortedNodeLayout {
      * The position list must be sorted and unique. Otherwise it will crash.
      */
     pub fn remove_pos_list(&mut self, pos_to_remove: &[usize], hidden_predicates: &SortedVec) {
+        self.data_epoch += 1;
         self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
             for pos in pos_to_remove.iter().rev() {
                 nodes.remove(*pos);
@@ -723,30 +730,63 @@ impl SortedNodeLayout {
                 if let Ok(edges) = self.edges.read() {
                     // println!("run algorithm: {:?}", graph_algorithm);
                     let nodes_len = nodes.len();
-                    let values = run_algorithm(graph_algorithm, nodes_len, &edges);
-                    if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                        if individual_node_style.len() != nodes.len() {
-                            individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
-                        }
-                        for (index, value) in values.iter().enumerate() {
-                            let mapped_size: f32 = visualization_style.min_size
-                                + *value * (visualization_style.max_size - visualization_style.min_size);
-                            individual_node_style[index].size_overwrite = mapped_size;
-                            individual_node_style[index]
-                                .semantic_zoom_interval
-                                .set_from_normalized(*value);
-                        }
-                        statistics_data.nodes.resize(nodes_len, 0);
-                        for (index, node) in nodes.iter().enumerate() {
-                            statistics_data.nodes[index] = node.node_index;
-                        }
-                        match graph_algorithm {
-                            GraphAlgorithm::BetweennessCentrality => {
-                                statistics_data.results.clear();
-                                statistics_data
-                                    .results
-                                    .push(StatisticsResult::BetweennessCentrality(values));
+                    if self.data_epoch != statistics_data.data_epoch {
+                        let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                        if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
+                            if individual_node_style.len() != nodes.len() {
+                                individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
                             }
+                            for (index, value) in values.iter().enumerate() {
+                                let mapped_size: f32 = visualization_style.min_size
+                                    + *value * (visualization_style.max_size - visualization_style.min_size);
+                                individual_node_style[index].size_overwrite = mapped_size;
+                                individual_node_style[index]
+                                    .semantic_zoom_interval
+                                    .set_from_normalized(*value);
+                            }
+                            statistics_data.nodes.resize(nodes_len, (0,0));
+                            for (index, node) in nodes.iter().enumerate() {
+                                statistics_data.nodes[index] = (node.node_index, index as u32);
+                            }
+                            statistics_data.results.clear();
+                            statistics_data
+                                .results
+                                .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                            self.update_node_shapes = true;
+                            self.has_semantic_zoom = true;
+                            statistics_data.data_epoch = self.data_epoch;
+                        }
+                    } else {
+                        let result = statistics_data.results.iter().find(|res| res.graph_algorithm()==graph_algorithm);
+                        if let Some(result) = result {
+                            // no action the data is already but we need to set the individual node styles
+                            if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
+                                for (index, value) in result.get_data_vec().iter().enumerate() {
+                                    let mapped_size: f32 = visualization_style.min_size
+                                        + *value * (visualization_style.max_size - visualization_style.min_size);
+                                    individual_node_style[index].size_overwrite = mapped_size;
+                                    individual_node_style[index]
+                                        .semantic_zoom_interval
+                                        .set_from_normalized(*value);
+                                }
+                            }
+                        } else {
+                            let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                            // the values could be already resorted so use position index to get them in right order
+                            let sorted_values = statistics_data.nodes.iter().map(|(_iri, pos)| values[*pos as usize]).collect::<Vec<f32>>();
+                            if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
+                                for (index, value) in sorted_values.iter().enumerate() {
+                                    let mapped_size: f32 = visualization_style.min_size
+                                        + *value * (visualization_style.max_size - visualization_style.min_size);
+                                    individual_node_style[index].size_overwrite = mapped_size;
+                                    individual_node_style[index]
+                                        .semantic_zoom_interval
+                                        .set_from_normalized(*value);
+                                }
+                            }                           
+                            statistics_data
+                                        .results
+                                        .push(StatisticsResult::new_for_alg(sorted_values, graph_algorithm));
                         }
                         self.update_node_shapes = true;
                         self.has_semantic_zoom = true;

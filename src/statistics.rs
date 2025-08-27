@@ -8,16 +8,20 @@ use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriI
 const ROW_HIGHT: f32 = 17.0;
 const COLUMN_GAP: f32 = 2.0;
 const IRI_WIDTH: f32 = 300.0;
-const RESULT_WIDTH: f32 = 50.0;
+const RESULT_WIDTH: f32 = 100.0;
 
 const FIX_LABELS: [&str; 3] = ["iri", "label", "type"];
 
+pub type NodePosition = u32;
+
 pub struct StatisticsData {
-    pub nodes: Vec<IriIndex>,
+    // Stores the node iri index and its position in SortedNodeLayout structure that is used for graph algorithms
+    pub nodes: Vec<(IriIndex, NodePosition)>,
     pub results: Vec<StatisticsResult>,
     pub pos: f32,
     pub drag_pos: Option<f32>,
     pub column_widths: [f32;3],
+    pub data_epoch: u32,
 }
 
 impl Default for StatisticsData {
@@ -29,11 +33,13 @@ impl Default for StatisticsData {
             drag_pos: None,
             // Default widths for iri, label, and type
             column_widths: [IRI_WIDTH, 200.0, 200.0], 
+            data_epoch: 0,
         }
     }
 }  
-pub enum StatisticsResult {
-    BetweennessCentrality(Vec<f32>),
+pub struct StatisticsResult {
+    values: Vec<f32>,
+    graph_algorithm: GraphAlgorithm,
 }
 
 
@@ -43,21 +49,28 @@ enum StatisticsTableAction {
 }
 
 impl StatisticsResult {
-    pub fn graph_algorithm(&self) -> GraphAlgorithm {
-        match self {
-            StatisticsResult::BetweennessCentrality(_) => GraphAlgorithm::BetweennessCentrality,
+    pub fn new_for_alg(values: Vec<f32>, alg: GraphAlgorithm) -> Self {
+        Self {
+            values,
+            graph_algorithm: alg,
         }
     }
+    pub fn graph_algorithm(&self) -> GraphAlgorithm {
+        self.graph_algorithm
+    }
+    pub fn get_data_vec(&self) -> &Vec<f32> {
+        &self.values
+    }
     pub fn get_value_str(&self, node_index: usize) -> String {
-        match self {
-            StatisticsResult::BetweennessCentrality(values) => {
-                if node_index < values.len() {
-                    format!("{:.4}", values[node_index])
-                } else {
-                    "N/A".to_string()
-                }
-            }
+        let data_vec = self.get_data_vec();
+        if node_index < data_vec.len() {
+            format!("{:.4}", data_vec[node_index])
+        } else {
+            "N/A".to_string()
         }
+    }
+    pub fn swap_values(&mut self, i: usize, j: usize) {
+        self.values.swap(i, j);
     }
 } 
 
@@ -67,6 +80,7 @@ impl RdfGlanceApp {
             ui.label("Statistics Data Available");
             self.show_statistics_data(ctx, ui)
         } else {
+            ui.label("No Statistics Data yet. Add some nodes to visual graph and run statistics algorithms on this");
             NodeAction::None
         }
     }
@@ -188,7 +202,7 @@ impl StatisticsData {
 
         for node_index in instance_index..min(instance_index + capacity, self.nodes.len()) {
             let instance_index = &self.nodes[node_index];
-            let node = rfd_data.node_data.get_node_by_index(*instance_index);
+            let node = rfd_data.node_data.get_node_by_index(instance_index.0);
             if let Some((node_iri, node)) = node {
                 if start_pos % 2 == 0 {
                     painter.rect_filled(
@@ -227,9 +241,9 @@ impl StatisticsData {
                         );
                         if primary_clicked && label_rect.contains(mouse_pos) {
                             println!("Primary clicked on node: {}", node_iri);
-                            *instance_action = NodeAction::BrowseNode(*instance_index);
+                            *instance_action = NodeAction::BrowseNode(instance_index.0);
                         } else if secondary_clicked && label_rect.contains(mouse_pos) {
-                            *instance_action = NodeAction::ShowVisual(*instance_index);
+                            *instance_action = NodeAction::ShowVisual(instance_index.0);
                         }
                     } else {
                         let label: Cow<'_,str> = if i == 1 {
@@ -304,17 +318,14 @@ impl StatisticsData {
             StatisticsTableAction::None => {},
             StatisticsTableAction::SortResult(column_index) => {
                 if column_index < self.results.len() {
-                    match &self.results[column_index] {
-                        StatisticsResult::BetweennessCentrality(data) => {
-                            let mut values_with_indices: Vec<_> = data
-                                .iter()
-                                .enumerate()    
-                                .map(|(i, &v)| (v, i as u32))
-                                .collect();
-                                values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
-                            self.reorder_in_place(&values_with_indices);
-                        }
-                    }
+                    let data_vec = self.results[column_index].get_data_vec();
+                    let mut values_with_indices: Vec<_> = data_vec
+                        .iter()
+                        .enumerate()    
+                        .map(|(i, &v)| (v, i as u32))
+                        .collect();
+                        values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+                    self.reorder_in_place(&values_with_indices);
                 }
             },
         }
@@ -339,11 +350,7 @@ impl StatisticsData {
                 if next != i {
                     self.nodes.swap(current, next);
                     for result in self.results.iter_mut() {
-                        match result {
-                            StatisticsResult::BetweennessCentrality(values) => {
-                                values.swap(current, next);
-                            }
-                        }
+                        result.swap_values(current, next);
                     }
                 }
                 current = next;
