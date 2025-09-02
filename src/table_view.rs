@@ -1,7 +1,7 @@
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
-use egui::{Align, Align2, Color32, CursorIcon, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
 
@@ -1257,8 +1257,13 @@ impl TypeInstanceIndex {
                         if text_edit_response.changed() {
                             table_action = TableAction::Filter;
                         }
-                    } else if ui.button(ICON_FILTER).clicked() {
-                        table_action = TableAction::Filter;
+                    } else {
+                        if text_edit_response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                            table_action = TableAction::Filter;
+                        }
+                        if ui.button(ICON_FILTER).clicked() {
+                            table_action = TableAction::Filter;
+                        }
                     }
                     if ui.button(ICON_CLOSE).clicked() {
                         type_data.instance_view.instance_filter.clear();

@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet}};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
+    distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -1003,16 +1003,19 @@ pub fn draw_node(
     visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let node_type_style = visualization_style.get_type_style(&node_object.types);
-    let type_style = if visualization_style.use_size_overwrite && individual_node_style.is_some()
-        && !individual_node_style.as_ref().unwrap().size_overwrite.is_nan() {
+    let type_style = if (visualization_style.use_size_overwrite || visualization_style.use_color_overwrite) 
+        && individual_node_style.is_some() {
         let individual_node_style = individual_node_style.unwrap();
         &NodeStyle {
-            color: node_type_style.color,
+            color: if individual_node_style.color_overwrite>0 { 
+                let lightness = if visuals.dark_mode { 0.3 } else { 0.6 };
+                next_distinct_color(individual_node_style.color_overwrite as usize -1,0.8, lightness, 200) 
+            } else { node_type_style.color},
             priority: 100,
             label_index: node_type_style.label_index,
             node_shape: NodeShape::Circle,
             node_size: NodeSize::Fixed,
-            width: individual_node_style.size_overwrite,
+            width: if individual_node_style.size_overwrite.is_nan() {node_type_style.width} else { individual_node_style.size_overwrite},
             height: node_type_style.height,
             border_width: node_type_style.border_width,
             border_color: node_type_style.border_color,

@@ -1,11 +1,5 @@
 use crate::{
-    GVisualizationStyle, SortedVec,
-    config::Config,
-    graph_algorithms::{GraphAlgorithm, run_algorithm},
-    graph_styles::NodeShape,
-    nobject::IriIndex,
-    quad_tree::{BHQuadtree, WeightedPoint},
-    statistics::{StatisticsData, StatisticsResult},
+    config::{self, Config}, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, GVisualizationStyle, SortedVec
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -101,6 +95,7 @@ impl LayerInterval {
 pub struct IndividualNodeStyleData {
     // Set from statistics to overwrite the size of the node
     pub size_overwrite: f32,
+    // 0 means no overwrite
     pub color_overwrite: u16,
     pub semantic_zoom_interval: LayerInterval,
 }
@@ -112,6 +107,18 @@ impl Default for IndividualNodeStyleData {
             color_overwrite: 0,
             semantic_zoom_interval: LayerInterval::default(),
         }
+    }
+}
+
+impl IndividualNodeStyleData {
+    pub fn set_size_value(&mut self, value: f32, visualization_style: &GVisualizationStyle) {
+        let mapped_size: f32 =
+            visualization_style.min_size + value * (visualization_style.max_size - visualization_style.min_size);
+        self.size_overwrite = mapped_size;
+        self.semantic_zoom_interval.set_from_normalized(value);
+    }
+    pub fn set_cluster(&mut self, cluster: u32) {
+        self.color_overwrite = (cluster+1 % 65535) as u16; // wrap around if more than 65535 clusters
     }
 }
 
@@ -333,7 +340,13 @@ impl SortedNodeLayout {
 
     pub fn mut_nodes<R>(
         &mut self,
-        mutator: impl Fn(&mut Vec<NodeLayout>, &mut Vec<NodePosition>, &mut Vec<Edge>, &mut Vec<NodeShapeData>, &mut Vec<IndividualNodeStyleData>) -> R,
+        mutator: impl Fn(
+            &mut Vec<NodeLayout>,
+            &mut Vec<NodePosition>,
+            &mut Vec<Edge>,
+            &mut Vec<NodeShapeData>,
+            &mut Vec<IndividualNodeStyleData>,
+        ) -> R,
     ) -> Option<R> {
         self.stop_layout();
         if let Ok(mut nodes) = self.nodes.write() {
@@ -341,7 +354,13 @@ impl SortedNodeLayout {
                 if let Ok(mut edges) = self.edges.write() {
                     if let Ok(mut node_shapes) = self.node_shapes.write() {
                         if let Ok(mut individual_node_styles) = self.individual_node_styles.write() {
-                            return Some(mutator(&mut nodes, &mut positions, &mut edges, &mut node_shapes, &mut individual_node_styles));
+                            return Some(mutator(
+                                &mut nodes,
+                                &mut positions,
+                                &mut edges,
+                                &mut node_shapes,
+                                &mut individual_node_styles,
+                            ));
                         }
                     }
                 }
@@ -724,6 +743,7 @@ impl SortedNodeLayout {
         graph_algorithm: GraphAlgorithm,
         visualization_style: &GVisualizationStyle,
         statistics_data: &mut StatisticsData,
+        config: &Config,
     ) {
         if let Ok(nodes) = self.nodes.read() {
             if !nodes.is_empty() {
@@ -731,63 +751,84 @@ impl SortedNodeLayout {
                     // println!("run algorithm: {:?}", graph_algorithm);
                     let nodes_len = nodes.len();
                     if self.data_epoch != statistics_data.data_epoch {
-                        let values = run_algorithm(graph_algorithm, nodes_len, &edges);
                         if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
                             if individual_node_style.len() != nodes.len() {
                                 individual_node_style.resize(nodes.len(), IndividualNodeStyleData::default());
                             }
-                            for (index, value) in values.iter().enumerate() {
-                                let mapped_size: f32 = visualization_style.min_size
-                                    + *value * (visualization_style.max_size - visualization_style.min_size);
-                                individual_node_style[index].size_overwrite = mapped_size;
-                                individual_node_style[index]
-                                    .semantic_zoom_interval
-                                    .set_from_normalized(*value);
-                            }
-                            statistics_data.nodes.resize(nodes_len, (0,0));
+                            statistics_data.nodes.resize(nodes_len, (0, 0));
                             for (index, node) in nodes.iter().enumerate() {
                                 statistics_data.nodes[index] = (node.node_index, index as u32);
                             }
                             statistics_data.results.clear();
-                            statistics_data
-                                .results
-                                .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                            if graph_algorithm.is_clustering() {
+                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config);
+                                let values = cluster.node_cluster.iter().map(|e| *e as f32).collect::<Vec<f32>>();
+                                for (index, value) in cluster.node_cluster.iter().enumerate() {
+                                    individual_node_style[index].set_cluster(*value);
+                                }
+                                statistics_data
+                                    .results
+                                    .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                            } else {
+                                let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                                for (index, value) in values.iter().enumerate() {
+                                    individual_node_style[index].set_size_value(*value, visualization_style);
+                                }
+                                statistics_data
+                                    .results
+                                    .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                            }
                             self.update_node_shapes = true;
                             self.has_semantic_zoom = true;
                             statistics_data.data_epoch = self.data_epoch;
                         }
                     } else {
-                        let result = statistics_data.results.iter().find(|res| res.graph_algorithm()==graph_algorithm);
+                        let result = statistics_data
+                            .results
+                            .iter()
+                            .find(|res| res.graph_algorithm() == graph_algorithm);
                         if let Some(result) = result {
                             // no action the data is already but we need to set the individual node styles
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
                                 for (index, value) in result.get_data_vec().iter().enumerate() {
                                     let node_index = statistics_data.nodes[index].1 as usize;
-                                    let mapped_size: f32 = visualization_style.min_size
-                                        + *value * (visualization_style.max_size - visualization_style.min_size);
-                                    individual_node_style[node_index].size_overwrite = mapped_size;
-                                    individual_node_style[node_index]
-                                        .semantic_zoom_interval
-                                        .set_from_normalized(*value);
+                                    if graph_algorithm.is_clustering() {
+                                        individual_node_style[node_index].set_cluster(*value as u32);
+                                    } else {
+                                        individual_node_style[node_index].set_size_value(*value, visualization_style);
+                                    }
                                 }
                             }
                         } else {
-                            let values = run_algorithm(graph_algorithm, nodes_len, &edges);
-                            // the values could be already resorted so use position index to get them in right order
-                            let sorted_values = statistics_data.nodes.iter().map(|(_iri, pos)| values[*pos as usize]).collect::<Vec<f32>>();
-                            if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                for (index, value) in values.iter().enumerate() {
-                                    let mapped_size: f32 = visualization_style.min_size
-                                        + *value * (visualization_style.max_size - visualization_style.min_size);
-                                    individual_node_style[index].size_overwrite = mapped_size;
-                                    individual_node_style[index]
-                                        .semantic_zoom_interval
-                                        .set_from_normalized(*value);
+                            if graph_algorithm.is_clustering() {
+                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config);
+                                let values = statistics_data.nodes.iter().map(|(_iri,pos)| 
+                                    cluster.node_cluster[*pos as usize] as f32).collect::<Vec<f32>>();
+                                if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
+                                    for (index, value) in cluster.node_cluster.iter().enumerate() {
+                                        individual_node_style[index].set_cluster(*value);
+                                    }
                                 }
-                            }                           
-                            statistics_data
-                                        .results
-                                        .push(StatisticsResult::new_for_alg(sorted_values, graph_algorithm));
+                                statistics_data
+                                    .results
+                                    .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                            } else {
+                                let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                                // the values could be already resorted so use position index to get them in right order
+                                let sorted_values = statistics_data
+                                    .nodes
+                                    .iter()
+                                    .map(|(_iri, pos)| values[*pos as usize])
+                                    .collect::<Vec<f32>>();
+                                if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
+                                    for (index, value) in values.iter().enumerate() {
+                                        individual_node_style[index].set_size_value(*value, visualization_style);
+                                    }
+                                }
+                                statistics_data
+                                    .results
+                                    .push(StatisticsResult::new_for_alg(sorted_values, graph_algorithm));
+                            }
                         }
                         self.update_node_shapes = true;
                         self.has_semantic_zoom = true;

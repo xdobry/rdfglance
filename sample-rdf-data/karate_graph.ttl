@@ -1,0 +1,118 @@
+@prefix ex: <http://rdfglance.karate_club#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+# Zachary's Karate Club graph see  https://en.wikipedia.org/wiki/Zachary%27s_karate_club
+# Used to test community detection with louvain algorithm
+
+ex:0 a ex:Person ; ex:club "Mr. Hi" .
+ex:1 a ex:Person ; ex:club "Mr. Hi" .
+ex:2 a ex:Person ; ex:club "Mr. Hi" .
+ex:3 a ex:Person ; ex:club "Mr. Hi" .
+ex:4 a ex:Person ; ex:club "Mr. Hi" .
+ex:5 a ex:Person ; ex:club "Mr. Hi" .
+ex:6 a ex:Person ; ex:club "Mr. Hi" .
+ex:7 a ex:Person ; ex:club "Mr. Hi" .
+ex:8 a ex:Person ; ex:club "Mr. Hi" .
+ex:9 a ex:Person ; ex:club "Officer" .
+ex:10 a ex:Person ; ex:club "Mr. Hi" .
+ex:11 a ex:Person ; ex:club "Mr. Hi" .
+ex:12 a ex:Person ; ex:club "Mr. Hi" .
+ex:13 a ex:Person ; ex:club "Mr. Hi" .
+ex:14 a ex:Person ; ex:club "Officer" .
+ex:15 a ex:Person ; ex:club "Officer" .
+ex:16 a ex:Person ; ex:club "Mr. Hi" .
+ex:17 a ex:Person ; ex:club "Mr. Hi" .
+ex:18 a ex:Person ; ex:club "Officer" .
+ex:19 a ex:Person ; ex:club "Mr. Hi" .
+ex:20 a ex:Person ; ex:club "Officer" .
+ex:21 a ex:Person ; ex:club "Mr. Hi" .
+ex:22 a ex:Person ; ex:club "Officer" .
+ex:23 a ex:Person ; ex:club "Officer" .
+ex:24 a ex:Person ; ex:club "Officer" .
+ex:25 a ex:Person ; ex:club "Officer" .
+ex:26 a ex:Person ; ex:club "Officer" .
+ex:27 a ex:Person ; ex:club "Officer" .
+ex:28 a ex:Person ; ex:club "Officer" .
+ex:29 a ex:Person ; ex:club "Officer" .
+ex:30 a ex:Person ; ex:club "Officer" .
+ex:31 a ex:Person ; ex:club "Officer" .
+ex:32 a ex:Person ; ex:club "Officer" .
+ex:33 a ex:Person ; ex:club "Officer" .
+ex:0 foaf:knows ex:1 .
+ex:0 foaf:knows ex:2 .
+ex:0 foaf:knows ex:3 .
+ex:0 foaf:knows ex:4 .
+ex:0 foaf:knows ex:5 .
+ex:0 foaf:knows ex:6 .
+ex:0 foaf:knows ex:7 .
+ex:0 foaf:knows ex:8 .
+ex:0 foaf:knows ex:10 .
+ex:0 foaf:knows ex:11 .
+ex:0 foaf:knows ex:12 .
+ex:0 foaf:knows ex:13 .
+ex:0 foaf:knows ex:17 .
+ex:0 foaf:knows ex:19 .
+ex:0 foaf:knows ex:21 .
+ex:0 foaf:knows ex:31 .
+ex:1 foaf:knows ex:2 .
+ex:1 foaf:knows ex:3 .
+ex:1 foaf:knows ex:7 .
+ex:1 foaf:knows ex:13 .
+ex:1 foaf:knows ex:17 .
+ex:1 foaf:knows ex:19 .
+ex:1 foaf:knows ex:21 .
+ex:1 foaf:knows ex:30 .
+ex:2 foaf:knows ex:3 .
+ex:2 foaf:knows ex:7 .
+ex:2 foaf:knows ex:8 .
+ex:2 foaf:knows ex:9 .
+ex:2 foaf:knows ex:13 .
+ex:2 foaf:knows ex:27 .
+ex:2 foaf:knows ex:28 .
+ex:2 foaf:knows ex:32 .
+ex:3 foaf:knows ex:7 .
+ex:3 foaf:knows ex:12 .
+ex:3 foaf:knows ex:13 .
+ex:4 foaf:knows ex:6 .
+ex:4 foaf:knows ex:10 .
+ex:5 foaf:knows ex:6 .
+ex:5 foaf:knows ex:10 .
+ex:5 foaf:knows ex:16 .
+ex:6 foaf:knows ex:16 .
+ex:8 foaf:knows ex:30 .
+ex:8 foaf:knows ex:32 .
+ex:8 foaf:knows ex:33 .
+ex:9 foaf:knows ex:33 .
+ex:13 foaf:knows ex:33 .
+ex:14 foaf:knows ex:32 .
+ex:14 foaf:knows ex:33 .
+ex:15 foaf:knows ex:32 .
+ex:15 foaf:knows ex:33 .
+ex:18 foaf:knows ex:32 .
+ex:18 foaf:knows ex:33 .
+ex:19 foaf:knows ex:33 .
+ex:20 foaf:knows ex:32 .
+ex:20 foaf:knows ex:33 .
+ex:22 foaf:knows ex:32 .
+ex:22 foaf:knows ex:33 .
+ex:23 foaf:knows ex:25 .
+ex:23 foaf:knows ex:27 .
+ex:23 foaf:knows ex:29 .
+ex:23 foaf:knows ex:32 .
+ex:23 foaf:knows ex:33 .
+ex:24 foaf:knows ex:25 .
+ex:24 foaf:knows ex:27 .
+ex:24 foaf:knows ex:31 .
+ex:25 foaf:knows ex:31 .
+ex:26 foaf:knows ex:29 .
+ex:26 foaf:knows ex:33 .
+ex:27 foaf:knows ex:33 .
+ex:28 foaf:knows ex:31 .
+ex:28 foaf:knows ex:33 .
+ex:29 foaf:knows ex:32 .
+ex:29 foaf:knows ex:33 .
+ex:30 foaf:knows ex:32 .
+ex:30 foaf:knows ex:33 .
+ex:31 foaf:knows ex:32 .
+ex:31 foaf:knows ex:33 .
+ex:32 foaf:knows ex:33 .

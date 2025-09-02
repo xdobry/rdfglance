@@ -5,8 +5,9 @@ pub mod k_core;
 pub mod utils;
 pub mod eigenvector;
 pub mod page_rank;
+pub mod louvain;
 
-use crate::{graph_algorithms::utils::normalize, layout::Edge};
+use crate::{config::Config, graph_algorithms::utils::normalize, layout::Edge};
 use strum_macros::{EnumIter, Display};
 
 #[derive(Debug, Clone, Copy, EnumIter, Display, PartialEq)]
@@ -23,6 +24,23 @@ pub enum GraphAlgorithm {
     EigenvectorCentrality,
     #[strum(to_string = "Page rank")]
     PageRank,
+    #[strum(to_string = "Clustering (Louvain)")]
+    ClusteringLouvain,
+}
+
+impl GraphAlgorithm {
+    pub fn is_clustering(&self) -> bool {
+        match self {
+            GraphAlgorithm::ClusteringLouvain => true,
+            _ => false,
+        }
+    }
+
+}
+
+pub struct ClusterResult {
+    pub cluster_size: u32,
+    pub node_cluster: Vec<u32>,
 }
 
 pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge]) -> Vec<f32> {
@@ -50,6 +68,20 @@ pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge]
         GraphAlgorithm::PageRank => {
             let values = page_rank::compute_page_rank(nodes_len, edges);
             normalize(values)
+        },
+        GraphAlgorithm::ClusteringLouvain => {
+            vec![0.0; nodes_len]
+        }
+    }
+}
+
+pub fn run_clustering_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge], config: &Config) -> ClusterResult {
+    match algorithm {
+        GraphAlgorithm::ClusteringLouvain => {
+            louvain::Modularity::louvain(nodes_len as u32, edges, &config)
+        }
+        _ => {
+            panic!("Not a clustering algorithm");
         }
     }
 }

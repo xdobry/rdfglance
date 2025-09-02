@@ -55,6 +55,7 @@ RDFGlance offers the following visualization capabilities for RDF data:
   - page rank
   - k-core centrality
   - eigenvector centrality
+  - louvain clustering (community detection) - used to color nodes
 - Semantic zoom based on graph statistics
 - Can open ttl file passed as start parameter
 - Can open ttl file dropped from explorer

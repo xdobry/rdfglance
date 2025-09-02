@@ -100,16 +100,40 @@ impl RdfGlanceApp {
                 for entry in GraphAlgorithm::iter() {
                     let label = entry.to_string();
                     if ui.button(label).clicked() {
+                        if self.visible_nodes.nodes.read().unwrap().is_empty() {
+                            self.system_message = SystemMessage::Info("No data to compute statistics. Add nodes to visual graph".to_string());
+                            ui.close_menu();
+                            return;
+                        }
                         if self.statistics_data.is_none() {
                             self.statistics_data = Some(StatisticsData::default());
                         }
-                        self.visible_nodes.run_algorithm(entry, &self.visualization_style, &mut self.statistics_data.as_mut().unwrap());
+                        self.visible_nodes.run_algorithm(entry, &self.visualization_style, 
+                            &mut self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data);
                         // TODO ask for confirmation
                         self.visualization_style.use_size_overwrite = true;
+                        self.visualization_style.use_color_overwrite = true;
                         ui.close_menu();
                     }
                 }
+                ui.separator();
+                if ui.button("Clear Statistics").clicked() {
+                    if let Some(statistics_data) = &mut self.statistics_data {
+                        statistics_data.results.clear();
+                    }
+                    self.visualization_style.use_size_overwrite = false;
+                    self.visualization_style.use_color_overwrite = false;
+                    ui.close_menu();
+                }
             });
+            ui.menu_button("Help", |ui| {
+                if ui.button("About RDF Glance").clicked() {
+                    self.ui_state.about_window = true;
+                    ui.close_menu();
+                }
+                ui.hyperlink_to("Project Site on GitHub","https://github.com/xdobry/rdfglance");
+                ui.hyperlink_to("Report Issue / Feedback","https://github.com/xdobry/rdfglance/issues");
+            });   
             global_theme_preference_switch(ui);
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let selected_language = rdf_data.node_data.get_language(self.ui_state.display_language);

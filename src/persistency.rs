@@ -722,6 +722,7 @@ impl GVisualizationStyle {
             edge_styles: HashMap::new(),
             default_node_style: crate::NodeStyle::default(),
             use_size_overwrite: false,
+            use_color_overwrite: false,
             min_size: 5.0,
             max_size: 20.0,
         };

@@ -324,6 +324,7 @@ pub struct GVisualizationStyle {
     pub default_node_style: NodeStyle,
     pub edge_styles: HashMap<IriIndex, EdgeStyle>,
     pub use_size_overwrite: bool,
+    pub use_color_overwrite: bool,
     pub min_size: f32,
     pub max_size: f32,
 }
@@ -348,6 +349,7 @@ pub struct UIState {
     style_edit: StyleEdit,
     icon_name_filter: String,
     cpu_usage: f32,
+    about_window: bool,
 }
 
 pub struct GraphState {
@@ -555,6 +557,7 @@ impl RdfGlanceApp {
                 edge_styles: HashMap::new(),
                 default_node_style: NodeStyle::default(),
                 use_size_overwrite: false,
+                use_color_overwrite: false,
                 min_size: 5.0,
                 max_size: 50.0,
             },
@@ -579,6 +582,7 @@ impl RdfGlanceApp {
                 meta_count_to_size: true,
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
+                about_window: false,
             },
             help_open: false,
             load_handle: None,
@@ -1181,7 +1185,7 @@ impl eframe::App for RdfGlanceApp {
                 }
                 self.import_from_url = None;
             }
-
+            self.show_about(ctx, ui);
 
             self.menu_bar(ui);
             // The menu bar action could start loading data, so we check if data is being loaded
