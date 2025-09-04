@@ -1579,6 +1579,8 @@ impl TypeInstanceIndex {
             .max_scroll_height(height)
             .sense(Sense::click());
 
+        let mut selected_type_index = 0;
+
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
@@ -1631,7 +1633,11 @@ impl TypeInstanceIndex {
                 let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                 body.rows(text_height, self.types_filtered.len(), |mut row| {
                     let type_index = self.types_filtered.get(row.index()).unwrap();
-                    row.set_selected(self.selected_type == Some(*type_index));
+                    let is_selected = self.selected_type == Some(*type_index);
+                    row.set_selected(is_selected);
+                    if is_selected {
+                        selected_type_index = row.index();
+                    }
                     let type_data = self.types.get(type_index).unwrap();
                     let type_label = node_data.type_display(*type_index, &label_context, &node_data.indexers);
                     row.col(|ui| {
@@ -1654,6 +1660,20 @@ impl TypeInstanceIndex {
                     }
                 });
             });
+        ui.input(|i| {
+            if i.key_pressed(egui::Key::ArrowDown) {
+                let new_selected_type = self.types_filtered.get(selected_type_index + 1);
+                if let Some(new_selected_type) = new_selected_type {
+                    selected_type = Some(*new_selected_type);
+                }
+            }
+            if selected_type_index>0 && i.key_pressed(egui::Key::ArrowUp) {
+                let new_selected_type = self.types_filtered.get(selected_type_index - 1);
+                if let Some(new_selected_type) = new_selected_type {
+                    selected_type = Some(*new_selected_type);
+                }
+            }
+        });
         (selected_type, type_table_action)
     }
 }

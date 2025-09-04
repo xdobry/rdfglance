@@ -17,11 +17,11 @@ impl RdfGlanceApp {
             if ui.button("Rebuild Meta Graph").clicked() {
                 self.build_meta_graph();
             }
-            self.meta_nodes
-                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
             if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
                 self.meta_nodes.update_node_shapes = true;
             }
+            self.meta_nodes
+                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
             ui.label("nodes force");
             let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,

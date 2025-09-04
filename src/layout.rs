@@ -1,17 +1,16 @@
 use crate::{
-    config::{self, Config}, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, GVisualizationStyle, SortedVec
+    config::{self, Config}, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
 use egui::Pos2;
+use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
+        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -398,7 +397,7 @@ impl SortedNodeLayout {
         self.data_epoch += 1;
     }
 
-    pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) {
+    pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) -> bool {
         let pos_to_remove = if let Ok(nodes) = self.nodes.read() {
             let pos_to_remove: Vec<usize> = nodes
                 .iter()
@@ -452,6 +451,9 @@ impl SortedNodeLayout {
                 });
                 update_edges_groups(edges, hidden_predicates);
             });
+            false 
+        } else {
+            true
         }
     }
 
@@ -529,10 +531,6 @@ impl SortedNodeLayout {
     }
 
     pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
-        let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
-        if ui.checkbox(&mut keep_temperature, "Keep Temparature").changed() {
-            self.keep_temperature.store(keep_temperature, Ordering::Relaxed);
-        }
         #[cfg(not(target_arch = "wasm32"))]
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
@@ -572,11 +570,19 @@ impl SortedNodeLayout {
             }
         }
         if self.layout_handle.is_none() {
-            if ui.button("Start Layout").clicked() {
+            if ui.button(ICON_REFRESH).on_hover_text("Start Layout (F5)").clicked() 
+            || ui.input(|i| i.key_pressed(egui::Key::F5)) {
                 self.start_layout(config);
             }
-        } else if ui.button("Stop Layout").clicked() {
+        } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked() 
+            || ui.input(|i| i.key_pressed(egui::Key::X))
+        {
             self.stop_layout();
+        }
+        let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
+        if ui.selectable_label( keep_temperature, ICON_KEEP_TEMPERATURE).on_hover_text("Continue Layout/Keep Layout Temperature").clicked() {
+            keep_temperature = !keep_temperature;
+            self.keep_temperature.store(keep_temperature, Ordering::Relaxed);
         }
     }
 
@@ -703,6 +709,43 @@ impl SortedNodeLayout {
             }
         }
         self.remove_pos_list(&pos_to_remove, hidden_predicates);
+    }
+
+    pub fn hide_unconnected(&mut self, current_index: IriIndex, hidden_predicates: &SortedVec) -> bool {
+        let current_index = match self.get_pos(current_index) {
+            Some(pos) => pos,
+            None => return false,
+        };
+        let len = self.nodes.read().unwrap().len();
+        let mut adj = vec![Vec::new(); len];
+        for edge in self.edges.read().unwrap().iter() {
+            adj[edge.from].push(edge.to);
+            adj[edge.to].push(edge.from);
+        }
+
+        // BFS traversal
+        let mut visited = FixedBitSet::with_capacity(len);
+        let mut queue = VecDeque::new();
+
+        visited.insert(current_index);
+        queue.push_back(current_index);
+
+        while let Some(u) = queue.pop_front() {
+            for &v in &adj[u] {
+                if v<len && !visited.contains(v) {
+                    visited.insert(v);
+                    queue.push_back(v);
+                }
+            }
+        }
+        let mut pos_to_remove: Vec<usize> = visited.zeroes().collect();
+        if pos_to_remove.is_empty() {
+            false
+        } else {
+            pos_to_remove.sort_unstable();
+            self.remove_pos_list(&pos_to_remove, hidden_predicates);
+            true
+        }
     }
 
     pub fn remove_redundant_edges(&mut self, hidden_predicates: &SortedVec) {

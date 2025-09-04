@@ -269,7 +269,7 @@ pub fn compute_modularity(nodes_len: usize, edges: &[Edge], node_community: Vec<
         k[node] = node_degree;
     }
 
-    let mut Q = 0.0;
+    let mut q: f32 = 0.0;
     for nodes in communities.values() {
         // sum of weights of internal edges
         let mut in_weight = 0.0;
@@ -286,9 +286,9 @@ pub fn compute_modularity(nodes_len: usize, edges: &[Edge], node_community: Vec<
             }
         }
         in_weight /= 2.0;
-        Q += in_weight / m - (tot_degree / (2.0*m)).powi(2);
+        q += in_weight / m - (tot_degree / (2.0*m)).powi(2);
     }
-    Q   
+    q   
 }
 
 struct Community {

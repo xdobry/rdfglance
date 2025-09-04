@@ -2,6 +2,7 @@
 
 use anyhow::Error;
 use const_format::concatcp;
+use fixedbitset::FixedBitSet;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -286,6 +287,25 @@ impl RdfData {
         }
     }
 
+    fn unexpand_all(&mut self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
+        let node_len = node_change_context.visible_nodes.nodes.read().unwrap().len();
+        if node_len == 0 {
+            return false;
+        }
+        let mut nodes_bits = FixedBitSet::with_capacity(node_len);
+        for edge in node_change_context.visible_nodes.edges.read().unwrap().iter() {
+            nodes_bits.insert(edge.from);
+        }
+        if nodes_bits.is_full() {
+            false
+        } else {
+            let mut nodes_indexes_to_remove: Vec<usize> = nodes_bits.zeroes().collect();
+            nodes_indexes_to_remove.sort_unstable();
+            node_change_context.visible_nodes.remove_pos_list(&nodes_indexes_to_remove, &hidden_predicates);
+            true
+        }
+    }
+
     pub fn resolve_rdf_lists(&mut self) {
         self.node_data.resolve_rdf_lists(&self.prefix_manager);
     }
@@ -344,7 +364,6 @@ pub struct UIState {
     language_sort: Vec<LangIndex>,
     show_properties: bool,
     show_labels: bool,
-    short_iri: bool,
     fade_unselected: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
@@ -574,7 +593,6 @@ impl RdfGlanceApp {
                 language_sort: Vec::new(),
                 show_properties: true,
                 show_labels: true,
-                short_iri: true,
                 style_edit: StyleEdit::None,
                 drag_diff: Pos2::ZERO,
                 icon_name_filter: String::new(),
@@ -1240,6 +1258,26 @@ impl eframe::App for RdfGlanceApp {
                     DisplayType::Configuration,
                     concatcp!(ICON_CONFIG, " Settings"),
                 );
+                ui.small("Num+Ctrl to Switch");
+                ui.input(|i| {
+                    if i.modifiers.ctrl && i.key_pressed(Key::Num1) {
+                        self.display_type = DisplayType::Table;
+                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num7) {
+                        self.display_type = DisplayType::Configuration;
+                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num6) {
+                        self.display_type = DisplayType::Prefixes;
+                    } else if !self.is_empty() {
+                        if i.modifiers.ctrl && i.key_pressed(Key::Num2) {
+                            self.display_type = DisplayType::Graph;
+                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num3) {
+                            self.display_type = DisplayType::Browse;
+                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num4) {
+                            self.display_type = DisplayType::MetaGraph;
+                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num5) {
+                            self.display_type = DisplayType::Statistics;
+                        } 
+                    }
+                })
             });
             ui.separator();
             let mut node_action = NodeAction::None;

@@ -929,7 +929,7 @@ dbr:Dafny a dbo:ProgrammingLanguage ;
 dbr:Dart_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Dart (programming language)"@en ;
     dbo:designer dbr:Lars_Bak_\(computer_programmer\) ;
-    dbo:influencedBy <http://dbpedia.org/resource/C++_(programming_language)>,
+    dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
         dbr:C_Sharp_\(programming_language\),
         dbr:Erlang_\(programming_language\),
@@ -3960,8 +3960,6 @@ dbr:Business_Basic a <dbo:ProgrammingLanguage> .
 
 dbr:Butler_Lampson a dbo:Person ;
     rdfs:label "Butler Lampson"@en .
-
-<http://dbpedia.org/resource/C++_(programming_language)> a <dbo:ProgrammingLanguage> .
 
 dbr:CAL_\(programming_language\) a <dbo:ProgrammingLanguage> .
 

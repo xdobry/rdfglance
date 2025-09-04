@@ -343,7 +343,7 @@ pub fn fg_color_mode(color: Color32, visuals: &egui::Visuals) -> Color32 {
         if Color32::BLACK == color {
             visuals.text_color()
         } else {
-            visuals.extreme_bg_color
+            color
         }
     } else {
         color

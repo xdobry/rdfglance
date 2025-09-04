@@ -1,11 +1,11 @@
 use std::{collections::{HashMap, HashSet}};
 
 use crate::{
-    distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_GRAPH, ICON_WRENCH}, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
+    config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_CENTER, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_LABEL, ICON_PROPERTIES, ICON_WRENCH, ICON_UNEXPAND}, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
-use egui::{Painter, Rect, Slider};
+use egui::{Painter, Rect, Slider, Key};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
@@ -22,6 +22,7 @@ enum NodeContextAction {
     HideOther,
     HideOtherTypes,
     HideUnrelated,
+    HideUnconnected,
     HideOrphans,
     HideRedundantEdges,
     Expand,
@@ -51,7 +52,10 @@ impl NodeContextAction {
         if ui.button("Hide unrelated").clicked() {
             return NodeContextAction::HideUnrelated;
         }
-        if ui.button("Hide Orfan Nodes").clicked() {
+        if ui.button("Hide unconnected").clicked() {
+            return NodeContextAction::HideUnconnected;
+        }
+        if ui.button("Hide Orphan Nodes").clicked() {
             return NodeContextAction::HideOrphans;
         }
         if ui.button("Hide Redundant Edges").clicked() {
@@ -84,8 +88,8 @@ impl RdfGlanceApp {
             return NodeAction::None;
         }
         ui.horizontal(|ui| {
-            self.visible_nodes.show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
-            if ui.button("Expand all").clicked() {
+            if ui.button(ICON_EXPAND).on_hover_text("Expand Nodes (+)").clicked() 
+                || ui.input(|i| i.key_pressed(Key::Plus)) {
                 if let Ok(mut rdf_data) = self.rdf_data.write() {
                     let mut node_change_context =  NodeChangeContext {
                         rdfwrap: &mut self.rdfwrap,
@@ -96,7 +100,21 @@ impl RdfGlanceApp {
                     }
                 }
             }
-            if ui.button("To Center").clicked() {
+            if ui.button(ICON_UNEXPAND).on_hover_text("Unexpand Nodes, Remove Leaves (-)").clicked() 
+                || ui.input(|i| i.key_pressed(Key::Minus)) {
+                if let Ok(mut rdf_data) = self.rdf_data.write() {
+                    let mut node_change_context =  NodeChangeContext {
+                        rdfwrap: &mut self.rdfwrap,
+                        visible_nodes: &mut self.visible_nodes,
+                    };
+                    if rdf_data.unexpand_all(&mut node_change_context, &self.ui_state.hidden_predicates) {
+                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                    }
+                }
+            }
+            if ui.button(ICON_CENTER).on_hover_text("Center Graph and reset zoom (Home)").clicked()
+                || ui.input(|i| i.key_pressed(Key::Home))
+             {
                 self.graph_state.scene_rect = Rect::ZERO;
                 self.visible_nodes.to_center();
             }
@@ -104,8 +122,7 @@ impl RdfGlanceApp {
                 ui.label("Semantic zoom");
                 ui.add(Slider::new(&mut self.ui_state.semantic_zoom_magnitude, 1..=10));
             }
-
-            ui.checkbox(&mut self.ui_state.show_properties, "Show Properties");
+            self.visible_nodes.show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
             ui.label("nodes force");
             let response = ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
             if response.changed() {
@@ -122,16 +139,13 @@ impl RdfGlanceApp {
                         self.persistent_data.config_data.m_attraction_factor));
                 }
             }
-            /*
-            ui.label("nodes force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.repulsion_constant, 0.3..=8.0));
-            ui.label("edges force");
-            ui.add(Slider::new(&mut self.persistent_data.config_data.attraction_factor, 0.001..=0.2));
-            */
-            ui.checkbox(&mut self.ui_state.show_labels, "Show Labels");
-            ui.checkbox(&mut self.ui_state.short_iri, "Short Iri");
-            ui.checkbox(&mut self.ui_state.fade_unselected, "Fade unselected");
-            let help_but = ui.button("\u{2753}");
+            if ui.selectable_label(self.ui_state.show_labels, ICON_LABEL).on_hover_text("Show Node Labels").clicked() {
+                self.ui_state.show_labels = !self.ui_state.show_labels;
+            }
+            if ui.selectable_label(self.ui_state.fade_unselected, ICON_HIGHLIGHT).on_hover_text("Highlight selected nodes and related").clicked() {
+                self.ui_state.fade_unselected = !self.ui_state.fade_unselected;
+            }
+            let help_but = ui.button(ICON_HELP);
             if help_but.clicked() {
                 self.help_open = true;
             }
@@ -146,6 +160,11 @@ impl RdfGlanceApp {
                         ui.label("Use right mouse click on node to open context Menu\n\nZoom use Ctrl + mouse wheel\n\nExpand Relations - double click on node");
                     });
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.selectable_label(self.ui_state.show_properties, ICON_PROPERTIES).on_hover_text("Show/Hide  Node Properties Panel").clicked() {
+                    self.ui_state.show_properties = !self.ui_state.show_properties;
+                }
+            });
         });
         match self.ui_state.style_edit {
             StyleEdit::Node(type_style_edit) => {
@@ -660,6 +679,7 @@ impl RdfGlanceApp {
                                         individual_node_style.get(node_pos),
                                         &rdf_data.node_data.indexers,
                                         &self.ui_state,
+                                        &self.persistent_data.config_data,
                                         painter,
                                         object,
                                         object_iri,
@@ -732,6 +752,7 @@ impl RdfGlanceApp {
                                     None,
                                     &rdf_data.node_data.indexers,
                                     &self.ui_state,
+                                    &self.persistent_data.config_data,
                                     painter,
                                     object,
                                     object_iri,
@@ -808,7 +829,7 @@ impl RdfGlanceApp {
                                 close_menu = true;
                             }
                             NodeContextAction::HideUnrelated => {
-                                self.visible_nodes.retain(&self.ui_state.hidden_predicates,|x| {
+                                let was_change = self.visible_nodes.retain(&self.ui_state.hidden_predicates,|x| {
                                     if x.node_index == *node_index {
                                         return true;
                                     }
@@ -821,14 +842,24 @@ impl RdfGlanceApp {
                                             .iter()
                                             .any(|(_predicate_index, ref_iri)| *ref_iri == x.node_index)
                                 });
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                if was_change {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
                                 close_menu = true;
                             }
+                            NodeContextAction::HideUnconnected => {
+                                if self.visible_nodes.hide_unconnected(current_index, &self.ui_state.hidden_predicates) {
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                }
+                                close_menu = true;
+                            },
                             NodeContextAction::HideOrphans => {
                                 self.visible_nodes.hide_orphans(&self.ui_state.hidden_predicates);
+                                close_menu = true;
                             }
                             NodeContextAction::HideRedundantEdges => {
                                 self.visible_nodes.remove_redundant_edges(&self.ui_state.hidden_predicates);
+                                close_menu = true;
                             }
                             NodeContextAction::Expand => {
                                 let mut node_change_context = NodeChangeContext {
@@ -932,7 +963,7 @@ impl RdfGlanceApp {
                     self.status_message.push_str(hover_node.node_label(
                         hover_node_iri,
                         &self.visualization_style,
-                        self.ui_state.short_iri,
+                        self.persistent_data.config_data.short_iri,
                         self.ui_state.display_language,
                         &rdf_data.node_data.indexers,
                     ));
@@ -948,7 +979,7 @@ impl RdfGlanceApp {
                             selected_node.node_label(
                                 selected_node_iri,
                                 &self.visualization_style,
-                                self.ui_state.short_iri,
+                                self.persistent_data.config_data.short_iri,
                                 self.ui_state.display_language,
                                 &rdf_data.node_data.indexers
                             )
@@ -993,6 +1024,7 @@ pub fn draw_node(
     individual_node_style: Option<&IndividualNodeStyleData>,
     indexers: &Indexers,
     ui_state: &UIState,
+    config: &Config,
     painter: &Painter,
     node_object: &NObject,
     object_iri: &str,
@@ -1033,7 +1065,7 @@ pub fn draw_node(
     let node_label = node_object.node_label(
         object_iri,
         visualization_style,
-        ui_state.short_iri,
+        config.short_iri,
         ui_state.display_language,
         indexers,
     );

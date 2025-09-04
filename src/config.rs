@@ -26,6 +26,8 @@ pub struct Config {
     pub community_resolution: f32,
     #[serde(default = "default_true")]
     pub community_randomize: bool,
+    #[serde(default = "default_true")]
+    pub short_iri: bool,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Copy, Clone)]
@@ -51,6 +53,7 @@ impl Default for Config {
             m_attraction_factor: 0.5,
             community_resolution: 1.0,
             community_randomize: true,
+            short_iri: true,
         }
     }
 }

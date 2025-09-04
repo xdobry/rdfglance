@@ -3,7 +3,7 @@ use std::{borrow::Cow, cmp::min};
 use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
-use crate::{config::IriDisplay, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
+use crate::{config::{Config, IriDisplay}, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
 
 const ROW_HIGHT: f32 = 17.0;
 const COLUMN_GAP: f32 = 2.0;
@@ -103,7 +103,8 @@ impl RdfGlanceApp {
                                 &mut instance_action,
                                 &mut self.ui_state,
                                 self.persistent_data.config_data.iri_display,
-                                &self.visualization_style
+                                &self.visualization_style,
+                                &self.persistent_data.config_data,
                             );
                         }
                     });
@@ -130,7 +131,8 @@ impl StatisticsData {
         instance_action: &mut NodeAction,
         layout_data: &UIState,
         iri_display: IriDisplay,
-        styles: &GVisualizationStyle
+        styles: &GVisualizationStyle,
+        config: &Config,
     ) {
         let instance_index = (self.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
@@ -247,7 +249,7 @@ impl StatisticsData {
                         }
                     } else {
                         let label: Cow<'_,str> = if i == 1 {
-                            Cow::Borrowed(node.node_label(node_iri, styles, layout_data.short_iri, layout_data.display_language, &rfd_data.node_data.indexers))
+                            Cow::Borrowed(node.node_label(node_iri, styles, config.short_iri, layout_data.display_language, &rfd_data.node_data.indexers))
                         } else {
                             let mut types_label = String::new();
                             node.types.iter().for_each(|type_index| {
@@ -335,17 +337,15 @@ impl StatisticsData {
         // Reorder the values in place based on the new indexes
         let nodes_len = self.nodes.len();
         assert_eq!(nodes_len, new_indexes.len());
-
-        let mut visited = vec![false; nodes_len];
+        let mut visited = fixedbitset::FixedBitSet::with_capacity( nodes_len);
 
         for i in 0..nodes_len {
             if visited[i] || new_indexes[i].1 as usize == i {
                 continue;
             }
-
             let mut current = i;
             while !visited[current] {
-                visited[current] = true;
+                visited.insert(current);
                 let next = new_indexes[current].1 as usize;
                 if next != i {
                     self.nodes.swap(current, next);

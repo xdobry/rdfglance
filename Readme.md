@@ -81,6 +81,16 @@ Some features of RDF are not supported very well. This includes:
 I hope to improve it in later versions.
 You may use github issue system to report bug and feature wishes.
 
+## Installation
+
+The application is only one executable file without dependencies that can be just copied somewhere.
+So no installation package need to be provided.
+As windows user you can just use executable from releases directory:
+[github releases](https://github.com/xdobry/rdfglance/releases)
+
+You may also associate the TTL file extension with the program.
+So you can open rdf-glance just by double-click on the file in the file explorer.
+
 ## Compilation
 
 To compile RDFGlance, you need to have [Rust installed](https://www.rust-lang.org/tools/install) on your system. Follow these steps to compile the application:
