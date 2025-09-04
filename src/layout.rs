@@ -541,6 +541,7 @@ impl SortedNodeLayout {
             }
             ctx.request_repaint();
         }
+        let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
         #[cfg(target_arch = "wasm32")]
         if self.compute_layout {
             let config = LayoutConfig {
@@ -579,7 +580,6 @@ impl SortedNodeLayout {
         {
             self.stop_layout();
         }
-        let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
         if ui.selectable_label( keep_temperature, ICON_KEEP_TEMPERATURE).on_hover_text("Continue Layout/Keep Layout Temperature").clicked() {
             keep_temperature = !keep_temperature;
             self.keep_temperature.store(keep_temperature, Ordering::Relaxed);
