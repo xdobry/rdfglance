@@ -1,15 +1,7 @@
-use eframe::egui::{
-    vec2, Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui,
-};
+use eframe::egui::{Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui, vec2};
 use egui::{Rect, Response, Sense, Vec2, Widget};
 
-pub fn popup_at<R>(
-    ui: &Ui,
-    popup_id: Id,
-    pos: Pos2,
-    width: f32,
-    add_contents: impl FnOnce(&mut Ui) -> R,
-) -> Option<R> {
+pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: impl FnOnce(&mut Ui) -> R) -> Option<R> {
     if ui.memory(|mem| mem.is_popup_open(popup_id)) {
         let inner = Area::new(popup_id)
             .order(Order::Foreground)
@@ -58,22 +50,24 @@ pub struct ScrollBar<'a> {
     // Position is 0..(len-visible_len)
     position: &'a mut f32,
     // Drag position is the offset from the center of the bar, if dragging is started from inside the bar
-    // otherwise bar middle is set to clicked possition on the whole bar
+    // otherwise bar middle is set to clicked position on the whole bar
     drag_pos: &'a mut Option<f32>,
     // The whole length of virtual area to scroll
     len: f32,
     // The visible area to scroll
     visible_len: f32,
+    header_height: f32,
 }
 
 impl<'a> ScrollBar<'a> {
-    pub fn new(position: &'a mut f32,drag_pos: &'a mut Option<f32>, len: f32, visible_len: f32) -> Self {
+    pub fn new(position: &'a mut f32, drag_pos: &'a mut Option<f32>, len: f32, visible_len: f32, header_height: f32) -> Self {
         ScrollBar {
             is_vertical: true,
             position,
-            drag_pos, 
+            drag_pos,
             len,
             visible_len,
+            header_height
         }
     }
 }
@@ -84,6 +78,20 @@ impl Widget for ScrollBar<'_> {
         let desired_size = Vec2::new(20.0, h); // Box size
         let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
 
+        ui.input(|i| {
+            if i.key_pressed(Key::PageDown) {
+                *self.position += self.visible_len - self.header_height;
+                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
+            } else if i.key_pressed(Key::PageUp) {
+                *self.position -= self.visible_len - self.header_height;
+                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
+            } else if i.key_pressed(Key::Home) {
+                *self.position = 0.0;
+            } else if i.key_pressed(Key::End) {
+                *self.position = self.len - self.visible_len;
+            }
+        });
+
         let mut bar_len = (h * self.visible_len / self.len).max(20.0).min(h);
         let bar_pos = *self.position * (h - bar_len) / (self.len - self.visible_len);
         if bar_pos + bar_len > h {
@@ -92,7 +100,7 @@ impl Widget for ScrollBar<'_> {
 
         let bar_rec = Rect::from_min_size(
             Pos2::new(rect.min.x, rect.min.y + bar_pos),
-            Vec2::new(rect.width(), bar_len),   
+            Vec2::new(rect.width(), bar_len),
         );
 
         if let Some(pointer_pos) = response.interact_pointer_pos() {
@@ -108,7 +116,7 @@ impl Widget for ScrollBar<'_> {
                     *self.drag_pos = Some(0.0)
                 } else {
                     // Clicked on bar so calculate the offset from the center
-                    *self.drag_pos = Some(bar_pos + bar_len/2.0 - pointer_pos);
+                    *self.drag_pos = Some(bar_pos + bar_len / 2.0 - pointer_pos);
                 }
             }
             if let Some(drag_pos) = *self.drag_pos {
@@ -117,40 +125,36 @@ impl Widget for ScrollBar<'_> {
                 } else {
                     pointer_pos.x - rect.min.x + drag_pos
                 };
-                if pointer_pos < bar_len/2.0 {
+                if pointer_pos < bar_len / 2.0 {
                     *self.position = 0.0;
-                } else if pointer_pos > h - bar_len/2.0 {
+                } else if pointer_pos > h - bar_len / 2.0 {
                     *self.position = self.len - self.visible_len;
                 } else {
-                    *self.position = (pointer_pos - bar_len/2.0) * (self.len - self.visible_len) / (h - bar_len);
+                    *self.position = (pointer_pos - bar_len / 2.0) * (self.len - self.visible_len) / (h - bar_len);
                 }
             }
             if response.drag_stopped() {
-                *self.drag_pos = None;                
+                *self.drag_pos = None;
             }
         } else {
             if self.drag_pos.is_some() {
                 *self.drag_pos = None;
             }
             let scroll = response.ctx.input(|i| i.smooth_scroll_delta.y);
-            if scroll!=0.0 && self.len>self.visible_len {
+            if scroll != 0.0 && self.len > self.visible_len {
                 *self.position -= scroll;
                 *self.position = self.position.clamp(0.0, self.len - self.visible_len);
             }
-
         }
 
-
         // Draw the filled box
-        ui.painter()
-            .rect_filled(rect, 5.0, ui.visuals().extreme_bg_color);
+        ui.painter().rect_filled(rect, 5.0, ui.visuals().extreme_bg_color);
 
         ui.painter().rect_filled(bar_rec, 5.0, ui.visuals().text_color());
 
         response
     }
 }
-
 
 #[derive(Debug)]
 pub struct ColorBox {
@@ -159,9 +163,7 @@ pub struct ColorBox {
 
 impl ColorBox {
     pub fn new(color: Color32) -> Self {
-        ColorBox {
-            color
-        }
+        ColorBox { color }
     }
 }
 

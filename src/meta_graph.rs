@@ -21,7 +21,7 @@ impl RdfGlanceApp {
                 self.meta_nodes.update_node_shapes = true;
             }
             self.meta_nodes
-                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
+                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             ui.label("nodes force");
             let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
@@ -286,7 +286,7 @@ impl RdfGlanceApp {
                                 TypeNodeContextAction::Hide => {
                                     let hidden_predicates = SortedVec::new();
                                     self.meta_nodes.remove(current_index, &hidden_predicates);
-                                    self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                     close_menu = true;
                                 }
                                 TypeNodeContextAction::HideSameInstCount => {
@@ -311,7 +311,7 @@ impl RdfGlanceApp {
                                 TypeNodeContextAction::HideOthers => {
                                     self.meta_nodes.clear();
                                     self.meta_nodes.add_by_index(current_index);
-                                    self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                     close_menu = true;
                                 }
                                 TypeNodeContextAction::None => {
@@ -355,7 +355,7 @@ impl RdfGlanceApp {
                                     &self.meta_nodes,
                                     &self.type_index,
                                 )));                           
-                                self.meta_nodes.start_layout(&self.persistent_data.config_data);
+                                self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                             }
                         }
                     }
@@ -379,7 +379,7 @@ impl RdfGlanceApp {
             &self.meta_nodes,
             &self.type_index,
         )));
-        self.meta_nodes.start_layout(&self.persistent_data.config_data);
+        self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
     }
 
     pub fn display_type_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -527,12 +527,14 @@ mod tests {
             repulsion_constant: vs.persistent_data.config_data.m_repulsion_constant,
             attraction_factor: vs.persistent_data.config_data.m_attraction_factor,
         };
+        let hidden_predicates = SortedVec::new();
         let (max_move, positions) = layout_graph_nodes(
             &vs.meta_nodes.nodes.read().unwrap(),
             &vs.meta_nodes.node_shapes.read().unwrap(),
             &vs.meta_nodes.positions.read().unwrap(),
             &vs.meta_nodes.edges.read().unwrap(),
             &layout_config,
+            &hidden_predicates,
             100.0,
         );
         assert!(max_move > 0.0);

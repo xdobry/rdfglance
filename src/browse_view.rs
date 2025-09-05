@@ -2,16 +2,17 @@ use const_format::concatcp;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData}, style::{ICON_FILTER, ICON_GRAPH}, uitools::primary_color, GVisualizationStyle, NodeAction, RdfGlanceApp, UIState
+    GVisualizationStyle, NodeAction, RdfGlanceApp, UIState,
+    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData},
+    style::{ICON_FILTER, ICON_GRAPH},
+    uitools::primary_color,
 };
-
-
 
 #[derive(PartialEq)]
 pub enum ReferenceAction {
     None,
     ShowNode(IriIndex),
-    Filter(IriIndex,Vec<IriIndex>)
+    Filter(IriIndex, Vec<IriIndex>),
 }
 
 impl RdfGlanceApp {
@@ -19,12 +20,18 @@ impl RdfGlanceApp {
         let mut action_type_index: NodeAction = NodeAction::None;
         ui.horizontal(|ui| {
             ui.horizontal(|ui| {
-                if ui.button("\u{2b05}").clicked() && self.nav_pos > 0 {
+                if (ui.button("\u{2b05}").clicked()
+                    || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft)))
+                    && self.nav_pos > 0
+                {
                     self.nav_pos -= 1;
                     let object_iri_index = self.nav_history[self.nav_pos];
                     self.show_object_by_index(object_iri_index, false);
                 }
-                if ui.button("\u{27a1}").clicked() && self.nav_pos < self.nav_history.len() - 1 {
+                if (ui.button("\u{27a1}").clicked()
+                    || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)))
+                    && self.nav_pos < self.nav_history.len() - 1
+                {
                     self.nav_pos += 1;
                     let object_iri_index = self.nav_history[self.nav_pos];
                     self.show_object_by_index(object_iri_index, false);
@@ -49,7 +56,7 @@ impl RdfGlanceApp {
                     let button_text = egui::RichText::new(concatcp!(ICON_GRAPH, " See in Visual Graph")).size(16.0);
                     let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                     let b_resp = ui.add(nav_but);
-                    if b_resp.clicked() {
+                    if b_resp.clicked() || ui.input(|i| i.key_pressed(egui::Key::G)) {
                         action_type_index = NodeAction::ShowVisual(current_iri_index);
                     }
                     b_resp.on_hover_text("This will add the node to the visual graph and switch to visual graph view. The node will be selected.");
@@ -61,9 +68,11 @@ impl RdfGlanceApp {
                     ui.horizontal(|ui| {
                         ui.strong("types:");
                         for type_index in &current_node.types {
-                            let type_label =
-                                rdf_data.node_data
-                                    .type_display(*type_index, &label_context, &rdf_data.node_data.indexers);
+                            let type_label = rdf_data.node_data.type_display(
+                                *type_index,
+                                &label_context,
+                                &rdf_data.node_data.indexers,
+                            );
                             if ui.button(type_label.as_str()).clicked() {
                                 action_type_index = NodeAction::ShowType(*type_index);
                             }
@@ -153,7 +162,7 @@ impl RdfGlanceApp {
                 action_type_index = NodeAction::BrowseNode(iri_index);
             }
             ReferenceAction::Filter(node_type, instances) => {
-                action_type_index = NodeAction::ShowTypeInstances(node_type, instances);                
+                action_type_index = NodeAction::ShowTypeInstances(node_type, instances);
             }
         }
         action_type_index
@@ -292,11 +301,8 @@ pub fn show_references(
                             ui.label(types_label);
                         });
                         row.col(|ui| {
-                            let label = ref_node.node_label_opt(
-                                color_cache,
-                                layout_data.display_language,
-                                &node_data.indexers,
-                            );
+                            let label =
+                                ref_node.node_label_opt(color_cache, layout_data.display_language, &node_data.indexers);
                             if let Some(label) = label {
                                 ui.label(label);
                             }
@@ -308,21 +314,26 @@ pub fn show_references(
                                 if ui.button(ICON_FILTER).clicked() {
                                     let node_type = ref_node.types.first().unwrap();
                                     // collected all instance of same predicate and type
-                                    let instances: Vec<IriIndex> = references.iter().filter(|(pred, iref_index)| {
-                                        if pred == predicate_index {
-                                            if let Some((_iri, nobject)) = node_data.get_node_by_index(*iref_index) {
-                                                nobject.types.contains(node_type)
+                                    let instances: Vec<IriIndex> = references
+                                        .iter()
+                                        .filter(|(pred, iref_index)| {
+                                            if pred == predicate_index {
+                                                if let Some((_iri, nobject)) = node_data.get_node_by_index(*iref_index)
+                                                {
+                                                    nobject.types.contains(node_type)
+                                                } else {
+                                                    false
+                                                }
                                             } else {
                                                 false
                                             }
-                                        } else {
-                                            false
-                                        }
-                                    }).map(|(_pred, iref_index)| *iref_index).collect();
-                                    node_to_click = ReferenceAction::Filter(*node_type,instances);
+                                        })
+                                        .map(|(_pred, iref_index)| *iref_index)
+                                        .collect();
+                                    node_to_click = ReferenceAction::Filter(*node_type, instances);
                                 }
                             }
-                       });
+                        });
                     }
                 });
             });

@@ -375,6 +375,7 @@ pub struct GraphState {
     scene_rect: Rect,
 }
 
+#[derive(Clone)]
 pub struct SortedVec {
     pub data: Vec<IriIndex>,
 }

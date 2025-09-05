@@ -77,6 +77,7 @@ pub struct InstanceView {
     pub column_resize: InstanceColumnResize,
     pub iri_width: f32,
     pub ref_count_width: f32,
+    pub selected_idx: Option<IriIndex>,
 }
 
 pub enum InstanceColumnResize {
@@ -156,6 +157,7 @@ impl TypeData {
                 column_resize: InstanceColumnResize::None,
                 iri_width: IRI_WIDTH,
                 ref_count_width: REF_COUNT_WIDTH,
+                selected_idx: None,
             },
         }
     }
@@ -177,8 +179,9 @@ impl TypeData {
         layout_data: &UIState,
         iri_display: IriDisplay,
     ) {
-        let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
+
+        let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let capacity = (a_height / ROW_HIGHT) as usize - 1;
 
         let available_rect = ui.max_rect(); // Get the full available area
@@ -356,15 +359,26 @@ impl TypeData {
         {
             let node = node_data.get_node_by_index(*instance_index);
             if let Some((node_iri, node)) = node {
-                if start_pos % 2 == 0 {
+                if self.instance_view.selected_idx == Some(*instance_index) {
                     painter.rect_filled(
                         Rect::from_min_size(
                             available_rect.left_top() + Vec2::new(0.0, ypos),
                             Vec2::new(available_width, ROW_HIGHT),
                         ),
                         0.0,
-                        ui.visuals().faint_bg_color,
+                        ui.visuals().selection.bg_fill,
                     );
+                } else {
+                    if start_pos % 2 == 0 {
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                available_rect.left_top() + Vec2::new(0.0, ypos),
+                                Vec2::new(available_width, ROW_HIGHT),
+                            ),
+                            0.0,
+                            ui.visuals().faint_bg_color,
+                        );
+                    }
                 }
                 start_pos += 1;
                 let mut xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
@@ -474,6 +488,17 @@ impl TypeData {
                     }
                 }
                 ypos += ROW_HIGHT;
+            }
+        }
+        if matches!(instance_action, NodeAction::None) {
+            if let Some(selected_id) = self.instance_view.selected_idx {
+               ui.input(|i| {
+                    if i.key_pressed(Key::Enter) {
+                        *instance_action = NodeAction::BrowseNode(selected_id);
+                    } else if i.key_pressed(Key::G) {
+                        *instance_action = NodeAction::ShowVisual(selected_id);
+                    }
+               });
             }
         }
         // Draw vertical lines
@@ -1035,6 +1060,9 @@ impl TypeInstanceIndex {
                 }
             }
             type_data.filtered_instances = type_data.instances.clone();
+            if !type_data.instances.is_empty() {
+                type_data.instance_view.selected_idx = Some(type_data.instances[0]);
+            }
         }
         self.types_order.sort_by(|a, b| {
             let a_data = self.types.get(a).unwrap();
@@ -1311,6 +1339,7 @@ impl TypeInstanceIndex {
                                 &mut type_data.instance_view.drag_pos,
                                 needed_len,
                                 a_height,
+                                ROW_HIGHT
                             ));
                         });
                     });

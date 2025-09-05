@@ -530,7 +530,7 @@ impl SortedNodeLayout {
         });
     }
 
-    pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config) {
+    pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config, hidden_predicates: &SortedVec) {
         #[cfg(not(target_arch = "wasm32"))]
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
@@ -573,7 +573,7 @@ impl SortedNodeLayout {
         if self.layout_handle.is_none() {
             if ui.button(ICON_REFRESH).on_hover_text("Start Layout (F5)").clicked() 
             || ui.input(|i| i.key_pressed(egui::Key::F5)) {
-                self.start_layout(config);
+                self.start_layout(config, &hidden_predicates);
             }
         } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked() 
             || ui.input(|i| i.key_pressed(egui::Key::X))
@@ -593,15 +593,15 @@ impl SortedNodeLayout {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn start_layout(&mut self, config: &Config) {
-        self.start_background_layout(config, 100.0);
+    pub fn start_layout(&mut self, config: &Config, hidden_predicates: &SortedVec) {
+        self.start_background_layout(config, hidden_predicates, 100.0, );
     }
 
     pub fn stop_layout(&mut self) {
         self.stop_background_layout.store(true, Ordering::Relaxed);
     }
 
-    pub fn start_background_layout(&mut self, config: &Config, temperature: f32) {
+    pub fn start_background_layout(&mut self, config: &Config, hidden_predicates: &SortedVec, temperature: f32) {
         if self.layout_handle.is_some() {
             return;
         }
@@ -620,6 +620,7 @@ impl SortedNodeLayout {
         let is_done = Arc::clone(&self.background_layout_finished);
         let stop_layout = Arc::clone(&self.stop_background_layout);
         let (tx, rx) = mpsc::channel::<LayoutConfUpdate>();
+        let hidden_predicates: SortedVec = hidden_predicates.clone();
 
         let handle = thread::spawn(move || {
             let mut temperature = temperature;
@@ -650,7 +651,7 @@ impl SortedNodeLayout {
                     let nodes = nodes_clone.read().unwrap();
                     let node_shapes = node_shapes_clone.read().unwrap();
                     let edges = edges_clone.read().unwrap();
-                    layout_graph_nodes(&nodes, &node_shapes, &positions, &edges, &layout_config, temperature)
+                    layout_graph_nodes(&nodes, &node_shapes, &positions, &edges, &layout_config, &hidden_predicates, temperature)
                 };
                 if stop_layout.load(Ordering::Relaxed) {
                     // println!("Layout stoppend");
@@ -938,6 +939,7 @@ pub fn layout_graph_nodes(
     positions: &[NodePosition],
     edges: &[Edge],
     config: &LayoutConfig,
+    hidden_predicates: &SortedVec,
     temperature: f32,
 ) -> (f32, Vec<NodePosition>) {
     if nodes.is_empty() {
@@ -985,7 +987,7 @@ pub fn layout_graph_nodes(
         .collect();
 
     for edge in edges.iter() {
-        if edge.from != edge.to {
+        if edge.from != edge.to && !hidden_predicates.contains(edge.predicate) {
             let node_from = &node_shapes[edge.from];
             let node_to = &node_shapes[edge.to];
             let position_from = &positions[edge.from];

@@ -96,7 +96,7 @@ impl RdfGlanceApp {
                         visible_nodes: &mut self.visible_nodes,
                     };
                     if rdf_data.expand_all(&mut node_change_context, &self.ui_state.hidden_predicates) {
-                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                        self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                     }
                 }
             }
@@ -108,7 +108,7 @@ impl RdfGlanceApp {
                         visible_nodes: &mut self.visible_nodes,
                     };
                     if rdf_data.unexpand_all(&mut node_change_context, &self.ui_state.hidden_predicates) {
-                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                        self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                     }
                 }
             }
@@ -122,7 +122,7 @@ impl RdfGlanceApp {
                 ui.label("Semantic zoom");
                 ui.add(Slider::new(&mut self.ui_state.semantic_zoom_magnitude, 1..=10));
             }
-            self.visible_nodes.show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data);
+            self.visible_nodes.show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             ui.label("nodes force");
             let response = ui.add(Slider::new(&mut self.persistent_data.config_data.m_repulsion_constant, 0.1..=8.0));
             if response.changed() {
@@ -332,7 +332,7 @@ impl RdfGlanceApp {
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
@@ -362,7 +362,7 @@ impl RdfGlanceApp {
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     }
                                     let reference_state = reference_state.get(reference_index).unwrap();
@@ -376,7 +376,7 @@ impl RdfGlanceApp {
                                             if let Ok(mut edges) = self.visible_nodes.edges.write() {
                                                 update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
                                             }
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     } else {
                                         let hide_but = ui.button("❌");
@@ -386,7 +386,7 @@ impl RdfGlanceApp {
                                             if let Ok(mut edges) = self.visible_nodes.edges.write() {
                                                 update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
                                             }
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     }
                                 });
@@ -438,7 +438,7 @@ impl RdfGlanceApp {
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     }
                                     let edge_style_button = egui::Button::new(ICON_WRENCH)
@@ -466,7 +466,7 @@ impl RdfGlanceApp {
                                         if !npos.is_empty() {
                                             update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                                             npos.position(&mut self.visible_nodes);
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     }
                                     let reference_state = reference_state.get(reference_index).unwrap();
@@ -478,14 +478,14 @@ impl RdfGlanceApp {
                                             if let Ok(mut edges) = self.visible_nodes.edges.write() {
                                                 update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
                                             }
-                                            self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                            self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                         }
                                     } else if ui.button("❌").clicked() {
                                         self.ui_state.hidden_predicates.add(*reference_index);
                                         if let Ok(mut edges) = self.visible_nodes.edges.write() {
                                             update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
                                         }
-                                        self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                        self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                     }
                                 });
                             }
@@ -793,7 +793,7 @@ impl RdfGlanceApp {
                         match node_action {
                             NodeContextAction::Hide => {
                                 self.visible_nodes.remove(current_index, &self.ui_state.hidden_predicates);
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 close_menu = true;
                             }
                             NodeContextAction::HideThisType => {
@@ -806,13 +806,13 @@ impl RdfGlanceApp {
                                         true
                                     }
                                 });
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 close_menu = true;
                             }
                             NodeContextAction::HideOther => {
                                 self.visible_nodes.clear();
                                 self.visible_nodes.add_by_index(current_index);
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 close_menu = true;
                             }
                             NodeContextAction::HideOtherTypes => {
@@ -825,7 +825,7 @@ impl RdfGlanceApp {
                                         false
                                     }
                                 });
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 close_menu = true;
                             }
                             NodeContextAction::HideUnrelated => {
@@ -843,13 +843,13 @@ impl RdfGlanceApp {
                                             .any(|(_predicate_index, ref_iri)| *ref_iri == x.node_index)
                                 });
                                 if was_change {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             }
                             NodeContextAction::HideUnconnected => {
                                 if self.visible_nodes.hide_unconnected(current_index, &self.ui_state.hidden_predicates) {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             },
@@ -867,7 +867,7 @@ impl RdfGlanceApp {
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_node(current_index, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             }
@@ -877,10 +877,10 @@ impl RdfGlanceApp {
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_node(current_index, ExpandType::References, &mut node_change_context, &self.ui_state.hidden_predicates) {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             }
@@ -895,7 +895,7 @@ impl RdfGlanceApp {
                                     &mut node_change_context,
                                     &self.ui_state.hidden_predicates,
                                 ) {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             }
@@ -906,7 +906,7 @@ impl RdfGlanceApp {
                                     visible_nodes: &mut self.visible_nodes,
                                 };
                                 if rdf_data.expand_all_by_types(&types, &mut node_change_context, &self.ui_state.hidden_predicates) {
-                                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 }
                                 close_menu = true;
                             }
@@ -921,7 +921,7 @@ impl RdfGlanceApp {
                                         true
                                     }
                                 });
-                                self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                                self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 close_menu = true;
                             }
                             NodeContextAction::None => {
@@ -951,7 +951,7 @@ impl RdfGlanceApp {
                     visible_nodes: &mut self.visible_nodes,
                 };
                 if rdf_data.expand_node(node_to_click, ExpandType::Both, &mut node_change_context, &self.ui_state.hidden_predicates) {
-                    self.visible_nodes.start_layout(&self.persistent_data.config_data);
+                    self.visible_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                 }
             }
         }

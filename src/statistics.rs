@@ -114,6 +114,7 @@ impl RdfGlanceApp {
                             &mut statistics_data.drag_pos,
                             needed_len,
                             a_height,
+                            ROW_HIGHT
                         ));
                     });
                 });
