@@ -77,7 +77,7 @@ pub struct InstanceView {
     pub column_resize: InstanceColumnResize,
     pub iri_width: f32,
     pub ref_count_width: f32,
-    pub selected_idx: Option<IriIndex>,
+    pub selected_idx: Option<(IriIndex, usize)>,
 }
 
 pub enum InstanceColumnResize {
@@ -181,8 +181,83 @@ impl TypeData {
     ) {
         let a_height = ui.available_height();
 
-        let instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+        let mut instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let capacity = (a_height / ROW_HIGHT) as usize - 1;
+
+        if let Some((_node_iri,idx)) = self.instance_view.selected_idx {
+            ui.input(|i| {
+                if idx>0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
+                    let new_idx = idx-1;
+                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    if new_idx < instance_index {
+                        instance_index = new_idx;
+                        self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                    }
+                } else if idx<self.filtered_instances.len()-1 && i.modifiers.is_none() && i.key_pressed(Key::ArrowDown) {
+                    let new_idx = idx+1;
+                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    if new_idx >= instance_index + capacity - 1 {
+                        instance_index = new_idx + 1 - capacity;
+                        self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                    }
+                } else if idx!=0 && i.key_pressed(Key::Home) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    self.instance_view.pos = 0.0;
+                    instance_index = 0;
+                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    }
+                } else if i.key_pressed(Key::End) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                    self.instance_view.pos = needed_len - a_height;
+                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    }
+                } else if i.key_pressed(Key::PageUp) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    self.instance_view.pos -= a_height - ROW_HIGHT;
+                    if self.instance_view.pos < 0.0 {
+                        self.instance_view.pos = 0.0;
+                    }
+                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    }
+                } else if i.key_pressed(Key::PageDown) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                    self.instance_view.pos += a_height - ROW_HIGHT;
+                    if self.instance_view.pos > needed_len - a_height {
+                        self.instance_view.pos = needed_len - a_height;
+                    }
+                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    }
+                }
+            });
+        }
+        /*
+         ui.input(|i| {
+            if i.key_pressed(Key::PageDown) {
+                *self.position += self.visible_len - self.header_height;
+                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
+            } else if i.key_pressed(Key::PageUp) {
+                *self.position -= self.visible_len - self.header_height;
+                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
+            } else if i.key_pressed(Key::Home) {
+                *self.position = 0.0;
+            } else if i.key_pressed(Key::End) {
+                *self.position = self.len - self.visible_len;
+            }
+        });
+         */
 
         let available_rect = ui.max_rect(); // Get the full available area
 
@@ -359,7 +434,7 @@ impl TypeData {
         {
             let node = node_data.get_node_by_index(*instance_index);
             if let Some((node_iri, node)) = node {
-                if self.instance_view.selected_idx == Some(*instance_index) {
+                if matches!(self.instance_view.selected_idx, Some((a, _)) if a == *instance_index) {
                     painter.rect_filled(
                         Rect::from_min_size(
                             available_rect.left_top() + Vec2::new(0.0, ypos),
@@ -491,7 +566,7 @@ impl TypeData {
             }
         }
         if matches!(instance_action, NodeAction::None) {
-            if let Some(selected_id) = self.instance_view.selected_idx {
+            if let Some((selected_id, _idx)) = self.instance_view.selected_idx {
                ui.input(|i| {
                     if i.key_pressed(Key::Enter) {
                         *instance_action = NodeAction::BrowseNode(selected_id);
@@ -816,6 +891,31 @@ impl TypeData {
             }
         });
     }
+    pub fn update_selected_index(&mut self) {
+        if let Some((iri,idx)) = self.instance_view.selected_idx {
+            if idx == 0 {
+                if self.filtered_instances.len()>0 {
+                    self.instance_view.selected_idx = Some((self.filtered_instances[idx],idx));
+                } else {
+                    self.instance_view.selected_idx = None;
+                }
+            } else {
+                if let Some(new_idx) = self.filtered_instances.iter().position(|e| *e == iri) {
+                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                } else {
+                    if self.filtered_instances.len()>0 {
+                        self.instance_view.selected_idx = Some((self.filtered_instances[0],0));
+                    } else {
+                        self.instance_view.selected_idx = None;
+                    }
+                }
+            }
+        } else {
+            if self.filtered_instances.len()>0 {
+                self.instance_view.selected_idx = Some((self.filtered_instances[0],0));
+            }
+        }
+    }
 }
 
 pub fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, strong: bool, visuals: &egui::Visuals) {
@@ -1061,7 +1161,7 @@ impl TypeInstanceIndex {
             }
             type_data.filtered_instances = type_data.instances.clone();
             if !type_data.instances.is_empty() {
-                type_data.instance_view.selected_idx = Some(type_data.instances[0]);
+                type_data.instance_view.selected_idx = Some((type_data.instances[0],0));
             }
         }
         self.types_order.sort_by(|a, b| {
@@ -1296,6 +1396,7 @@ impl TypeInstanceIndex {
                     if ui.button(ICON_CLOSE).clicked() {
                         type_data.instance_view.instance_filter.clear();
                         type_data.filtered_instances = type_data.instances.clone();
+                        type_data.update_selected_index();
                         type_data.instance_view.instance_filter.clear();
                     }
                     ui.label(format!(
@@ -1343,7 +1444,6 @@ impl TypeInstanceIndex {
                             ));
                         });
                     });
-
                 match table_action {
                     TableAction::HideColumn(predicate_to_hide) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
@@ -1396,6 +1496,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Greater
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::SortColumnDesc(predicate_to_sort) => {
@@ -1429,6 +1530,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Less
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::SortRefAsc() => {
@@ -1448,6 +1550,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Less
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::SortRefDesc() => {
@@ -1467,6 +1570,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Less
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::SortIriAsc() => {
@@ -1484,6 +1588,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Less
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::SortIriDesc() => {
@@ -1501,6 +1606,7 @@ impl TypeInstanceIndex {
                                     std::cmp::Ordering::Less
                                 }
                             });
+                            type_data.update_selected_index();
                         }
                     }
                     TableAction::Filter => {
@@ -1525,6 +1631,7 @@ impl TypeInstanceIndex {
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
+                        type_data.update_selected_index();
                     }
                     TableAction::HidePropExists(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
@@ -1537,6 +1644,7 @@ impl TypeInstanceIndex {
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
+                        type_data.update_selected_index();
                     }
                     TableAction::HidePropNonMulti(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
@@ -1557,6 +1665,7 @@ impl TypeInstanceIndex {
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
+                        type_data.update_selected_index();
                     }
                     TableAction::HidePropNotExists(predicate_to_hide) => {
                         type_data.filtered_instances.retain(|&instance_index| {
@@ -1569,6 +1678,7 @@ impl TypeInstanceIndex {
                         if (type_data.instance_view.pos / ROW_HIGHT) as usize >= type_data.filtered_instances.len() {
                             type_data.instance_view.pos = 0.0;
                         }
+                        type_data.update_selected_index();
                     }
                     TableAction::None => {}
                 }
@@ -1690,13 +1800,13 @@ impl TypeInstanceIndex {
                 });
             });
         ui.input(|i| {
-            if i.key_pressed(egui::Key::ArrowDown) {
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowDown) {
                 let new_selected_type = self.types_filtered.get(selected_type_index + 1);
                 if let Some(new_selected_type) = new_selected_type {
                     selected_type = Some(*new_selected_type);
                 }
             }
-            if selected_type_index>0 && i.key_pressed(egui::Key::ArrowUp) {
+            if selected_type_index>0 && i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowUp) {
                 let new_selected_type = self.types_filtered.get(selected_type_index - 1);
                 if let Some(new_selected_type) = new_selected_type {
                     selected_type = Some(*new_selected_type);

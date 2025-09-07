@@ -56,7 +56,6 @@ pub struct ScrollBar<'a> {
     len: f32,
     // The visible area to scroll
     visible_len: f32,
-    header_height: f32,
 }
 
 impl<'a> ScrollBar<'a> {
@@ -67,7 +66,6 @@ impl<'a> ScrollBar<'a> {
             drag_pos,
             len,
             visible_len,
-            header_height
         }
     }
 }
@@ -77,20 +75,6 @@ impl Widget for ScrollBar<'_> {
         let h = ui.available_height();
         let desired_size = Vec2::new(20.0, h); // Box size
         let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
-
-        ui.input(|i| {
-            if i.key_pressed(Key::PageDown) {
-                *self.position += self.visible_len - self.header_height;
-                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
-            } else if i.key_pressed(Key::PageUp) {
-                *self.position -= self.visible_len - self.header_height;
-                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
-            } else if i.key_pressed(Key::Home) {
-                *self.position = 0.0;
-            } else if i.key_pressed(Key::End) {
-                *self.position = self.len - self.visible_len;
-            }
-        });
 
         let mut bar_len = (h * self.visible_len / self.len).max(20.0).min(h);
         let bar_pos = *self.position * (h - bar_len) / (self.len - self.visible_len);
