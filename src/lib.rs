@@ -34,7 +34,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::{statistics::StatisticsData, uitools::primary_color};
+use crate::{nobject::NObject, statistics::StatisticsData, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -76,6 +76,7 @@ pub enum DisplayType {
 pub struct RdfGlanceApp {
     object_iri: String,
     current_iri: Option<IriIndex>,
+    ref_selection: RefSelection,
     rdfwrap: Box<dyn rdfwrap::RDFAdapter>,
     nav_pos: usize,
     nav_history: Vec<IriIndex>,
@@ -100,6 +101,106 @@ pub struct RdfGlanceApp {
     file_upload: Option<Promise<Result<File, anyhow::Error>>>,
     data_loading: Option<Arc<DataLoading>>,
     import_from_url: Option<ImportFromUrlData>,
+}
+
+// Used to indicate which reference is selected in the browse view
+#[derive(Debug)]
+pub enum RefSelection {
+    None,
+    Reference(usize),
+    ReverseReverence(usize)
+}
+
+impl RefSelection {
+    pub fn init_from_node(&mut self, node: &NObject) {
+        if !node.references.is_empty() {
+            *self = RefSelection::Reference(0);
+        } else if !node.reverse_references.is_empty() {
+            *self = RefSelection::ReverseReverence(0);
+        } else {
+            *self = RefSelection::None;
+        }
+    }
+    pub fn ref_index(&self, is_reverse: bool) -> Option<usize> {
+        match self {
+            RefSelection::None => None,
+            RefSelection::Reference(idx) => {
+                if is_reverse {
+                    None
+                } else {
+                    Some(*idx)
+                }
+            },
+            RefSelection::ReverseReverence(idx) => {
+                if is_reverse {
+                    Some(*idx)
+                } else {
+                    None
+                }
+            },
+        }
+    }
+    pub fn move_up(&mut self) {
+        match self {
+            RefSelection::None => {},
+            RefSelection::Reference(idx) => {
+                if *idx > 0 {
+                    *idx -= 1;
+                }
+            },
+            RefSelection::ReverseReverence(idx) => {
+                if *idx > 0 {
+                    *idx -= 1;
+                }
+            },
+        }
+    }
+    pub fn move_down(&mut self, node: &NObject) {
+        match self {
+            RefSelection::None => {},
+            RefSelection::Reference(idx) => {
+                if *idx < node.references.len()-1 {
+                    *idx += 1;
+                }
+            },
+            RefSelection::ReverseReverence(idx) => {
+                if *idx < node.reverse_references.len()-1 {
+                    *idx += 1;
+                }
+            },
+        }
+    }
+    pub fn move_right(&mut self, node: &NObject) {
+        match self {
+            RefSelection::None => {},
+            RefSelection::Reference(idx) => {
+                if !node.reverse_references.is_empty() {
+                    if *idx > node.reverse_references.len()-1 {
+                        *idx = node.reverse_references.len()-1;
+                    }
+                    *self = RefSelection::ReverseReverence(*idx);
+                }
+            },
+            RefSelection::ReverseReverence(_) => {
+            },
+        }
+    }
+    pub fn move_left(&mut self, node: &NObject) {
+        match self {
+            RefSelection::None => {},
+            RefSelection::Reference(_) => {
+            },
+            RefSelection::ReverseReverence(idx) => {
+                if !node.references.is_empty() {
+                    if *idx > node.references.len()-1 {
+                        *idx = node.references.len()-1;
+                    }
+                    *self = RefSelection::Reference(*idx);
+                }
+            },
+        }
+    }
+
 }
 
 pub struct DataLoading {
@@ -369,6 +470,13 @@ pub struct UIState {
     icon_name_filter: String,
     cpu_usage: f32,
     about_window: bool,
+    last_visited_selection: LastVisitedSelection
+}
+
+pub enum LastVisitedSelection {
+    None,
+    File(usize),
+    Project(usize),
 }
 
 pub struct GraphState {
@@ -551,6 +659,7 @@ impl RdfGlanceApp {
         let mut app = Self {
             object_iri: String::new(),
             current_iri: None,
+            ref_selection: RefSelection::None,
             rdfwrap: Box::new(rdfwrap::RDFWrap::empty()),
             nav_pos: 0,
             nav_history: vec![],
@@ -602,6 +711,7 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
+                last_visited_selection: LastVisitedSelection::File(0)
             },
             help_open: false,
             load_handle: None,
@@ -668,7 +778,7 @@ impl RdfGlanceApp {
         }
         if let Ok(rdf_data) = self.rdf_data.read() {
             let node = rdf_data.node_data.get_node_by_index(index);
-            if let Some((node_iri, _node)) = node {
+            if let Some((node_iri, current_node)) = node {
                 self.current_iri = Some(index);
                 self.object_iri = node_iri.to_string();
                 if add_history {
@@ -676,6 +786,7 @@ impl RdfGlanceApp {
                     self.nav_history.push(self.current_iri.unwrap());
                     self.nav_pos = self.nav_history.len() - 1;
                 }
+                self.ref_selection.init_from_node(current_node);
             }
         }
     }
@@ -847,8 +958,11 @@ impl RdfGlanceApp {
                     self.update_data_indexes(is_dark_mode);
                     if let Some(file_name) = load_result.file_name {
                         let file_name_cpy = file_name.into_boxed_str();
-                        if !self.persistent_data.last_files.iter().any(|f| *f == file_name_cpy) {
-                            self.persistent_data.last_files.push(file_name_cpy);
+                        if let Some(position) = self.persistent_data.last_files.iter().position(|f| *f == file_name_cpy) {
+                            self.persistent_data.last_files.remove(position);
+                            self.persistent_data.last_files.insert(0,file_name_cpy);                        
+                        } else {
+                            self.persistent_data.last_files.insert(0,file_name_cpy);
                         }
                     }
                 }
@@ -965,7 +1079,7 @@ impl RdfGlanceApp {
     }
     fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("No data loaded. Load RDF file first.");
-        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open RDF File")).size(16.0);
+        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open RDF File (Ctrl-O)")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
@@ -983,6 +1097,32 @@ impl RdfGlanceApp {
                 self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref(), ui.visuals().dark_mode);
             }
         }
+        let mut enter_pressed = false;
+        let mut delete_pressed = false;
+        if let LastVisitedSelection::File(i) = self.ui_state.last_visited_selection {
+            if i >= self.persistent_data.last_files.len() {
+                self.ui_state.last_visited_selection =  LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
+            }
+        }      
+        ui.input(|i| {
+            if i.key_pressed(egui::Key::Enter) {
+                enter_pressed = true;
+            } else if i.key_pressed(egui::Key::Delete) {
+                delete_pressed = true;
+            } else if i.key_pressed(egui::Key::ArrowUp) {
+                if let LastVisitedSelection::File(i) = self.ui_state.last_visited_selection {
+                    if i > 0 {
+                        self.ui_state.last_visited_selection = LastVisitedSelection::File(i - 1);
+                    }
+                }
+            } else if i.key_pressed(egui::Key::ArrowDown) {
+                if let LastVisitedSelection::File(i) = self.ui_state.last_visited_selection {
+                    if i + 1 < self.persistent_data.last_files.len() {
+                        self.ui_state.last_visited_selection = LastVisitedSelection::File(i + 1);
+                    }
+                }
+            }
+        });
         StripBuilder::new(ui)
             .size(egui_extras::Size::Relative {
                 fraction: 0.5,
@@ -1001,7 +1141,16 @@ impl RdfGlanceApp {
                         ui.heading("Last imported files:");
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             egui::Grid::new("lfiles").striped(true).show(ui, |ui| {
-                                for last_file in &self.persistent_data.last_files {
+                                for (index,last_file) in self.persistent_data.last_files.iter().enumerate() {
+                                    if matches!(self.ui_state.last_visited_selection, LastVisitedSelection::File(i) if i == index) {
+                                        let painter = ui.painter();
+                                        painter.rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().selection.bg_fill);
+                                        if enter_pressed {
+                                            last_file_clicked = Some(last_file.to_string());
+                                        } else if delete_pressed {
+                                            last_file_forget = Some(last_file.to_string());
+                                        }
+                                    }
                                     if ui.button(last_file).clicked() {
                                         last_file_clicked = Some(last_file.to_string());
                                     }
@@ -1102,8 +1251,6 @@ impl RdfGlanceApp {
             visible_nodes: &mut self.visible_nodes,
         }
     }
-
-
 }
 
 impl eframe::App for RdfGlanceApp {

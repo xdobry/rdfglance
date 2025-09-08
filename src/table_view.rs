@@ -3,12 +3,12 @@ use std::{cmp::min, collections::HashMap, time::Instant, vec};
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
-use rayon::prelude::*;
+use rayon::{iter::Rev, prelude::*};
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use crate::{
-    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualizationStyle, NodeAction, RdfData, UIState
+    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualizationStyle, NodeAction, RdfData, RefSelection, UIState
 };
 
 pub struct TypeInstanceIndex {
@@ -78,6 +78,7 @@ pub struct InstanceView {
     pub iri_width: f32,
     pub ref_count_width: f32,
     pub selected_idx: Option<(IriIndex, usize)>,
+    pub ref_selection: RefSelection,
 }
 
 pub enum InstanceColumnResize {
@@ -158,6 +159,7 @@ impl TypeData {
                 iri_width: IRI_WIDTH,
                 ref_count_width: REF_COUNT_WIDTH,
                 selected_idx: None,
+                ref_selection: RefSelection::None,
             },
         }
     }
@@ -184,87 +186,78 @@ impl TypeData {
         let mut instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let capacity = (a_height / ROW_HIGHT) as usize - 1;
 
-        if let Some((_node_iri,idx)) = self.instance_view.selected_idx {
-            ui.input(|i| {
-                if idx>0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
-                    let new_idx = idx-1;
-                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    if new_idx < instance_index {
-                        instance_index = new_idx;
-                        self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
-                    }
-                } else if idx<self.filtered_instances.len()-1 && i.modifiers.is_none() && i.key_pressed(Key::ArrowDown) {
-                    let new_idx = idx+1;
-                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    if new_idx >= instance_index + capacity - 1 {
-                        instance_index = new_idx + 1 - capacity;
-                        self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
-                    }
-                } else if idx!=0 && i.key_pressed(Key::Home) {
-                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
-                    self.instance_view.pos = 0.0;
-                    instance_index = 0;
-                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
-                        let new_idx = selected_view_index as usize + instance_index;
-                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    }
-                } else if i.key_pressed(Key::End) {
-                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
-                    let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
-                    self.instance_view.pos = needed_len - a_height;
-                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
-                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
-                        let new_idx = selected_view_index as usize + instance_index;
-                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    }
-                } else if i.key_pressed(Key::PageUp) {
-                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
-                    self.instance_view.pos -= a_height - ROW_HIGHT;
-                    if self.instance_view.pos < 0.0 {
+        let any_popup = ui.memory(|mem| mem.any_popup_open());
+        if !any_popup {
+            if let Some((_node_iri, idx)) = self.instance_view.selected_idx {
+                ui.input(|i| {
+                    if idx > 0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
+                        let new_idx = idx - 1;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        if new_idx < instance_index {
+                            instance_index = new_idx;
+                            self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                        }
+                    } else if idx < self.filtered_instances.len() - 1
+                        && i.modifiers.is_none()
+                        && i.key_pressed(Key::ArrowDown)
+                    {
+                        let new_idx = idx + 1;
+                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        if new_idx >= instance_index + capacity - 1 {
+                            instance_index = new_idx + 1 - capacity;
+                            self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                        }
+                    } else if idx != 0 && i.key_pressed(Key::Home) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
                         self.instance_view.pos = 0.0;
-                    }
-                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
-                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
-                        let new_idx = selected_view_index as usize + instance_index;
-                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    }
-                } else if i.key_pressed(Key::PageDown) {
-                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
-                    let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
-                    self.instance_view.pos += a_height - ROW_HIGHT;
-                    if self.instance_view.pos > needed_len - a_height {
+                        instance_index = 0;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::End) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
                         self.instance_view.pos = needed_len - a_height;
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::PageUp) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        self.instance_view.pos -= a_height - ROW_HIGHT;
+                        if self.instance_view.pos < 0.0 {
+                            self.instance_view.pos = 0.0;
+                        }
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::PageDown) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        let needed_len = (self.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                        self.instance_view.pos += a_height - ROW_HIGHT;
+                        if self.instance_view.pos > needed_len - a_height {
+                            self.instance_view.pos = needed_len - a_height;
+                        }
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        }
                     }
-                    instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
-                    if selected_view_index>=0 && selected_view_index<capacity as i64 {
-                        let new_idx = selected_view_index as usize + instance_index;
-                        self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
-                    }
-                }
-            });
-        }
-        /*
-         ui.input(|i| {
-            if i.key_pressed(Key::PageDown) {
-                *self.position += self.visible_len - self.header_height;
-                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
-            } else if i.key_pressed(Key::PageUp) {
-                *self.position -= self.visible_len - self.header_height;
-                *self.position = self.position.clamp(0.0, self.len - self.visible_len);
-            } else if i.key_pressed(Key::Home) {
-                *self.position = 0.0;
-            } else if i.key_pressed(Key::End) {
-                *self.position = self.len - self.visible_len;
+                });
             }
-        });
-         */
+        }
 
         let available_rect = ui.max_rect(); // Get the full available area
 
         let available_width = ui.available_width();
         let available_height = ui.available_height();
         let size = Vec2::new(available_width, available_height);
-        let (_rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
+        let (rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
         let painter = ui.painter();
         let mouse_pos = response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
         let secondary_clicked = response.secondary_clicked();
@@ -398,7 +391,15 @@ impl TypeData {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let predicate_label =
                 node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
-            text_wrapped(predicate_label.as_str(), column_desc.width, painter, top_left, false, true, ui.visuals());
+            text_wrapped(
+                predicate_label.as_str(),
+                column_desc.width,
+                painter,
+                top_left,
+                false,
+                true,
+                ui.visuals(),
+            );
             xpos += column_desc.width + COLUMN_GAP;
             let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
             if column_rect.contains(mouse_pos) {
@@ -498,7 +499,7 @@ impl TypeData {
                     painter,
                     iri_top_left,
                     cell_hovered,
-                    ui.visuals()
+                    ui.visuals(),
                 );
 
                 if primary_clicked && cell_rect.contains(mouse_pos) {
@@ -549,10 +550,19 @@ impl TypeData {
                         if count > 1 {
                             painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
                         }
-                        text_wrapped(value, column_desc.width, painter, cell_rect.left_top(), cell_hovered, false, ui.visuals());
+                        text_wrapped(
+                            value,
+                            column_desc.width,
+                            painter,
+                            cell_rect.left_top(),
+                            cell_hovered,
+                            false,
+                            ui.visuals(),
+                        );
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
                             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                            self.instance_view.ref_selection = RefSelection::None;
                             self.instance_view.context_menu =
                                 TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
                         }
@@ -566,14 +576,25 @@ impl TypeData {
             }
         }
         if matches!(instance_action, NodeAction::None) {
+            let mut show_refs = false;
             if let Some((selected_id, _idx)) = self.instance_view.selected_idx {
-               ui.input(|i| {
+                ui.input(|i| {
                     if i.key_pressed(Key::Enter) {
                         *instance_action = NodeAction::BrowseNode(selected_id);
                     } else if i.key_pressed(Key::G) {
                         *instance_action = NodeAction::ShowVisual(selected_id);
+                    } else if i.key_pressed(Key::R) {
+                        show_refs = true;
+                        self.instance_view.context_menu = TableContextMenu::RefMenu(
+                            (rect.center()-Pos2::new(500.0,300.0)).clamp(Vec2::new(0.0,0.0), Vec2::new(available_width,available_height)).to_pos2(), 
+                            selected_id);
                     }
-               });
+                });
+            }
+            if show_refs {
+                was_context_click = true;
+                self.instance_view.ref_selection = RefSelection::None;
+                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
             }
         }
         // Draw vertical lines
@@ -756,6 +777,21 @@ impl TypeData {
                     let node = node_data.get_node_by_index(instance_index);
                     if let Some((_node_iri, node)) = node {
                         let mut node_to_click: ReferenceAction = ReferenceAction::None;
+                        if matches!(self.instance_view.ref_selection, RefSelection::None) {
+                            self.instance_view.ref_selection.init_from_node(&node);
+                        } else {
+                            ui.input(|i| {
+                                if i.key_pressed(Key::ArrowDown) {
+                                    self.instance_view.ref_selection.move_down(&node);
+                                } else if i.key_pressed(Key::ArrowUp) {
+                                    self.instance_view.ref_selection.move_up();
+                                } else if i.key_pressed(Key::ArrowRight) {
+                                    self.instance_view.ref_selection.move_right(&node);
+                                } else if i.key_pressed(Key::ArrowLeft) {
+                                    self.instance_view.ref_selection.move_left(&node);
+                                }
+                            });
+                        }
                         let label_context =
                             LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
                         let ref_result = show_references(
@@ -768,6 +804,7 @@ impl TypeData {
                             300.0,
                             "ref",
                             &label_context,
+                            self.instance_view.ref_selection.ref_index(false),
                         );
                         if ref_result != ReferenceAction::None {
                             node_to_click = ref_result;
@@ -784,6 +821,7 @@ impl TypeData {
                                 300.0,
                                 "ref_by",
                                 &label_context,
+                                self.instance_view.ref_selection.ref_index(true),
                             );
                             if ref_result != ReferenceAction::None {
                                 node_to_click = ref_result;
@@ -791,11 +829,11 @@ impl TypeData {
                             }
                         });
                         match node_to_click {
-                            ReferenceAction::None => {},
+                            ReferenceAction::None => {}
                             ReferenceAction::ShowNode(node_index) => {
                                 *instance_action = NodeAction::BrowseNode(node_index);
-                            },
-                            ReferenceAction::Filter(type_index,instances ) => {
+                            }
+                            ReferenceAction::Filter(type_index, instances) => {
                                 *instance_action = NodeAction::ShowTypeInstances(type_index, instances)
                             }
                         }
@@ -861,10 +899,12 @@ impl TypeData {
                 } else {
                     let first_type = reference_characteristics.types[0];
                     let type_label = node_data.type_display(first_type, label_context, &node_data.indexers);
-                    let type_response = if reference_characteristics.types.len()==1 {
+                    let type_response = if reference_characteristics.types.len() == 1 {
                         ui.label(type_label.as_str())
                     } else {
-                        ui.label(format!("{} +{}", type_label.as_str(), reference_characteristics.types.len() - 1).as_str())
+                        ui.label(
+                            format!("{} +{}", type_label.as_str(), reference_characteristics.types.len() - 1).as_str(),
+                        )
                     };
                     if type_response.clicked() {
                         let mouse_pos = type_response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
@@ -892,33 +932,41 @@ impl TypeData {
         });
     }
     pub fn update_selected_index(&mut self) {
-        if let Some((iri,idx)) = self.instance_view.selected_idx {
+        if let Some((iri, idx)) = self.instance_view.selected_idx {
             if idx == 0 {
-                if self.filtered_instances.len()>0 {
-                    self.instance_view.selected_idx = Some((self.filtered_instances[idx],idx));
+                if self.filtered_instances.len() > 0 {
+                    self.instance_view.selected_idx = Some((self.filtered_instances[idx], idx));
                 } else {
                     self.instance_view.selected_idx = None;
                 }
             } else {
                 if let Some(new_idx) = self.filtered_instances.iter().position(|e| *e == iri) {
-                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx],new_idx));
+                    self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
                 } else {
-                    if self.filtered_instances.len()>0 {
-                        self.instance_view.selected_idx = Some((self.filtered_instances[0],0));
+                    if self.filtered_instances.len() > 0 {
+                        self.instance_view.selected_idx = Some((self.filtered_instances[0], 0));
                     } else {
                         self.instance_view.selected_idx = None;
                     }
                 }
             }
         } else {
-            if self.filtered_instances.len()>0 {
-                self.instance_view.selected_idx = Some((self.filtered_instances[0],0));
+            if self.filtered_instances.len() > 0 {
+                self.instance_view.selected_idx = Some((self.filtered_instances[0], 0));
             }
         }
     }
 }
 
-pub fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, cell_hovered: bool, strong: bool, visuals: &egui::Visuals) {
+pub fn text_wrapped(
+    text: &str,
+    width: f32,
+    painter: &egui::Painter,
+    top_left: Pos2,
+    cell_hovered: bool,
+    strong: bool,
+    visuals: &egui::Visuals,
+) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -948,7 +996,14 @@ pub fn text_wrapped(text: &str, width: f32, painter: &egui::Painter, top_left: P
     painter.galley(top_left, galley, visuals.text_color());
 }
 
-pub fn text_wrapped_link(text: &str, width: f32, painter: &egui::Painter, top_left: Pos2, hovered: bool, visuals: &egui::Visuals) {
+pub fn text_wrapped_link(
+    text: &str,
+    width: f32,
+    painter: &egui::Painter,
+    top_left: Pos2,
+    hovered: bool,
+    visuals: &egui::Visuals,
+) {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         text,
@@ -1161,7 +1216,7 @@ impl TypeInstanceIndex {
             }
             type_data.filtered_instances = type_data.instances.clone();
             if !type_data.instances.is_empty() {
-                type_data.instance_view.selected_idx = Some((type_data.instances[0],0));
+                type_data.instance_view.selected_idx = Some((type_data.instances[0], 0));
             }
         }
         self.types_order.sort_by(|a, b| {
@@ -1342,11 +1397,14 @@ impl TypeInstanceIndex {
                                     if let Some(characteristics) = characteristics {
                                         for type_index in &characteristics.types {
                                             ui.label(
-                                                rdf_data.node_data.type_display(
-                                                    *type_index,
-                                                    &label_context,
-                                                    &rdf_data.node_data.indexers,
-                                                ).as_str()
+                                                rdf_data
+                                                    .node_data
+                                                    .type_display(
+                                                        *type_index,
+                                                        &label_context,
+                                                        &rdf_data.node_data.indexers,
+                                                    )
+                                                    .as_str(),
                                             );
                                         }
                                     } else {
@@ -1440,7 +1498,7 @@ impl TypeInstanceIndex {
                                 &mut type_data.instance_view.drag_pos,
                                 needed_len,
                                 a_height,
-                                ROW_HIGHT
+                                ROW_HIGHT,
                             ));
                         });
                     });
@@ -1806,7 +1864,7 @@ impl TypeInstanceIndex {
                     selected_type = Some(*new_selected_type);
                 }
             }
-            if selected_type_index>0 && i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowUp) {
+            if selected_type_index > 0 && i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowUp) {
                 let new_selected_type = self.types_filtered.get(selected_type_index - 1);
                 if let Some(new_selected_type) = new_selected_type {
                     selected_type = Some(*new_selected_type);

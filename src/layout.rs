@@ -554,6 +554,7 @@ impl SortedNodeLayout {
                 &self.positions.read().unwrap(),
                 &self.edges.read().unwrap(),
                 &config,
+                hidden_predicates,
                 self.layout_temperature,
             );
             if let Ok(mut positions) = self.positions.write() {
@@ -587,7 +588,7 @@ impl SortedNodeLayout {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_layout(&mut self, _config: &Config) {
+    pub fn start_layout(&mut self, _config: &Config, _hidden_predicates: &SortedVec) {
         self.compute_layout = true;
         self.layout_temperature = 100.0;
     }

@@ -1,8 +1,9 @@
 use const_format::concatcp;
+use egui::Key;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    GVisualizationStyle, NodeAction, RdfGlanceApp, UIState,
+    GVisualizationStyle, NodeAction, RdfGlanceApp, RefSelection, UIState,
     nobject::{IriIndex, LabelContext, Literal, NObject, NodeData},
     style::{ICON_FILTER, ICON_GRAPH},
     uitools::primary_color,
@@ -53,7 +54,7 @@ impl RdfGlanceApp {
                         ui.strong("full iri:");
                         ui.label(full_iri);
                     });
-                    let button_text = egui::RichText::new(concatcp!(ICON_GRAPH, " See in Visual Graph")).size(16.0);
+                    let button_text = egui::RichText::new(concatcp!(ICON_GRAPH, " See in Visual Graph (G)")).size(16.0);
                     let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
                     let b_resp = ui.add(nav_but);
                     if b_resp.clicked() || ui.input(|i| i.key_pressed(egui::Key::G)) {
@@ -88,6 +89,7 @@ impl RdfGlanceApp {
                             &self.ui_state,
                             h,
                             &label_context,
+                            &mut self.ref_selection,
                         );
                     } else {
                         egui::ScrollArea::vertical()
@@ -148,6 +150,7 @@ impl RdfGlanceApp {
                                     &self.ui_state,
                                     h,
                                     &label_context,
+                                    &mut self.ref_selection,
                                 );
                             });
                     }
@@ -177,9 +180,22 @@ pub fn show_refs_table(
     layout_data: &UIState,
     h: f32,
     label_context: &LabelContext,
+    ref_selection: &mut RefSelection,
 ) -> ReferenceAction {
     let mut node_to_click: ReferenceAction = ReferenceAction::None;
-
+    if !matches!(ref_selection, RefSelection::None) {
+        ui.input(|i| {
+            if i.key_pressed(Key::ArrowDown) {
+                ref_selection.move_down(&current_node);
+            } else if i.key_pressed(Key::ArrowUp) {
+                ref_selection.move_up();
+            } else if i.key_pressed(Key::ArrowRight) {
+                ref_selection.move_right(&current_node);
+            } else if i.key_pressed(Key::ArrowLeft) {
+                ref_selection.move_left(&current_node);
+            }
+        });
+    }
     StripBuilder::new(ui)
         .size(egui_extras::Size::exact(600.0))
         .size(egui_extras::Size::exact(600.0)) // Two resizable panels with equal initial width
@@ -195,6 +211,7 @@ pub fn show_refs_table(
                     h,
                     "ref",
                     label_context,
+                    ref_selection.ref_index(false),
                 );
                 if ref_result != ReferenceAction::None {
                     node_to_click = ref_result;
@@ -212,6 +229,7 @@ pub fn show_refs_table(
                         h,
                         "ref_by",
                         label_context,
+                        ref_selection.ref_index(true),
                     );
                     if ref_result != ReferenceAction::None {
                         node_to_click = ref_result;
@@ -232,10 +250,20 @@ pub fn show_references(
     height: f32,
     id_salt: &str,
     label_context: &LabelContext,
+    selected_idx: Option<usize>,
 ) -> ReferenceAction {
     let mut node_to_click: ReferenceAction = ReferenceAction::None;
     if !references.is_empty() {
         ui.heading(label);
+        let mut has_enter = false;
+        let mut has_find = false;
+        ui.input(|i| {
+            if i.key_pressed(Key::Enter) {
+                has_enter = true;
+            } else if i.key_pressed(Key::F) {
+                has_find = true;
+            }
+        });
         let text_height = egui::TextStyle::Body
             .resolve(ui.style())
             .size
@@ -253,6 +281,7 @@ pub fn show_references(
             .column(Column::exact(20.0))
             .min_scrolled_height(height)
             .max_scroll_height(height);
+
 
         table
             .header(20.0, |mut header| {
@@ -280,6 +309,14 @@ pub fn show_references(
                             node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                         ui.label(predicate_label.as_str());
                     });
+                    let mut row_selected = false;
+                    if selected_idx == Some(row.index()) {
+                        row.set_selected(true);
+                        row_selected = true;
+                        if has_enter {
+                            node_to_click = ReferenceAction::ShowNode(*ref_index);
+                        }
+                    }
                     if let Some((ref_iri, ref_node)) = node_data.get_node_by_index(*ref_index) {
                         row.col(|ui| {
                             if ui.link(ref_iri).clicked() {
@@ -311,7 +348,7 @@ pub fn show_references(
                             if ref_node.types.is_empty() {
                                 ui.label("?");
                             } else {
-                                if ui.button(ICON_FILTER).clicked() {
+                                if (row_selected && has_find) || ui.button(ICON_FILTER).clicked() {
                                     let node_type = ref_node.types.first().unwrap();
                                     // collected all instance of same predicate and type
                                     let instances: Vec<IriIndex> = references

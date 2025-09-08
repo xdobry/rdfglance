@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{global_theme_preference_switch, Align, Layout};
+use egui::{global_theme_preference_switch, menu, Align, Key, Layout, Modifiers};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -12,18 +12,36 @@ use strum::IntoEnumIterator;
 
 use crate::{graph_algorithms::GraphAlgorithm, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
 
+enum MenuAction {
+    None,
+    LoadProject,
+    ImportRDF,
+    SaveProject,
+}
+
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
+        let mut menu_action = MenuAction::None;        
+        ui.input(|i| {
+            if i.modifiers.ctrl && i.key_pressed(Key::O) {
+                menu_action = MenuAction::ImportRDF;
+            } else if i.modifiers.ctrl && i.key_pressed(Key::L) {
+                menu_action = MenuAction::LoadProject;
+            } else if i.modifiers.ctrl && i.key_pressed(Key::S) {
+                menu_action = MenuAction::SaveProject;
+            }
+        });
         egui::menu::bar(ui, |ui| {
+            let mut consume_keys = false;
             ui.menu_button("File", |ui| {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     if ui.button("Load Project").clicked() {
-                        self.load_project_dialog(ui.visuals().dark_mode);
+                        menu_action = MenuAction::LoadProject;
                         ui.close_menu();
                     }
                     if ui.button("Save Project").clicked() {
-                        self.save_project_dialog();
+                        menu_action = MenuAction::SaveProject;
                         ui.close_menu();
                     }
                     if !self.persistent_data.last_projects.is_empty() {
@@ -44,7 +62,7 @@ impl RdfGlanceApp {
                     ui.separator();
                 }
                 if ui.button("Import RDF File").clicked() {
-                    self.import_file_dialog(ui);
+                    menu_action = MenuAction::ImportRDF;
                     ui.close_menu();
                 }
                 if ui.button("Import RDF File from URL").clicked() {
@@ -95,6 +113,7 @@ impl RdfGlanceApp {
                     self.clean_data();
                     ui.close_menu();
                 }
+                consume_keys = true;
             });
             ui.menu_button("Statistics", |ui| {
                 for entry in GraphAlgorithm::iter() {
@@ -125,6 +144,7 @@ impl RdfGlanceApp {
                     self.visualization_style.use_color_overwrite = false;
                     ui.close_menu();
                 }
+                consume_keys = true;
             });
             ui.menu_button("Help", |ui| {
                 if ui.button("About RDF Glance").clicked() {
@@ -133,6 +153,7 @@ impl RdfGlanceApp {
                 }
                 ui.hyperlink_to("Project Site on GitHub","https://github.com/xdobry/rdfglance");
                 ui.hyperlink_to("Report Issue / Feedback","https://github.com/xdobry/rdfglance/issues");
+                consume_keys = true;
             });   
             global_theme_preference_switch(ui);
             if let Ok(rdf_data) = self.rdf_data.read() {
@@ -161,7 +182,23 @@ impl RdfGlanceApp {
                     });
                 }
             }
+            // consume keys so they are not processed twice, I do not know why the d
+            if consume_keys {
+                ui.ctx().input_mut(|i| {
+                    i.consume_key(Modifiers::NONE,Key::Enter);
+                    i.consume_key(Modifiers::NONE,Key::ArrowDown);
+                    i.consume_key(Modifiers::NONE,Key::ArrowLeft);
+                    i.consume_key(Modifiers::NONE,Key::ArrowRight);
+                    i.consume_key(Modifiers::NONE,Key::ArrowUp);
+                });
+            }
         });
+        match menu_action {
+            MenuAction::ImportRDF => self.import_file_dialog(ui),
+            MenuAction::LoadProject => self.load_project_dialog(ui.visuals().dark_mode),
+            MenuAction::SaveProject => self.save_project_dialog(),
+            MenuAction::None => {}
+        }
     }
     pub fn import_file_from_url_dialog(&mut self, ui: &mut egui::Ui) {
         self.import_from_url = Some(ImportFromUrlData {
