@@ -251,10 +251,14 @@ impl SortedNodeLayout {
     pub fn add_many(
         &mut self,
         values: &[(IriIndex, IriIndex)],
+        config: &Config,
         inserted_callback: impl FnMut(&(IriIndex, IriIndex)),
-    ) -> bool {
+    ) -> bool {       
         self.stop_layout();
         let index_to_add = if let Ok(nodes) = self.nodes.read() {
+            if nodes.len() >= config.max_visible_nodes {
+                return false;
+            }
             // First filter the list only for nodes that are not already in the layout
             // sort and dedup the nodes the parent node does not matter
             let mut index_to_add: Vec<(IriIndex, IriIndex)> = values
@@ -266,6 +270,10 @@ impl SortedNodeLayout {
                 .collect();
             index_to_add.sort_unstable_by(|a, b| a.1.cmp(&b.1));
             index_to_add.dedup_by(|a, b| a.1 == b.1);
+            if index_to_add.len() + nodes.len() > config.max_visible_nodes {
+                println!("Truncating nodes to add to visual graph for reaching the configured display limit");
+                index_to_add.truncate(config.max_visible_nodes - nodes.len());
+            }
             index_to_add.iter().for_each(inserted_callback);
             index_to_add
         } else {
@@ -395,6 +403,18 @@ impl SortedNodeLayout {
             }
         });
         self.data_epoch += 1;
+    }
+
+    pub fn clean_all(&mut self) {
+        self.stop_layout();
+        self.data_epoch += 1;
+        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+            positions.clear();
+            nodes.clear();
+            edges.clear();
+            node_shapes.clear();
+            individual_node_styles.clear();
+        });
     }
 
     pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) -> bool {
@@ -695,6 +715,7 @@ impl SortedNodeLayout {
             .read()
             .unwrap()
             .iter()
+            .filter(|edge| !hidden_predicates.contains(edge.predicate))
             .flat_map(|edge| vec![edge.from, edge.to])
             .collect();
         used_positions.sort_unstable();
@@ -721,8 +742,10 @@ impl SortedNodeLayout {
         let len = self.nodes.read().unwrap().len();
         let mut adj = vec![Vec::new(); len];
         for edge in self.edges.read().unwrap().iter() {
-            adj[edge.from].push(edge.to);
-            adj[edge.to].push(edge.from);
+            if !hidden_predicates.contains(edge.predicate) {
+                adj[edge.from].push(edge.to);
+                adj[edge.to].push(edge.from);
+            }
         }
 
         // BFS traversal
@@ -789,6 +812,7 @@ impl SortedNodeLayout {
         visualization_style: &GVisualizationStyle,
         statistics_data: &mut StatisticsData,
         config: &Config,
+        hidden_predicates: &SortedVec,
     ) {
         if let Ok(nodes) = self.nodes.read() {
             if !nodes.is_empty() {
@@ -804,9 +828,12 @@ impl SortedNodeLayout {
                             for (index, node) in nodes.iter().enumerate() {
                                 statistics_data.nodes[index] = (node.node_index, index as u32);
                             }
+                            if statistics_data.selected_idx.is_none() && !statistics_data.nodes.is_empty() {
+                                statistics_data.selected_idx = Some((statistics_data.nodes[0].0,0));
+                            }
                             statistics_data.results.clear();
                             if graph_algorithm.is_clustering() {
-                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config);
+                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config, hidden_predicates);
                                 let values = cluster.node_cluster.iter().map(|e| *e as f32).collect::<Vec<f32>>();
                                 for (index, value) in cluster.node_cluster.iter().enumerate() {
                                     individual_node_style[index].set_cluster(*value);
@@ -815,7 +842,7 @@ impl SortedNodeLayout {
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
                             } else {
-                                let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                                let values = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 for (index, value) in values.iter().enumerate() {
                                     individual_node_style[index].set_size_value(*value, visualization_style);
                                 }
@@ -846,7 +873,7 @@ impl SortedNodeLayout {
                             }
                         } else {
                             if graph_algorithm.is_clustering() {
-                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config);
+                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config, hidden_predicates);
                                 let values = statistics_data.nodes.iter().map(|(_iri,pos)| 
                                     cluster.node_cluster[*pos as usize] as f32).collect::<Vec<f32>>();
                                 if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
@@ -858,7 +885,7 @@ impl SortedNodeLayout {
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
                             } else {
-                                let values = run_algorithm(graph_algorithm, nodes_len, &edges);
+                                let values = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 // the values could be already resorted so use position index to get them in right order
                                 let sorted_values = statistics_data
                                     .nodes
@@ -1028,7 +1055,7 @@ pub fn layout_graph_nodes(
 
 #[cfg(test)]
 mod tests {
-    use crate::nobject::IriIndex;
+    use crate::{config::Config, nobject::IriIndex};
 
     #[test]
     fn test_graph_nodes() {
@@ -1057,12 +1084,13 @@ mod tests {
             assert!(sorted_nodes.contains(node.node_index));
         }
         // new indexes 2, 3, 12
+        let config = Config::default();
         let new_pairs: Vec<(IriIndex, IriIndex)> = vec![(0, 5), (0, 5), (5, 2), (5, 12), (10, 2), (0, 3), (0, 10)];
-        assert!(sorted_nodes.add_many(&new_pairs, |(_parent_index, node_index)| {
+        assert!(sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
             assert_ne!(5, *node_index);
             assert_ne!(10, *node_index);
         }));
-        assert!(!sorted_nodes.add_many(&new_pairs, |(_parent_index, node_index)| {
+        assert!(!sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
             // This should be never called
             assert!(*node_index > 100);
         }));

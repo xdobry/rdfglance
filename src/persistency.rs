@@ -957,7 +957,7 @@ mod tests {
 
     use egui::Color32;
 
-    use crate::{graph_styles::{ArrowLocation, IconPosition, IconStyle, LineStyle}, NodeChangeContext};
+    use crate::{config::Config, graph_styles::{ArrowLocation, IconPosition, IconStyle, LineStyle}, NodeChangeContext};
 
     use super::*;
 
@@ -993,10 +993,12 @@ mod tests {
             .node_data
             .get_node_index("dbr:Rust_(programming_language)");
         assert_eq!(true, node_index.is_some());
+        let config = Config::default();
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
             let mut node_change_context =  NodeChangeContext {
                 rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
+                config: &config,
             };
             assert_eq!(true, rdf_data.load_object_by_index(node_index.unwrap(),&mut node_change_context));
         };
@@ -1004,6 +1006,7 @@ mod tests {
             let mut node_change_context =  NodeChangeContext {
                 rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
+                config: &config,
             };
             let hidden_predicates = SortedVec::new();
             rdf_data.expand_all(&mut node_change_context, &hidden_predicates);

@@ -4,14 +4,9 @@ use anyhow::Error;
 use const_format::concatcp;
 use fixedbitset::FixedBitSet;
 use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
-    thread::{self, JoinHandle},
-    time::Duration,
+    collections::{HashMap, HashSet}, ops::Index, path::Path, sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock
+    }, thread::{self, JoinHandle}, time::Duration
 };
 
 use eframe::{
@@ -34,7 +29,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::{nobject::NObject, statistics::StatisticsData, uitools::primary_color};
+use crate::{config::Config, nobject::NObject, statistics::StatisticsData, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -256,6 +251,7 @@ pub struct RdfData {
 pub struct NodeChangeContext<'a> {
     pub rdfwrap: &'a mut Box<dyn rdfwrap::RDFAdapter>,
     pub visible_nodes: &'a mut SortedNodeLayout,
+    pub config: &'a Config,
 }
 
 impl RdfData {
@@ -272,16 +268,20 @@ impl RdfData {
                 let mut refs_to_expand = vec![];
                 match expand_type {
                     ExpandType::References | ExpandType::Both => {
-                        for (_, ref_iri) in &nnode.references {
-                            refs_to_expand.push((iri_index,*ref_iri));
+                        for (predicate, ref_iri) in &nnode.references {
+                            if !hidden_predicates.contains(*predicate) {
+                                refs_to_expand.push((iri_index,*ref_iri));
+                            }
                         }
                     }
                     _ => {}
                 }
                 match expand_type {
                     ExpandType::ReverseReferences | ExpandType::Both => {
-                        for (_, ref_iri) in &nnode.reverse_references {
-                            refs_to_expand.push((iri_index,*ref_iri));
+                        for (predicate, ref_iri) in &nnode.reverse_references {
+                            if !hidden_predicates.contains(*predicate) {
+                                refs_to_expand.push((iri_index,*ref_iri));
+                            }
                         }
                     }
                     _ => {}
@@ -295,7 +295,7 @@ impl RdfData {
             return false;
         }
         let mut npos = NeighborPos::new();
-        let was_added = npos.add_many( node_change_context.visible_nodes, &refs_to_expand);
+        let was_added = npos.add_many( node_change_context.visible_nodes,  &refs_to_expand, &node_change_context.config);
         if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
@@ -310,17 +310,21 @@ impl RdfData {
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
             if let Some((_, nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
-                for (_, ref_iri) in nnode.references.iter() {
-                    if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
-                            parent_ref.push((visible_index.node_index, *ref_iri));
+                for (predicate, ref_iri) in nnode.references.iter() {
+                    if !hidden_predicates.contains(*predicate) {
+                        if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                            if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index, *ref_iri));
+                            }
                         }
                     }
                 }
-                for (_, ref_iri) in nnode.reverse_references.iter() {
-                    if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
-                        if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
-                            parent_ref.push((visible_index.node_index, *ref_iri));
+                for (predicate, ref_iri) in nnode.reverse_references.iter() {
+                    if !hidden_predicates.contains(*predicate) {
+                        if let Some((_, nnode)) = self.node_data.get_node_by_index(*ref_iri) {
+                            if nnode.match_types(types) && refs_to_expand.insert(*ref_iri) {
+                                parent_ref.push((visible_index.node_index, *ref_iri));
+                            }
                         }
                     }
                 }
@@ -330,7 +334,7 @@ impl RdfData {
             return false;
         }
         let mut npos = NeighborPos::new();
-        let was_added = npos.add_many( node_change_context.visible_nodes, &parent_ref);
+        let was_added = npos.add_many( node_change_context.visible_nodes, &parent_ref, &node_change_context.config);
         if was_added {
             update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
             npos.position(node_change_context.visible_nodes);
@@ -361,13 +365,13 @@ impl RdfData {
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
             if let Some((_, nnode)) = self.node_data.get_node_by_index(visible_index.node_index) {
-                for (_, ref_iri) in nnode.references.iter() {
-                    if refs_to_expand.insert(*ref_iri) {
+                for (predicate, ref_iri) in nnode.references.iter() {
+                    if !hidden_predicates.contains(*predicate) && refs_to_expand.insert(*ref_iri) {
                         parent_ref.push((visible_index.node_index, *ref_iri));
                     }
                 }
-                for (_, ref_iri) in nnode.reverse_references.iter() {
-                    if refs_to_expand.insert(*ref_iri) {
+                for (predicate, ref_iri) in nnode.reverse_references.iter() {
+                    if !hidden_predicates.contains(*predicate) && refs_to_expand.insert(*ref_iri) {
                         parent_ref.push((visible_index.node_index, *ref_iri));
                     }
                 }
@@ -377,7 +381,7 @@ impl RdfData {
             false
         } else {
             let mut npos = NeighborPos::new();
-            let was_added = npos.add_many(&mut node_change_context.visible_nodes, &parent_ref);
+            let was_added = npos.add_many(&mut node_change_context.visible_nodes, &parent_ref, &node_change_context.config);
             if was_added {
                 update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
                 npos.position(node_change_context.visible_nodes);
@@ -530,16 +534,19 @@ impl UIState {
 }
 
 impl GVisualizationStyle {
-    pub fn preset_styles(&mut self, cache_statistics: &TypeInstanceIndex, is_dark_mode: bool) {
-        for (type_index, _type_desc) in cache_statistics.types.iter() {
+    pub fn preset_styles(&mut self, type_instance_index: &TypeInstanceIndex, is_dark_mode: bool) {
+        for (type_index, _type_desc) in type_instance_index.types.iter() {
             let type_style = self.node_styles.get(type_index);
             if type_style.is_none() {
                 let lightness = if is_dark_mode { 0.3 } else { 0.6 };
                 let new_color = distinct_colors::next_distinct_color(self.node_styles.len(), 0.8, lightness, 200);
+                let order = type_instance_index.types_order.iter().position(|&i| i == *type_index);
+                let priority = order.map(|o| o as u32).unwrap_or(0);
                 self.node_styles.insert(
                     *type_index,
                     NodeStyle {
                         color: new_color,
+                        priority,
                         ..Default::default()
                     },
                 );
@@ -1249,6 +1256,7 @@ impl RdfGlanceApp {
         NodeChangeContext {
             rdfwrap: &mut self.rdfwrap,
             visible_nodes: &mut self.visible_nodes,
+            config: &self.persistent_data.config_data,
         }
     }
 }

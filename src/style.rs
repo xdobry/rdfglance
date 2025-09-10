@@ -22,3 +22,4 @@ pub const ICON_PROPERTIES: &str = "\u{1f4dd}";
 pub const ICON_HIGHLIGHT: &str = "\u{1f506}";
 pub const ICON_HELP: &str = "\u{2753}";
 pub const ICON_KEEP_TEMPERATURE: &str = "\u{27bf}";
+pub const ICON_CLEAN_ALL: &str = "\u{1f5d1}";

@@ -1,9 +1,16 @@
 use std::{borrow::Cow, cmp::min};
 
-use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
-use crate::{config::{Config, IriDisplay}, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext}, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState};
+use crate::{
+    GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState,
+    config::{Config, IriDisplay},
+    graph_algorithms::GraphAlgorithm,
+    nobject::{IriIndex, LabelContext},
+    table_view::{text_wrapped, text_wrapped_link},
+    uitools::ScrollBar,
+};
 
 const ROW_HIGHT: f32 = 17.0;
 const COLUMN_GAP: f32 = 2.0;
@@ -20,8 +27,9 @@ pub struct StatisticsData {
     pub results: Vec<StatisticsResult>,
     pub pos: f32,
     pub drag_pos: Option<f32>,
-    pub column_widths: [f32;3],
+    pub column_widths: [f32; 3],
     pub data_epoch: u32,
+    pub selected_idx: Option<(IriIndex, usize)>,
 }
 
 impl Default for StatisticsData {
@@ -32,16 +40,16 @@ impl Default for StatisticsData {
             pos: 0.0,
             drag_pos: None,
             // Default widths for iri, label, and type
-            column_widths: [IRI_WIDTH, 200.0, 200.0], 
+            column_widths: [IRI_WIDTH, 200.0, 200.0],
             data_epoch: 0,
+            selected_idx: None,
         }
     }
-}  
+}
 pub struct StatisticsResult {
     values: Vec<f32>,
     graph_algorithm: GraphAlgorithm,
 }
-
 
 enum StatisticsTableAction {
     None,
@@ -72,7 +80,7 @@ impl StatisticsResult {
     pub fn swap_values(&mut self, i: usize, j: usize) {
         self.values.swap(i, j);
     }
-} 
+}
 
 impl RdfGlanceApp {
     pub fn show_statistics(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
@@ -114,17 +122,17 @@ impl RdfGlanceApp {
                             &mut statistics_data.drag_pos,
                             needed_len,
                             a_height,
-                            ROW_HIGHT
+                            ROW_HIGHT,
                         ));
                     });
                 });
         }
-        instance_action        
+        instance_action
     }
 }
 
 impl StatisticsData {
-   pub fn instance_table(
+    pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -135,7 +143,7 @@ impl StatisticsData {
         styles: &GVisualizationStyle,
         config: &Config,
     ) {
-        let instance_index = (self.pos / ROW_HIGHT) as usize;
+        let mut instance_index = (self.pos / ROW_HIGHT) as usize;
         let a_height = ui.available_height();
         let capacity = (a_height / ROW_HIGHT) as usize - 1;
         let available_rect = ui.max_rect(); // Get the full available area
@@ -158,12 +166,99 @@ impl StatisticsData {
         );
 
         let mut primary_down = false;
-        ctx.input(|input| {
-            if input.pointer.button_pressed(egui::PointerButton::Primary) {
+        let mut sort_idx: Option<usize> = None;
+
+        ctx.input(|i| {
+            if i.pointer.button_pressed(egui::PointerButton::Primary) {
                 primary_down = true;
             }
-        });
+            if let Some((selected_iri, idx)) = self.selected_idx {
+                if idx > 0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
+                    let new_idx = idx - 1;
+                    self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    if new_idx < instance_index {
+                        instance_index = new_idx;
+                        self.pos = (instance_index as f32) * ROW_HIGHT;
+                    }
+                } else if idx < self.nodes.len() - 1 && i.modifiers.is_none() && i.key_pressed(Key::ArrowDown) {
+                    let new_idx = idx + 1;
+                    self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    if new_idx >= instance_index + capacity - 1 {
+                        instance_index = new_idx + 1 - capacity;
+                        self.pos = (instance_index as f32) * ROW_HIGHT;
+                    }
+                } else if i.key_pressed(Key::Home) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    self.pos = 0.0;
+                    instance_index = 0;
+                    if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    }
+                } else if i.key_pressed(Key::End) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    let needed_len = (self.nodes.len() + 2) as f32 * ROW_HIGHT;
+                    self.pos = needed_len - a_height;
+                    instance_index = (self.pos / ROW_HIGHT) as usize;
+                    if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    }
+                } else if i.key_pressed(Key::PageUp) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    self.pos -= a_height - ROW_HIGHT;
+                    if self.pos < 0.0 {
+                        self.pos = 0.0;
+                    }
+                    instance_index = (self.pos / ROW_HIGHT) as usize;
+                    if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    }
+                } else if i.key_pressed(Key::PageDown) {
+                    let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                    let needed_len = (self.nodes.len() + 2) as f32 * ROW_HIGHT;
+                    self.pos += a_height - ROW_HIGHT;
+                    if self.pos > needed_len - a_height {
+                        self.pos = needed_len - a_height;
+                    }
+                    instance_index = (self.pos / ROW_HIGHT) as usize;
+                    if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                        let new_idx = selected_view_index as usize + instance_index;
+                        self.selected_idx = Some((self.nodes[new_idx].0, new_idx));
+                    }
+                } else if i.key_pressed(Key::Enter) {
+                    *instance_action = NodeAction::BrowseNode(selected_iri);
+                } else if i.modifiers.is_none() && i.key_pressed(Key::G) {
+                    *instance_action = NodeAction::ShowVisual(selected_iri);
+                }
+            }
 
+            if i.modifiers.is_none() && i.key_pressed(Key::Num1) {
+                sort_idx = Some(0);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num2) {
+                sort_idx = Some(1);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num3) {
+                sort_idx = Some(2);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num4) {
+                sort_idx = Some(3);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num5) {
+                sort_idx = Some(4);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num6) {
+                sort_idx = Some(5);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num7) {
+                sort_idx = Some(6);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num8) {
+                sort_idx = Some(7);
+            } else if i.modifiers.is_none() && i.key_pressed(Key::Num9) {
+                sort_idx = Some(8);
+            }
+        });
+        if let Some(sort_idx) = sort_idx {
+            if sort_idx < self.results.len() {
+                table_action = StatisticsTableAction::SortResult(sort_idx);
+            }
+        }
 
         for ((i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
             painter.text(
@@ -177,23 +272,25 @@ impl StatisticsData {
         }
 
         let label_context = LabelContext::new(layout_data.display_language, iri_display, &rfd_data.prefix_manager);
-        for (result_idx,statistics_result) in self
-            .results
-            .iter().enumerate()
-        {
+        for (result_idx, statistics_result) in self.results.iter().enumerate() {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
             let result_label = statistics_result.graph_algorithm().to_string();
-            let result_rect = egui::Rect::from_min_size(
-                        top_left,
-                        Vec2::new(xpos+RESULT_WIDTH, ROW_HIGHT),
-                    );
+            let result_rect = egui::Rect::from_min_size(top_left, Vec2::new(xpos + RESULT_WIDTH, ROW_HIGHT));
             let cell_hovered = if result_rect.contains(mouse_pos) {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                 true
             } else {
                 false
             };
-            text_wrapped(result_label.as_str(),RESULT_WIDTH, painter, top_left, cell_hovered, true, ui.visuals());
+            text_wrapped(
+                result_label.as_str(),
+                RESULT_WIDTH,
+                painter,
+                top_left,
+                cell_hovered,
+                true,
+                ui.visuals(),
+            );
             if primary_down && result_rect.contains(mouse_pos) {
                 table_action = StatisticsTableAction::SortResult(result_idx);
             }
@@ -207,15 +304,26 @@ impl StatisticsData {
             let instance_index = &self.nodes[node_index];
             let node = rfd_data.node_data.get_node_by_index(instance_index.0);
             if let Some((node_iri, node)) = node {
-                if start_pos % 2 == 0 {
+                if matches!(self.selected_idx, Some((a, _)) if a == instance_index.0) {
                     painter.rect_filled(
                         Rect::from_min_size(
                             available_rect.left_top() + Vec2::new(0.0, ypos),
                             Vec2::new(available_width, ROW_HIGHT),
                         ),
                         0.0,
-                        ui.visuals().faint_bg_color,
+                        ui.visuals().selection.bg_fill,
                     );
+                } else {
+                    if start_pos % 2 == 0 {
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                available_rect.left_top() + Vec2::new(0.0, ypos),
+                                Vec2::new(available_width, ROW_HIGHT),
+                            ),
+                            0.0,
+                            ui.visuals().faint_bg_color,
+                        );
+                    }
                 }
                 start_pos += 1;
 
@@ -224,10 +332,8 @@ impl StatisticsData {
                 // Draw fixed labels
                 for ((i, _label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
                     let label_top_left = available_rect.left_top() + Vec2::new(xpos, ypos);
-                    let label_rect = egui::Rect::from_min_size(
-                        label_top_left,
-                        Vec2::new(width+COLUMN_GAP, ROW_HIGHT),
-                    );
+                    let label_rect =
+                        egui::Rect::from_min_size(label_top_left, Vec2::new(width + COLUMN_GAP, ROW_HIGHT));
                     if i == 0 {
                         let mut cell_hovered = false;
                         if label_rect.contains(mouse_pos) {
@@ -240,7 +346,7 @@ impl StatisticsData {
                             painter,
                             label_top_left,
                             cell_hovered,
-                            ui.visuals()
+                            ui.visuals(),
                         );
                         if primary_clicked && label_rect.contains(mouse_pos) {
                             println!("Primary clicked on node: {}", node_iri);
@@ -249,8 +355,14 @@ impl StatisticsData {
                             *instance_action = NodeAction::ShowVisual(instance_index.0);
                         }
                     } else {
-                        let label: Cow<'_,str> = if i == 1 {
-                            Cow::Borrowed(node.node_label(node_iri, styles, config.short_iri, layout_data.display_language, &rfd_data.node_data.indexers))
+                        let label: Cow<'_, str> = if i == 1 {
+                            Cow::Borrowed(node.node_label(
+                                node_iri,
+                                styles,
+                                config.short_iri,
+                                layout_data.display_language,
+                                &rfd_data.node_data.indexers,
+                            ))
                         } else {
                             let mut types_label = String::new();
                             node.types.iter().for_each(|type_index| {
@@ -258,14 +370,23 @@ impl StatisticsData {
                                     types_label.push_str(", ");
                                 }
                                 types_label.push_str(
-                                    rfd_data.node_data
+                                    rfd_data
+                                        .node_data
                                         .type_display(*type_index, &label_context, &rfd_data.node_data.indexers)
                                         .as_str(),
                                 );
                             });
                             Cow::Owned(types_label)
                         };
-                        text_wrapped(&label, *width, painter, label_rect.left_top(), false, false, ui.visuals());
+                        text_wrapped(
+                            &label,
+                            *width,
+                            painter,
+                            label_rect.left_top(),
+                            false,
+                            false,
+                            ui.visuals(),
+                        );
                     }
                     xpos += width + COLUMN_GAP;
                 }
@@ -277,7 +398,15 @@ impl StatisticsData {
                         available_rect.left_top() + Vec2::new(xpos, ypos),
                         Vec2::new(RESULT_WIDTH, ROW_HIGHT),
                     );
-                    text_wrapped(value_str.as_str(), RESULT_WIDTH, painter, cell_rect.left_top(), false, false, ui.visuals());
+                    text_wrapped(
+                        value_str.as_str(),
+                        RESULT_WIDTH,
+                        painter,
+                        cell_rect.left_top(),
+                        false,
+                        false,
+                        ui.visuals(),
+                    );
                     xpos += RESULT_WIDTH + COLUMN_GAP;
                     if xpos > available_rect.width() {
                         break;
@@ -292,14 +421,8 @@ impl StatisticsData {
             xpos += width + COLUMN_GAP;
             painter.line(
                 [
-                    Pos2::new(
-                        available_rect.left() + xpos - COLUMN_GAP,
-                        available_rect.top(),
-                    ),
-                    Pos2::new(
-                        available_rect.left() + xpos - COLUMN_GAP,
-                        available_rect.top() + ypos,
-                    ),
+                    Pos2::new(available_rect.left() + xpos - COLUMN_GAP, available_rect.top()),
+                    Pos2::new(available_rect.left() + xpos - COLUMN_GAP, available_rect.top() + ypos),
                 ]
                 .to_vec(),
                 Stroke::new(1.0, Color32::DARK_GRAY),
@@ -318,27 +441,36 @@ impl StatisticsData {
             xpos += COLUMN_GAP;
         }
         match table_action {
-            StatisticsTableAction::None => {},
+            StatisticsTableAction::None => {}
             StatisticsTableAction::SortResult(column_index) => {
                 if column_index < self.results.len() {
                     let data_vec = self.results[column_index].get_data_vec();
-                    let mut values_with_indices: Vec<_> = data_vec
-                        .iter()
-                        .enumerate()    
-                        .map(|(i, &v)| (v, i as u32))
-                        .collect();
-                        values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+                    let mut values_with_indices: Vec<_> =
+                        data_vec.iter().enumerate().map(|(i, &v)| (v, i as u32)).collect();
+                    values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
                     self.reorder_in_place(&values_with_indices);
+                    if let Some((selected_iri, pos)) = self.selected_idx {
+                        if pos == 0 && !self.nodes.is_empty() {
+                            self.selected_idx = Some((self.nodes[0].0, 0));
+                        } else {
+                            let new_pos = self.nodes.iter().position(|(iri, _)| *iri == selected_iri);
+                            if let Some(new_pos) = new_pos {
+                                self.selected_idx = Some((selected_iri, new_pos));
+                            } else {
+                                self.selected_idx = None;
+                            }
+                        }
+                    }
                 }
-            },
+            }
         }
-    } 
+    }
 
     fn reorder_in_place<T: Clone>(&mut self, new_indexes: &[(T, u32)]) {
         // Reorder the values in place based on the new indexes
         let nodes_len = self.nodes.len();
         assert_eq!(nodes_len, new_indexes.len());
-        let mut visited = fixedbitset::FixedBitSet::with_capacity( nodes_len);
+        let mut visited = fixedbitset::FixedBitSet::with_capacity(nodes_len);
 
         for i in 0..nodes_len {
             if visited[i] || new_indexes[i].1 as usize == i {

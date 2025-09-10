@@ -235,6 +235,23 @@ impl NObject {
         }
         false
     }
+
+    pub fn highest_priority_types(&self, styles: &GVisualizationStyle) -> Vec<IriIndex> {
+        let mut max_priority: u32 = 0;
+        let mut result: Vec<IriIndex> = Vec::new();
+        for type_index in self.types.iter() {
+            if let Some(type_style) = styles.node_styles.get(type_index) {
+                if type_style.priority > max_priority {
+                    max_priority = type_style.priority;
+                    result.clear();
+                    result.push(*type_index);
+                } else if type_style.priority == max_priority {
+                    result.push(*type_index);
+                }
+            }
+        }
+        result
+    }
 }
 
 impl Default for Indexers {

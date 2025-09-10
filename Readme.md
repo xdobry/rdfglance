@@ -26,7 +26,7 @@ The server with ttl data should allow cors by setting the http header "access-co
 RDFGlance allows users to easily visualize and interact with RDF data. 
 It is RDF Visualization tool.
 It provides a user-friendly interface to explore the relationships and properties within RDF datasets in different ways: as visual interactive graph, table or data sheet.
-The application is suitable for developers, researchers, and anyone interested in working with semantic web technologies.
+The application is suitable for developers, researchers, publisher and anyone interested in working with semantic web technologies.
 
 My primary goal was to ensure the program runs as fast as possible and maintains high performance even when handling large datasets.
 Therefore, the program has been optimized to efficiently process and manage large number of triples and records.
@@ -121,7 +121,11 @@ For more information on how to use RDFGlance, refer to the documentation provide
 
 ## Wasm Web Application Build
 
-Prepare wasm
+You can run the application in browser using the WASM (Web Assembly) technology.
+The rust code is compiled to wasm that can be run in browser in almost native code speed.
+The HTML engine is not used and the application render the UI using WebGL.
+
+Prepare wasm compilation
 
   ```sh
   rustup target add wasm32-unknown-unknown
@@ -137,7 +141,9 @@ Run server in dev mode
   ```sh
   trunk serve
   ```
-  
+
+You can run the application in your browser using local address : http://localhost:8080
+
 Build static web content. Output in dist folder
 
   ```sh
@@ -158,18 +164,15 @@ You need to configure vs code to switch to wasm mode by Ctrl-Shift-P + Preferenc
      "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
 
 
-
-
 ## Known Problems
 
 - Some RDF files can not be read. You will see the error messages in the std output. It seems that the used oxrdf parser is quite sensitive.
 - For WASM (Web) the loading big rdf files the gui may freeze for a while. Multithread processing is not support for WASM
-- The is no limitations to shown size of elements in visual graph. If you have more than 10000 Elements the ui may be not very responsible.
+- There is configurable limit of visual nodes in visual graph set to 40.000. It depends on your computer and data how hight the limit can be set for acceptable performance.
 - If your computer has no GPU support the application can be quite slow, especially in browser.
 
-I still hope that the application can be useful for others.
-Maybe I will improve it later if I feel like it again.
-It is really difficult to achieve a good state.
+I hope that the application can be useful for others. 
+Please report your feature request as [github issue](https://github.com/xdobry/rdfglance/issues).
 
 ## Technology
 

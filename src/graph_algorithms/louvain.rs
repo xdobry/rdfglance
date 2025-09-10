@@ -1,4 +1,4 @@
-use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge};
+use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge, SortedVec};
 
 use rand::Rng;
 use std::{collections::{hash_map::Entry, HashMap, HashSet}, hash::Hash};
@@ -28,8 +28,8 @@ pub struct Modularity {
 }
 
 impl Modularity {
-    pub fn louvain(nodes_len: u32, edges: &[Edge], config: &Config) -> ClusterResult {
-        let mut modularity = Self::construct(nodes_len, edges);
+    pub fn louvain(nodes_len: u32, edges: &[Edge], config: &Config, hidden_predicates: &SortedVec) -> ClusterResult {
+        let mut modularity = Self::construct(nodes_len, edges, hidden_predicates);
         modularity.resolution = config.community_resolution as f32;
         modularity.randomize = config.community_randomize;
         modularity.init_caches();
@@ -70,19 +70,22 @@ impl Modularity {
         }
     }
 
-    fn construct(node_len: u32, edges: &[Edge]) -> Self {
-        let m = edges.len() as f32 * 2.0;
+    fn construct(node_len: u32, edges: &[Edge], hidden_predicates: &SortedVec) -> Self {
         let resolution = 1.0;
         let origin_nodes_community = (0..node_len).collect();
         let nodes = (0..node_len).map(|i| CNode::init(i)).collect();
         let communities = (0..node_len).map(|i| Community::init(i)).collect();
         let mut wedges: Vec<Vec<WEdge>> = vec![Vec::new(); node_len as usize];
+        let mut m = 0.0;
         for edge in edges {
-            let from = edge.from as u32;
-            let to = edge.to as u32;
-            let weight = 1.0;
-            wedges[from as usize].push(WEdge { from, to, weight });
-            wedges[to as usize].push(WEdge { from: to, to: from, weight });
+            if !hidden_predicates.contains(edge.predicate) {
+                let from = edge.from as u32;
+                let to = edge.to as u32;
+                let weight = 1.0;
+                wedges[from as usize].push(WEdge { from, to, weight });
+                wedges[to as usize].push(WEdge { from: to, to: from, weight });
+                m += 2.0;
+            }
         }
         Self {
             m,
@@ -357,7 +360,7 @@ struct WEdge {
 mod tests {
     use egui::ahash::HashSet;
 
-    use crate::{config::Config, graph_algorithms::louvain::{compute_modularity, Modularity}, layout::Edge};
+    use crate::{config::Config, graph_algorithms::louvain::{compute_modularity, Modularity}, layout::Edge, SortedVec};
 
     fn convert_edges(edges: &Vec<(u32, u32)>) -> (u32, Vec<Edge>) {
         let mut nodes_len = 0;
@@ -391,7 +394,8 @@ mod tests {
             (4,5)
         ];
         let (nodes_len, edges) = convert_edges(&edges);
-        let mut modularity = Modularity::construct(nodes_len, &edges);
+        let hidden_predicates = SortedVec::new();
+        let mut modularity = Modularity::construct(nodes_len, &edges, &hidden_predicates);
         modularity.init_caches();
         assert_eq!(modularity.nodes.len(), nodes_len as usize);
         assert_eq!(modularity.communities.len(), nodes_len as usize);
@@ -536,7 +540,8 @@ mod tests {
 
         let mut config = Config::default();
         config.community_randomize = false;
-        let result = Modularity::louvain(nodes_len, &edges, &config);
+        let hidden_predicates = SortedVec::new();
+        let result = Modularity::louvain(nodes_len, &edges, &config, &hidden_predicates);
         println!("Communities: {:?}", result.cluster_size);
         assert_eq!(3, result.cluster_size);
     }

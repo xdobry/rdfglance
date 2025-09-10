@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use rayon::prelude::*;
 
-use crate::layout::Edge;
+use crate::{layout::Edge, SortedVec};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BetweennessCentralityResult {
@@ -16,12 +16,14 @@ impl Default for BetweennessCentralityResult {
     }
 }
 
-pub fn compute_betweenness_centrality(nodes_len: usize, edges: &[Edge]) -> Vec<BetweennessCentralityResult> {
+pub fn compute_betweenness_centrality(nodes_len: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<BetweennessCentralityResult> {
     // Precompute adjacency list
     let mut adj: Vec<Vec<u32>> = vec![Vec::new(); nodes_len];
     for e in edges {
-        adj[e.from].push(e.to as u32);
-        adj[e.to].push(e.from as u32);
+        if !hidden_predicates.contains(e.predicate) {
+            adj[e.from].push(e.to as u32);
+            adj[e.to].push(e.from as u32);
+        }
     }
 
     let centrality = (0..nodes_len)
@@ -100,7 +102,8 @@ mod tests {
             Edge { from: 3, to: 4, predicate: 0, bezier_distance: 0.0 },
             Edge { from: 2, to: 3, predicate: 0, bezier_distance: 0.0 },
         ];
-        let centrality = compute_betweenness_centrality(nodes_len, &edges);
+        let hidden_predicates = SortedVec::new();
+        let centrality = compute_betweenness_centrality(nodes_len, &edges, &hidden_predicates);
         assert_eq!(centrality.len(), nodes_len);
         let should_centrality = [1.0,2.0,2.0,7.0,0.0];
         for i in 0..nodes_len {

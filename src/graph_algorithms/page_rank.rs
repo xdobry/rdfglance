@@ -1,6 +1,6 @@
-use crate::layout::Edge;
+use crate::{layout::Edge, SortedVec};
 
-pub fn compute_page_rank(nodes_len: usize, edges: &[Edge]) -> Vec<f32> {
+pub fn compute_page_rank(nodes_len: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     // Build adjacency list
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); nodes_len];
     for e in edges {

@@ -1,12 +1,14 @@
 
-use crate::layout::Edge;
+use crate::{layout::Edge, SortedVec};
 
-pub fn compute_k_core(n: usize, edges: &[Edge]) -> Vec<f32> {
+pub fn compute_k_core(n: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     // Build adjacency
     let mut adj = vec![Vec::<usize>::new(); n];
     for e in edges {
-        adj[e.from].push(e.to);
-        adj[e.to].push(e.from);
+        if !hidden_predicates.contains(e.predicate) {
+            adj[e.from].push(e.to);
+            adj[e.to].push(e.from);
+        }
     }
 
     // Current degrees
@@ -94,7 +96,8 @@ mod tests {
             Edge { from: 2, to: 3, predicate: 0, bezier_distance: 0.0 },
             Edge { from: 3, to: 4, predicate: 0, bezier_distance: 0.0 },
         ];
-        let centrality = compute_k_core(nodes_len, &edges);
+        let hidden_predicates = SortedVec::new();
+        let centrality = compute_k_core(nodes_len, &edges, &hidden_predicates);
         assert_eq!(centrality.len(), nodes_len);
         let should_centrality = [2.0,2.0,2.0,1.0,1.0];
         for i in 0..nodes_len {

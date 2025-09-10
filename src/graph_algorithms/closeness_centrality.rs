@@ -1,13 +1,15 @@
 use rayon::prelude::*;
 
-use crate::layout::Edge;
+use crate::{layout::Edge, SortedVec};
 
-pub fn compute_closeness_centrality(nodes_len: usize, edges: &[Edge]) -> Vec<f32> {
+pub fn compute_closeness_centrality(nodes_len: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     // Precompute adjacency list
     let mut adj: Vec<Vec<u32>> = vec![Vec::new(); nodes_len];
     for e in edges {
-        adj[e.from].push(e.to as u32);
-        adj[e.to].push(e.from as u32);
+        if !hidden_predicates.contains(e.predicate) {
+            adj[e.from].push(e.to as u32);
+            adj[e.to].push(e.from as u32);
+        }
     }
 
     (0..nodes_len)

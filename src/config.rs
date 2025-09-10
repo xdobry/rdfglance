@@ -1,4 +1,4 @@
-use egui::{Align, Layout};
+use egui::{Align, Layout, Slider};
 use serde::{Deserialize, Serialize};
 
 use crate::{NodeAction, RdfGlanceApp};
@@ -28,6 +28,8 @@ pub struct Config {
     pub community_randomize: bool,
     #[serde(default = "default_true")]
     pub short_iri: bool,
+    #[serde(default = "default_40_000")]
+    pub max_visible_nodes: usize,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Copy, Clone)]
@@ -54,6 +56,7 @@ impl Default for Config {
             community_resolution: 1.0,
             community_randomize: true,
             short_iri: true,
+            max_visible_nodes: 40_000,
         }
     }
 }
@@ -68,6 +71,10 @@ fn default_iri_display() -> IriDisplay {
 
 fn default_1() -> f32 {
     1.0
+}
+
+fn default_40_000() -> usize {
+    40_000
 }
 
 impl Config {
@@ -133,6 +140,7 @@ impl RdfGlanceApp {
             &mut self.persistent_data.config_data.community_randomize,
             "community detection randomize",
         );
+        ui.add(Slider::new(&mut self.persistent_data.config_data.max_visible_nodes, 1000..=200_000).text("Max nodes in visual graph"));
         NodeAction::None
     }
 

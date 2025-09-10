@@ -180,6 +180,7 @@ impl TypeData {
         prefix_manager: &PrefixManager,
         layout_data: &UIState,
         iri_display: IriDisplay,
+        text_has_focus: bool,
     ) {
         let a_height = ui.available_height();
 
@@ -187,9 +188,10 @@ impl TypeData {
         let capacity = (a_height / ROW_HIGHT) as usize - 1;
 
         let any_popup = ui.memory(|mem| mem.any_popup_open());
-        if !any_popup {
+        if !any_popup && !text_has_focus {
             if let Some((_node_iri, idx)) = self.instance_view.selected_idx {
                 ui.input(|i| {
+                    let mut filter_idx: Option<usize> = None;
                     if idx > 0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
                         let new_idx = idx - 1;
                         self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
@@ -207,7 +209,7 @@ impl TypeData {
                             instance_index = new_idx + 1 - capacity;
                             self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
                         }
-                    } else if idx != 0 && i.key_pressed(Key::Home) {
+                    } else if i.key_pressed(Key::Home) {
                         let selected_view_index: i64 = idx as i64 - instance_index as i64;
                         self.instance_view.pos = 0.0;
                         instance_index = 0;
@@ -246,6 +248,38 @@ impl TypeData {
                         if selected_view_index >= 0 && selected_view_index < capacity as i64 {
                             let new_idx = selected_view_index as usize + instance_index;
                             self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::ArrowLeft) {
+                        if self.instance_view.column_pos > 0 {
+                            self.instance_view.column_pos -= 1;
+                        }
+                    } else if i.key_pressed(Key::ArrowRight) {
+                        let visible_len = self.instance_view.display_properties.iter().filter(|p| p.visible).count();
+                        if (self.instance_view.column_pos as usize) < visible_len {
+                            self.instance_view.column_pos += 1;
+                        }
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num1) {
+                        *table_action = TableAction::SortIriAsc();
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num2) {
+                        *table_action = TableAction::SortRefAsc()
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num3) {
+                        filter_idx = Some(0);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num4) {
+                        filter_idx = Some(1);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num5) {
+                        filter_idx = Some(2);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num6) {
+                        filter_idx = Some(3);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num7) {
+                        filter_idx = Some(4);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num8) {
+                        filter_idx = Some(5);
+                    }
+                    if let Some(filter_idx) = filter_idx {
+                        let column_desc = self.instance_view.display_properties.iter().filter(|p| p.visible)
+                            .nth(self.instance_view.column_pos as usize+filter_idx);
+                        if let Some(column_desc) = column_desc {
+                            *table_action = TableAction::SortColumnAsc(column_desc.predicate_index);
                         }
                     }
                 });
@@ -575,7 +609,7 @@ impl TypeData {
                 ypos += ROW_HIGHT;
             }
         }
-        if matches!(instance_action, NodeAction::None) {
+        if !text_has_focus && matches!(instance_action, NodeAction::None) {
             let mut show_refs = false;
             if let Some((selected_id, _idx)) = self.instance_view.selected_idx {
                 ui.input(|i| {
@@ -1432,13 +1466,15 @@ impl TypeInstanceIndex {
         if let Some(selected_type) = self.selected_type {
             if let Some(type_data) = self.types.get_mut(&selected_type) {
                 let mut table_action: TableAction = TableAction::None;
+                let mut text_has_focus = false;
                 ui.horizontal(|ui| {
                     let filter_immediately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
-                    if ui.ctx().input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command) {
+                    if ui.ctx().input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
                         text_edit_response.request_focus();
                     }
+                    text_has_focus = text_edit_response.has_focus();
                     if filter_immediately {
                         if text_edit_response.changed() {
                             table_action = TableAction::Filter;
@@ -1490,6 +1526,7 @@ impl TypeInstanceIndex {
                                 &rdf_data.prefix_manager,
                                 layout_data,
                                 iri_display,
+                                text_has_focus,
                             );
                         });
                         strip.cell(|ui| {

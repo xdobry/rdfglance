@@ -7,7 +7,7 @@ pub mod eigenvector;
 pub mod page_rank;
 pub mod louvain;
 
-use crate::{config::Config, graph_algorithms::utils::normalize, layout::Edge};
+use crate::{config::Config, graph_algorithms::utils::normalize, layout::Edge, SortedVec};
 use strum_macros::{EnumIter, Display};
 
 #[derive(Debug, Clone, Copy, EnumIter, Display, PartialEq)]
@@ -43,30 +43,30 @@ pub struct ClusterResult {
     pub node_cluster: Vec<u32>,
 }
 
-pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge]) -> Vec<f32> {
+pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     match algorithm {
         GraphAlgorithm::BetweennessCentrality => {
-            let values = betweenness_centrality::compute_betweenness_centrality(nodes_len, edges).into_iter().map(|result| result.node_betweenness).collect::<Vec<f32>>();
+            let values = betweenness_centrality::compute_betweenness_centrality(nodes_len, edges, hidden_predicates).into_iter().map(|result| result.node_betweenness).collect::<Vec<f32>>();
             normalize(values)
         }
         GraphAlgorithm::DegreeCentrality => {
-            let values = degree::compute_degree_centrality(nodes_len, edges);
+            let values = degree::compute_degree_centrality(nodes_len, edges, hidden_predicates);
             normalize(values)
         }
         GraphAlgorithm::ClosenessCentrality => {
-            let values = closeness_centrality::compute_closeness_centrality(nodes_len, edges);
+            let values = closeness_centrality::compute_closeness_centrality(nodes_len, edges, hidden_predicates);
             normalize(values)
         }
         GraphAlgorithm::KCoreCentrality => {
-            let values = k_core::compute_k_core(nodes_len, edges);
+            let values = k_core::compute_k_core(nodes_len, edges, hidden_predicates);
             normalize(values)
         },
         GraphAlgorithm::EigenvectorCentrality => {
-            let values = eigenvector::compute_eigenvector_centrality(nodes_len, edges);
+            let values = eigenvector::compute_eigenvector_centrality(nodes_len, edges, hidden_predicates);
             normalize(values)
         },
         GraphAlgorithm::PageRank => {
-            let values = page_rank::compute_page_rank(nodes_len, edges);
+            let values = page_rank::compute_page_rank(nodes_len, edges, hidden_predicates);
             normalize(values)
         },
         GraphAlgorithm::ClusteringLouvain => {
@@ -75,10 +75,10 @@ pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge]
     }
 }
 
-pub fn run_clustering_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge], config: &Config) -> ClusterResult {
+pub fn run_clustering_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge], config: &Config, hidden_predicates: &SortedVec) -> ClusterResult {
     match algorithm {
         GraphAlgorithm::ClusteringLouvain => {
-            louvain::Modularity::louvain(nodes_len as u32, edges, &config)
+            louvain::Modularity::louvain(nodes_len as u32, edges, &config, hidden_predicates)
         }
         _ => {
             panic!("Not a clustering algorithm");

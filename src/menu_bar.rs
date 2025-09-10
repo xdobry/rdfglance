@@ -40,7 +40,7 @@ impl RdfGlanceApp {
                         menu_action = MenuAction::LoadProject;
                         ui.close_menu();
                     }
-                    if ui.button("Save Project").clicked() {
+                    if ui.button("Save Project\tCtrl-S").clicked() {
                         menu_action = MenuAction::SaveProject;
                         ui.close_menu();
                     }
@@ -61,7 +61,7 @@ impl RdfGlanceApp {
                     }
                     ui.separator();
                 }
-                if ui.button("Import RDF File").clicked() {
+                if ui.button("Import RDF File\tCtrl-O").clicked() {
                     menu_action = MenuAction::ImportRDF;
                     ui.close_menu();
                 }
@@ -128,7 +128,7 @@ impl RdfGlanceApp {
                             self.statistics_data = Some(StatisticsData::default());
                         }
                         self.visible_nodes.run_algorithm(entry, &self.visualization_style, 
-                            &mut self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data);
+                            &mut self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                         // TODO ask for confirmation
                         self.visualization_style.use_size_overwrite = true;
                         self.visualization_style.use_color_overwrite = true;
@@ -136,12 +136,22 @@ impl RdfGlanceApp {
                     }
                 }
                 ui.separator();
+                ui.add_enabled_ui(self.statistics_data.as_ref().map_or(false,|f| !f.results.is_empty()), |ui| {
+                    if ui.checkbox(&mut self.visualization_style.use_size_overwrite, "Node size from statistics").changed() {
+                        self.visible_nodes.update_node_shapes = true;
+                    }
+                    if ui.checkbox(&mut self.visualization_style.use_color_overwrite, "Node color from statistics").changed() {
+                        self.visible_nodes.update_node_shapes = true;
+                    }
+                });
+                ui.separator();
                 if ui.button("Clear Statistics").clicked() {
                     if let Some(statistics_data) = &mut self.statistics_data {
                         statistics_data.results.clear();
                     }
                     self.visualization_style.use_size_overwrite = false;
                     self.visualization_style.use_color_overwrite = false;
+                    self.visible_nodes.update_node_shapes = true;
                     ui.close_menu();
                 }
                 consume_keys = true;
