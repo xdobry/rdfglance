@@ -186,13 +186,13 @@ pub fn show_refs_table(
     if !matches!(ref_selection, RefSelection::None) {
         ui.input(|i| {
             if i.key_pressed(Key::ArrowDown) {
-                ref_selection.move_down(&current_node);
+                ref_selection.move_down(current_node);
             } else if i.key_pressed(Key::ArrowUp) {
                 ref_selection.move_up();
             } else if i.key_pressed(Key::ArrowRight) {
-                ref_selection.move_right(&current_node);
+                ref_selection.move_right(current_node);
             } else if i.key_pressed(Key::ArrowLeft) {
-                ref_selection.move_left(&current_node);
+                ref_selection.move_left(current_node);
             }
         });
     }

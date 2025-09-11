@@ -30,12 +30,8 @@ pub enum GraphAlgorithm {
 
 impl GraphAlgorithm {
     pub fn is_clustering(&self) -> bool {
-        match self {
-            GraphAlgorithm::ClusteringLouvain => true,
-            _ => false,
-        }
+        matches!(self,GraphAlgorithm::ClusteringLouvain)
     }
-
 }
 
 pub struct ClusterResult {
@@ -78,7 +74,7 @@ pub fn run_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge]
 pub fn run_clustering_algorithm(algorithm: GraphAlgorithm, nodes_len: usize, edges: &[Edge], config: &Config, hidden_predicates: &SortedVec) -> ClusterResult {
     match algorithm {
         GraphAlgorithm::ClusteringLouvain => {
-            louvain::Modularity::louvain(nodes_len as u32, edges, &config, hidden_predicates)
+            louvain::Modularity::louvain(nodes_len as u32, edges, config, hidden_predicates)
         }
         _ => {
             panic!("Not a clustering algorithm");

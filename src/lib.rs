@@ -4,9 +4,14 @@ use anyhow::Error;
 use const_format::concatcp;
 use fixedbitset::FixedBitSet;
 use std::{
-    collections::{HashMap, HashSet}, ops::Index, path::Path, sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock
-    }, thread::{self, JoinHandle}, time::Duration
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use eframe::{
@@ -35,6 +40,7 @@ pub mod browse_view;
 pub mod config;
 pub mod distinct_colors;
 pub mod drawing;
+pub mod graph_algorithms;
 pub mod graph_styles;
 pub mod graph_view;
 pub mod layout;
@@ -43,18 +49,17 @@ pub mod meta_graph;
 pub mod nobject;
 pub mod persistency;
 pub mod prefix_manager;
+pub mod quad_tree;
 pub mod rdfwrap;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sparql;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sparql_dialog;
+pub mod statistics;
 pub mod string_indexer;
 pub mod style;
 pub mod table_view;
 pub mod uitools;
-pub mod quad_tree;
-pub mod graph_algorithms;
-pub mod statistics;
 
 #[derive(Debug, PartialEq)]
 pub enum DisplayType {
@@ -103,7 +108,7 @@ pub struct RdfGlanceApp {
 pub enum RefSelection {
     None,
     Reference(usize),
-    ReverseReverence(usize)
+    ReverseReverence(usize),
 }
 
 impl RefSelection {
@@ -125,77 +130,74 @@ impl RefSelection {
                 } else {
                     Some(*idx)
                 }
-            },
+            }
             RefSelection::ReverseReverence(idx) => {
                 if is_reverse {
                     Some(*idx)
                 } else {
                     None
                 }
-            },
+            }
         }
     }
     pub fn move_up(&mut self) {
         match self {
-            RefSelection::None => {},
+            RefSelection::None => {}
             RefSelection::Reference(idx) => {
                 if *idx > 0 {
                     *idx -= 1;
                 }
-            },
+            }
             RefSelection::ReverseReverence(idx) => {
                 if *idx > 0 {
                     *idx -= 1;
                 }
-            },
+            }
         }
     }
     pub fn move_down(&mut self, node: &NObject) {
         match self {
-            RefSelection::None => {},
+            RefSelection::None => {}
             RefSelection::Reference(idx) => {
-                if *idx < node.references.len()-1 {
+                if *idx < node.references.len() - 1 {
                     *idx += 1;
                 }
-            },
+            }
             RefSelection::ReverseReverence(idx) => {
-                if *idx < node.reverse_references.len()-1 {
+                if *idx < node.reverse_references.len() - 1 {
                     *idx += 1;
                 }
-            },
+            }
         }
     }
     pub fn move_right(&mut self, node: &NObject) {
         match self {
-            RefSelection::None => {},
+            RefSelection::None => {}
             RefSelection::Reference(idx) => {
                 if !node.reverse_references.is_empty() {
-                    if *idx > node.reverse_references.len()-1 {
-                        *idx = node.reverse_references.len()-1;
+                    if *idx > node.reverse_references.len() - 1 {
+                        *idx = node.reverse_references.len() - 1;
                     }
                     *self = RefSelection::ReverseReverence(*idx);
                 }
-            },
-            RefSelection::ReverseReverence(_) => {
-            },
+            }
+            RefSelection::ReverseReverence(_) => {}
         }
     }
     pub fn move_left(&mut self, node: &NObject) {
         match self {
-            RefSelection::None => {},
-            RefSelection::Reference(_) => {
-            },
+            RefSelection::None => {}
+            RefSelection::Reference(_) => {}
             RefSelection::ReverseReverence(idx) => {
                 if !node.references.is_empty() {
-                    if *idx > node.references.len()-1 {
-                        *idx = node.references.len()-1;
+                    if *idx > node.references.len() - 1 {
+                        *idx = node.references.len() - 1;
                     }
                     *self = RefSelection::Reference(*idx);
                 }
-            },
+            }
         }
     }
-
 }
 
 pub struct DataLoading {
@@ -270,7 +272,7 @@ impl RdfData {
                     ExpandType::References | ExpandType::Both => {
                         for (predicate, ref_iri) in &nnode.references {
                             if !hidden_predicates.contains(*predicate) {
-                                refs_to_expand.push((iri_index,*ref_iri));
+                                refs_to_expand.push((iri_index, *ref_iri));
                             }
                         }
                     }
@@ -280,7 +282,7 @@ impl RdfData {
                     ExpandType::ReverseReferences | ExpandType::Both => {
                         for (predicate, ref_iri) in &nnode.reverse_references {
                             if !hidden_predicates.contains(*predicate) {
-                                refs_to_expand.push((iri_index,*ref_iri));
+                                refs_to_expand.push((iri_index, *ref_iri));
                             }
                         }
                     }
@@ -295,9 +297,18 @@ impl RdfData {
             return false;
         }
         let mut npos = NeighborPos::new();
-        let was_added = npos.add_many( node_change_context.visible_nodes,  &refs_to_expand, &node_change_context.config);
+        let was_added = npos.add_many(
+            node_change_context.visible_nodes,
+            &refs_to_expand,
+            node_change_context.config,
+        );
         if was_added {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
+            update_layout_edges(
+                &npos,
+                node_change_context.visible_nodes,
+                &self.node_data,
+                hidden_predicates,
+            );
             npos.position(node_change_context.visible_nodes);
             true
         } else {
@@ -305,7 +316,12 @@ impl RdfData {
         }
     }
 
-    fn expand_all_by_types(&mut self, types: &[IriIndex], node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
+    fn expand_all_by_types(
+        &mut self,
+        types: &[IriIndex],
+        node_change_context: &mut NodeChangeContext,
+        hidden_predicates: &SortedVec,
+    ) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -334,9 +350,18 @@ impl RdfData {
             return false;
         }
         let mut npos = NeighborPos::new();
-        let was_added = npos.add_many( node_change_context.visible_nodes, &parent_ref, &node_change_context.config);
+        let was_added = npos.add_many(
+            node_change_context.visible_nodes,
+            &parent_ref,
+            node_change_context.config,
+        );
         if was_added {
-            update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
+            update_layout_edges(
+                &npos,
+                node_change_context.visible_nodes,
+                &self.node_data,
+                hidden_predicates,
+            );
             npos.position(node_change_context.visible_nodes);
             true
         } else {
@@ -381,9 +406,18 @@ impl RdfData {
             false
         } else {
             let mut npos = NeighborPos::new();
-            let was_added = npos.add_many(&mut node_change_context.visible_nodes, &parent_ref, &node_change_context.config);
+            let was_added = npos.add_many(
+                node_change_context.visible_nodes,
+                &parent_ref,
+                node_change_context.config,
+            );
             if was_added {
-                update_layout_edges(&npos, node_change_context.visible_nodes, &self.node_data, hidden_predicates);
+                update_layout_edges(
+                    &npos,
+                    node_change_context.visible_nodes,
+                    &self.node_data,
+                    hidden_predicates,
+                );
                 npos.position(node_change_context.visible_nodes);
                 true
             } else {
@@ -406,7 +440,9 @@ impl RdfData {
         } else {
             let mut nodes_indexes_to_remove: Vec<usize> = nodes_bits.zeroes().collect();
             nodes_indexes_to_remove.sort_unstable();
-            node_change_context.visible_nodes.remove_pos_list(&nodes_indexes_to_remove, &hidden_predicates);
+            node_change_context
+                .visible_nodes
+                .remove_pos_list(&nodes_indexes_to_remove, hidden_predicates);
             true
         }
     }
@@ -474,7 +510,7 @@ pub struct UIState {
     icon_name_filter: String,
     cpu_usage: f32,
     about_window: bool,
-    last_visited_selection: LastVisitedSelection
+    last_visited_selection: LastVisitedSelection,
 }
 
 pub enum LastVisitedSelection {
@@ -718,7 +754,7 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
-                last_visited_selection: LastVisitedSelection::File(0)
+                last_visited_selection: LastVisitedSelection::File(0),
             },
             help_open: false,
             load_handle: None,
@@ -728,7 +764,7 @@ impl RdfGlanceApp {
             import_from_url: None,
         };
         #[cfg(not(target_arch = "wasm32"))]
-        if args.len() > 0 {
+        if !args.is_empty() {
             let first_arg = args[0].as_str();
             // TODO does not know the dark mode yet.
             app.load_ttl(first_arg, false);
@@ -882,7 +918,10 @@ impl RdfGlanceApp {
                         &language_filter,
                         Some(my_data_loading),
                     )
-                    .map(|triples_count| LoadResult {triples_count, file_name: Some(file_name_cpy) }),
+                    .map(|triples_count| LoadResult {
+                        triples_count,
+                        file_name: Some(file_name_cpy),
+                    }),
                 )
             } else {
                 None
@@ -923,7 +962,10 @@ impl RdfGlanceApp {
                         format,
                         Some(my_data_loading),
                     )
-                    .map(|triples_count| LoadResult {triples_count, file_name: None}),
+                    .map(|triples_count| LoadResult {
+                        triples_count,
+                        file_name: None,
+                    }),
                 )
             } else {
                 None
@@ -965,11 +1007,12 @@ impl RdfGlanceApp {
                     self.update_data_indexes(is_dark_mode);
                     if let Some(file_name) = load_result.file_name {
                         let file_name_cpy = file_name.into_boxed_str();
-                        if let Some(position) = self.persistent_data.last_files.iter().position(|f| *f == file_name_cpy) {
+                        if let Some(position) = self.persistent_data.last_files.iter().position(|f| *f == file_name_cpy)
+                        {
                             self.persistent_data.last_files.remove(position);
-                            self.persistent_data.last_files.insert(0,file_name_cpy);                        
+                            self.persistent_data.last_files.insert(0, file_name_cpy);
                         } else {
-                            self.persistent_data.last_files.insert(0,file_name_cpy);
+                            self.persistent_data.last_files.insert(0, file_name_cpy);
                         }
                     }
                 }
@@ -1041,7 +1084,10 @@ impl RdfGlanceApp {
                         &language_filter,
                         Some(my_data_loading),
                     )
-                    .map(|triples_count| LoadResult { triples_count, file_name: Some(dir_name_cpy)}),
+                    .map(|triples_count| LoadResult {
+                        triples_count,
+                        file_name: Some(dir_name_cpy),
+                    }),
                 )
             } else {
                 None
@@ -1101,16 +1147,21 @@ impl RdfGlanceApp {
             let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
             let b_resp = ui.add(nav_but);
             if b_resp.clicked() {
-                self.load_ttl_data("programming_languages.ttl", SAMPLE_DATA.to_vec().as_ref(), ui.visuals().dark_mode);
+                self.load_ttl_data(
+                    "programming_languages.ttl",
+                    SAMPLE_DATA.to_vec().as_ref(),
+                    ui.visuals().dark_mode,
+                );
             }
         }
         let mut enter_pressed = false;
         let mut delete_pressed = false;
         if let LastVisitedSelection::File(i) = self.ui_state.last_visited_selection {
             if i >= self.persistent_data.last_files.len() {
-                self.ui_state.last_visited_selection =  LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
+                self.ui_state.last_visited_selection =
+                    LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
             }
-        }      
+        }
         ui.input(|i| {
             if i.key_pressed(egui::Key::Enter) {
                 enter_pressed = true;
@@ -1262,8 +1313,6 @@ impl RdfGlanceApp {
 }
 
 impl eframe::App for RdfGlanceApp {
-    
-    
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(cpu_usage) = frame.info().cpu_usage {
             self.ui_state.cpu_usage = self.ui_state.cpu_usage * 0.95 + cpu_usage * 0.05;
@@ -1330,11 +1379,12 @@ impl eframe::App for RdfGlanceApp {
                                 import_from_url_data.focus_requested = true;
                             }
                             if import_url.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                               ok_clicked = true;
+                                ok_clicked = true;
                             }
                         });
-                        ui.horizontal(|ui| {                          
-                            let import_but = ui.add_enabled(import_from_url_data.url.len()>0, egui::Button::new("Import"));
+                        ui.horizontal(|ui| {
+                            let import_but =
+                                ui.add_enabled(!import_from_url_data.url.is_empty(), egui::Button::new("Import"));
                             if import_but.clicked() {
                                 ok_clicked = true;
                             }
@@ -1354,7 +1404,7 @@ impl eframe::App for RdfGlanceApp {
                         self.system_message = SystemMessage::Error("URL cannot be empty".to_string());
                     } else {
                         let url = import_from_url_data.url.clone();
-                        self.load_ttl_from_url(&url,import_from_url_data.format, ui.visuals().dark_mode);
+                        self.load_ttl_from_url(&url, import_from_url_data.format, ui.visuals().dark_mode);
                     }
                 }
                 self.import_from_url = None;
@@ -1385,19 +1435,12 @@ impl eframe::App for RdfGlanceApp {
                         DisplayType::Browse,
                         concatcp!(ICON_BROWSE, " Browse"),
                     );
-                    if ui
-                        .selectable_value(
-                            &mut self.display_type,
-                            DisplayType::MetaGraph,
-                            concatcp!(ICON_METADATA, " Meta Graph"),
-                        )
-                        .clicked()
-                    {
-                        let is_empty = self.meta_nodes.nodes.read().unwrap().is_empty();
-                        if is_empty {
-                            self.build_meta_graph();
-                        }
-                    }
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::MetaGraph,
+                        concatcp!(ICON_METADATA, " Meta Graph"),
+                    )
+                    .clicked();
                     ui.selectable_value(
                         &mut self.display_type,
                         DisplayType::Statistics,
@@ -1431,7 +1474,7 @@ impl eframe::App for RdfGlanceApp {
                             self.display_type = DisplayType::MetaGraph;
                         } else if i.modifiers.ctrl && i.key_pressed(Key::Num5) {
                             self.display_type = DisplayType::Statistics;
-                        } 
+                        }
                     }
                 })
             });
@@ -1464,7 +1507,13 @@ impl eframe::App for RdfGlanceApp {
                             }
                             DisplayType::Configuration => self.show_config(ctx, ui),
                             DisplayType::Prefixes => self.show_prefixes(ctx, ui),
-                            DisplayType::MetaGraph => self.show_meta_graph(ctx, ui),
+                            DisplayType::MetaGraph => {
+                                let is_empty = self.meta_nodes.nodes.read().unwrap().is_empty();
+                                if is_empty {
+                                    self.build_meta_graph();
+                                }
+                                self.show_meta_graph(ctx, ui)
+                            },
                             DisplayType::Statistics => self.show_statistics(ctx, ui),
                         };
                     });
@@ -1481,10 +1530,10 @@ impl eframe::App for RdfGlanceApp {
                 NodeAction::ShowTypeInstances(type_index, instances) => {
                     self.display_type = DisplayType::Table;
                     self.type_index.selected_type = Some(type_index);
-                    self.type_index.types.get_mut(&type_index).map(|type_desc| {
+                    if let Some(type_desc) = self.type_index.types.get_mut(&type_index) {
                         type_desc.filtered_instances = instances;
                         type_desc.instance_view.pos = 0.0;
-                    });
+                    }
                 }
                 NodeAction::BrowseNode(node_index) => {
                     self.display_type = DisplayType::Browse;
@@ -1541,7 +1590,6 @@ impl eframe::App for RdfGlanceApp {
                                 } else {
                                     println!("File dropped path is not valid UTF-8: {:?}", path);
                                 }
-                                
                             }
                         }
                     }

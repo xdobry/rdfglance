@@ -41,14 +41,12 @@ pub fn compute_closeness_centrality(nodes_len: usize, edges: &[Edge], hidden_pre
                 }
             }
 
-            let closeness = if sum_distances > 0 {
+            if sum_distances > 0 {
                 // normalized closeness
                 (reachable as f32) / (sum_distances as f32)
             } else {
                 0.0
-            };
-
-            closeness
+            }
         })
         .collect()
 }

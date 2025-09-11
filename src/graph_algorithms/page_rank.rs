@@ -4,7 +4,9 @@ pub fn compute_page_rank(nodes_len: usize, edges: &[Edge], hidden_predicates: &S
     // Build adjacency list
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); nodes_len];
     for e in edges {
-        adj[e.from].push(e.to); // directed: from → to
+        if !hidden_predicates.contains(e.predicate) {
+            adj[e.from].push(e.to); // directed: from → to
+        }
     }
 
     // Parameters

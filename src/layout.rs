@@ -1,5 +1,5 @@
 use crate::{
-    config::{self, Config}, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec
+    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -42,7 +42,7 @@ impl Default for NodeShapeData {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct LayerInterval {
     // 0 is open interval, so 0 has special meaning!
     // layers are build 1..10 1 is first layer with all nodes
@@ -54,12 +54,6 @@ pub struct LayerInterval {
     // 0..5 can be see in magnitudes 0,1,2,3,4,5
     pub from: u8,
     pub to: u8,
-}
-
-impl Default for LayerInterval {
-    fn default() -> Self {
-        Self { from: 0, to: 0 }
-    }
 }
 
 impl LayerInterval {
@@ -117,7 +111,7 @@ impl IndividualNodeStyleData {
         self.semantic_zoom_interval.set_from_normalized(value);
     }
     pub fn set_cluster(&mut self, cluster: u32) {
-        self.color_overwrite = (cluster+1 % 65535) as u16; // wrap around if more than 65535 clusters
+        self.color_overwrite = (cluster+1) as u16;
     }
 }
 
@@ -433,7 +427,7 @@ impl SortedNodeLayout {
             self.data_epoch += 1;
             self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                 edges.retain(|e| {
-                    !pos_to_remove.binary_search(&e.from).is_ok() && !pos_to_remove.binary_search(&e.to).is_ok()
+                    pos_to_remove.binary_search(&e.from).is_err() && pos_to_remove.binary_search(&e.to).is_err()
                 });
                 let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
                 for i in 0..nodes.len() {
@@ -594,7 +588,7 @@ impl SortedNodeLayout {
         if self.layout_handle.is_none() {
             if ui.button(ICON_REFRESH).on_hover_text("Start Layout (F5)").clicked() 
             || ui.input(|i| i.key_pressed(egui::Key::F5)) {
-                self.start_layout(config, &hidden_predicates);
+                self.start_layout(config, hidden_predicates);
             }
         } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked() 
             || ui.input(|i| i.key_pressed(egui::Key::X))

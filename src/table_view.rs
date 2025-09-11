@@ -3,7 +3,7 @@ use std::{cmp::min, collections::HashMap, time::Instant, vec};
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
-use rayon::{iter::Rev, prelude::*};
+use rayon::prelude::*;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
@@ -812,17 +812,17 @@ impl TypeData {
                     if let Some((_node_iri, node)) = node {
                         let mut node_to_click: ReferenceAction = ReferenceAction::None;
                         if matches!(self.instance_view.ref_selection, RefSelection::None) {
-                            self.instance_view.ref_selection.init_from_node(&node);
+                            self.instance_view.ref_selection.init_from_node(node);
                         } else {
                             ui.input(|i| {
                                 if i.key_pressed(Key::ArrowDown) {
-                                    self.instance_view.ref_selection.move_down(&node);
+                                    self.instance_view.ref_selection.move_down(node);
                                 } else if i.key_pressed(Key::ArrowUp) {
                                     self.instance_view.ref_selection.move_up();
                                 } else if i.key_pressed(Key::ArrowRight) {
-                                    self.instance_view.ref_selection.move_right(&node);
+                                    self.instance_view.ref_selection.move_right(node);
                                 } else if i.key_pressed(Key::ArrowLeft) {
-                                    self.instance_view.ref_selection.move_left(&node);
+                                    self.instance_view.ref_selection.move_left(node);
                                 }
                             });
                         }
@@ -968,7 +968,7 @@ impl TypeData {
     pub fn update_selected_index(&mut self) {
         if let Some((iri, idx)) = self.instance_view.selected_idx {
             if idx == 0 {
-                if self.filtered_instances.len() > 0 {
+                if !self.filtered_instances.is_empty() {
                     self.instance_view.selected_idx = Some((self.filtered_instances[idx], idx));
                 } else {
                     self.instance_view.selected_idx = None;
@@ -977,7 +977,7 @@ impl TypeData {
                 if let Some(new_idx) = self.filtered_instances.iter().position(|e| *e == iri) {
                     self.instance_view.selected_idx = Some((self.filtered_instances[new_idx], new_idx));
                 } else {
-                    if self.filtered_instances.len() > 0 {
+                    if !self.filtered_instances.is_empty() {
                         self.instance_view.selected_idx = Some((self.filtered_instances[0], 0));
                     } else {
                         self.instance_view.selected_idx = None;
@@ -985,7 +985,7 @@ impl TypeData {
                 }
             }
         } else {
-            if self.filtered_instances.len() > 0 {
+            if !self.filtered_instances.is_empty() {
                 self.instance_view.selected_idx = Some((self.filtered_instances[0], 0));
             }
         }
@@ -1009,12 +1009,10 @@ pub fn text_wrapped(
             font_id: egui::FontId::default(),
             color: if cell_hovered {
                 visuals.selection.stroke.color
+            } else if strong {
+                visuals.strong_text_color()
             } else {
-                if strong {
-                    visuals.strong_text_color()
-                } else {
-                    visuals.text_color()
-                }
+                visuals.text_color()
             },
             ..Default::default()
         },
@@ -1408,12 +1406,9 @@ impl TypeInstanceIndex {
                             egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
                                 let type_cell_action =
                                     type_data.display_references(ui, &label_context, &rdf_data.node_data);
-                                match type_cell_action {
-                                    TypeCellAction::ShowRefTypes(pos, predicate_index) => {
-                                        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
-                                        self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
-                                    }
-                                    _ => {}
+                                if let TypeCellAction::ShowRefTypes(pos, predicate_index) = type_cell_action {
+                                     ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                                     self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
                                 }
                             });
                         });
@@ -1535,7 +1530,6 @@ impl TypeInstanceIndex {
                                 &mut type_data.instance_view.drag_pos,
                                 needed_len,
                                 a_height,
-                                ROW_HIGHT,
                             ));
                         });
                     });

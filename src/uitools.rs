@@ -59,7 +59,7 @@ pub struct ScrollBar<'a> {
 }
 
 impl<'a> ScrollBar<'a> {
-    pub fn new(position: &'a mut f32, drag_pos: &'a mut Option<f32>, len: f32, visible_len: f32, header_height: f32) -> Self {
+    pub fn new(position: &'a mut f32, drag_pos: &'a mut Option<f32>, len: f32, visible_len: f32) -> Self {
         ScrollBar {
             is_vertical: true,
             position,

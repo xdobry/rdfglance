@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{global_theme_preference_switch, menu, Align, Key, Layout, Modifiers};
+use egui::{global_theme_preference_switch, Align, Key, Layout, Modifiers};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -128,7 +128,7 @@ impl RdfGlanceApp {
                             self.statistics_data = Some(StatisticsData::default());
                         }
                         self.visible_nodes.run_algorithm(entry, &self.visualization_style, 
-                            &mut self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                             self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                         // TODO ask for confirmation
                         self.visualization_style.use_size_overwrite = true;
                         self.visualization_style.use_color_overwrite = true;
@@ -136,7 +136,7 @@ impl RdfGlanceApp {
                     }
                 }
                 ui.separator();
-                ui.add_enabled_ui(self.statistics_data.as_ref().map_or(false,|f| !f.results.is_empty()), |ui| {
+                ui.add_enabled_ui(self.statistics_data.as_ref().is_some_and(|f| !f.results.is_empty()), |ui| {
                     if ui.checkbox(&mut self.visualization_style.use_size_overwrite, "Node size from statistics").changed() {
                         self.visible_nodes.update_node_shapes = true;
                     }
@@ -210,7 +210,7 @@ impl RdfGlanceApp {
             MenuAction::None => {}
         }
     }
-    pub fn import_file_from_url_dialog(&mut self, ui: &mut egui::Ui) {
+    pub fn import_file_from_url_dialog(&mut self, _ui: &mut egui::Ui) {
         self.import_from_url = Some(ImportFromUrlData {
             url: String::new(),
             format: ImportFormat::Turtle,

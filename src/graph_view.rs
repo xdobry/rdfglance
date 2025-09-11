@@ -7,7 +7,7 @@ use crate::{
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
-use egui::{Key, Painter, Rect, Slider, accesskit::Node};
+use egui::{Key, Painter, Rect, Slider};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
@@ -118,7 +118,7 @@ impl NextNodeSelection {
                             && (node_pos.x - current_pos.x) >= (node_pos.y - current_pos.y).abs()
                         {
                             if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x < pos.x as f32 {
+                                if node_pos.x < pos.x {
                                     self.next_selected = Some((node_index, node_pos));
                                 }
                             } else {
@@ -131,7 +131,7 @@ impl NextNodeSelection {
                             && (current_pos.x - node_pos.x) >= (node_pos.y - current_pos.y).abs()
                         {
                             if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x > pos.x as f32 {
+                                if node_pos.x > pos.x {
                                     self.next_selected = Some((node_index, node_pos));
                                 }
                             } else {
@@ -144,7 +144,7 @@ impl NextNodeSelection {
                             && (current_pos.y - node_pos.y) >= (node_pos.x - current_pos.x).abs()
                         {
                             if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y > pos.y as f32 {
+                                if node_pos.y > pos.y {
                                     self.next_selected = Some((node_index, node_pos));
                                 }
                             } else {
@@ -157,7 +157,7 @@ impl NextNodeSelection {
                             && (node_pos.y - current_pos.y) >= (node_pos.x - current_pos.x).abs()
                         {
                             if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y < pos.y as f32 {
+                                if node_pos.y < pos.y {
                                     self.next_selected = Some((node_index, node_pos));
                                 }
                             } else {
@@ -1405,7 +1405,7 @@ pub fn update_layout_edges(
 }
 
 pub fn add_preserved_edges(
-    hidden_types: &Vec<IriIndex>,
+    hidden_types: &[IriIndex],
     layout_nodes: &mut SortedNodeLayout,
     node_data: &NodeData,
     hidden_predicates: &SortedVec,
@@ -1462,7 +1462,7 @@ pub fn add_preserved_edges(
                             }
                         }
                     }
-                    if preserved_edges.len() == 0 {
+                    if preserved_edges.is_empty() {
                         // No edges found. But create edges if to nodes point to or from the node for hide
                         if has_to {
                             for edge in pos_edges.iter() {

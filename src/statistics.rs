@@ -109,7 +109,7 @@ impl RdfGlanceApp {
                                 ctx,
                                 &mut rdf_data,
                                 &mut instance_action,
-                                &mut self.ui_state,
+                                &self.ui_state,
                                 self.persistent_data.config_data.iri_display,
                                 &self.visualization_style,
                                 &self.persistent_data.config_data,
@@ -122,7 +122,6 @@ impl RdfGlanceApp {
                             &mut statistics_data.drag_pos,
                             needed_len,
                             a_height,
-                            ROW_HIGHT,
                         ));
                     });
                 });
@@ -260,7 +259,7 @@ impl StatisticsData {
             }
         }
 
-        for ((i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
+        for ((_i, &label), width) in FIX_LABELS.iter().enumerate().zip(self.column_widths.iter()) {
             painter.text(
                 available_rect.left_top() + Vec2::new(xpos, 0.0),
                 egui::Align2::LEFT_TOP,
@@ -313,17 +312,15 @@ impl StatisticsData {
                         0.0,
                         ui.visuals().selection.bg_fill,
                     );
-                } else {
-                    if start_pos % 2 == 0 {
-                        painter.rect_filled(
-                            Rect::from_min_size(
-                                available_rect.left_top() + Vec2::new(0.0, ypos),
-                                Vec2::new(available_width, ROW_HIGHT),
-                            ),
-                            0.0,
-                            ui.visuals().faint_bg_color,
-                        );
-                    }
+                } else if start_pos % 2 == 0 {
+                    painter.rect_filled(
+                        Rect::from_min_size(
+                            available_rect.left_top() + Vec2::new(0.0, ypos),
+                            Vec2::new(available_width, ROW_HIGHT),
+                        ),
+                        0.0,
+                        ui.visuals().faint_bg_color,
+                    );
                 }
                 start_pos += 1;
 

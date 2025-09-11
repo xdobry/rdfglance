@@ -1,7 +1,7 @@
 use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge, SortedVec};
 
 use rand::Rng;
-use std::{collections::{hash_map::Entry, HashMap, HashSet}, hash::Hash};
+use std::{collections::{hash_map::Entry, HashMap}};
 
 /**
  * Rewritten von scratch Louvain algorithm for community detection.
@@ -14,7 +14,6 @@ use std::{collections::{hash_map::Entry, HashMap, HashSet}, hash::Hash};
  * 
  * See python/louvain.py for reference implementation with detailed tests.
  */
-
 type CommunityId = u32;
 type NodeId = u32;
 pub struct Modularity {
@@ -30,7 +29,7 @@ pub struct Modularity {
 impl Modularity {
     pub fn louvain(nodes_len: u32, edges: &[Edge], config: &Config, hidden_predicates: &SortedVec) -> ClusterResult {
         let mut modularity = Self::construct(nodes_len, edges, hidden_predicates);
-        modularity.resolution = config.community_resolution as f32;
+        modularity.resolution = config.community_resolution;
         modularity.randomize = config.community_randomize;
         modularity.init_caches();
         modularity.run_louvain()
@@ -45,7 +44,7 @@ impl Modularity {
             while local_change {
                 local_change = false;
                 let mut step = 0;
-                let mut node_index = if self.randomize {rng.random_range(0..self.communities.len()) as u32} else {0 as u32};
+                let mut node_index = if self.randomize {rng.random_range(0..self.communities.len()) as u32} else {0_u32};
                 while step < self.communities.len() {
                     let best_community = self.find_best_community(node_index);
                     let node : &CNode = &self.nodes[node_index as usize];
@@ -73,8 +72,8 @@ impl Modularity {
     fn construct(node_len: u32, edges: &[Edge], hidden_predicates: &SortedVec) -> Self {
         let resolution = 1.0;
         let origin_nodes_community = (0..node_len).collect();
-        let nodes = (0..node_len).map(|i| CNode::init(i)).collect();
-        let communities = (0..node_len).map(|i| Community::init(i)).collect();
+        let nodes = (0..node_len).map(CNode::init).collect();
+        let communities = (0..node_len).map(Community::init).collect();
         let mut wedges: Vec<Vec<WEdge>> = vec![Vec::new(); node_len as usize];
         let mut m = 0.0;
         for edge in edges {
@@ -109,7 +108,7 @@ impl Modularity {
         }
     }
 
-    fn community_total_degree_compute(community: &Community, nodes: &Vec<CNode>) -> f32 {
+    fn community_total_degree_compute(community: &Community, nodes: &[CNode]) -> f32 {
         let mut sum = 0.0;
         for node_index in community.nodes.iter() {
             let node = &nodes[*node_index as usize];
@@ -131,7 +130,7 @@ impl Modularity {
                 }
             }
         }
-        return best_community
+        best_community
     }
 
     fn q(&self, node_id: NodeId, community_id: CommunityId, shared_degree: f32) -> f32 {
@@ -182,7 +181,7 @@ impl Modularity {
                     *entry.get_mut() = new_val;
                 }
             }
-            *neighbor_node.communities.entry(community_id).or_insert(0.0 as f32) += wedge.weight;
+            *neighbor_node.communities.entry(community_id).or_insert(0.0_f32) += wedge.weight;
         }
 
         self.nodes[node_id as usize].community_id = community_id;
@@ -198,7 +197,7 @@ impl Modularity {
         //  we need to map between old community id and new community id
         let mut new_community_count = 0;
         for c in self.communities.iter_mut() {
-            if c.nodes.len() > 0 {
+            if !c.nodes.is_empty() {
                 c.next_id = new_community_count;
                 new_community_count += 1
             }
@@ -208,7 +207,7 @@ impl Modularity {
         let mut new_nodes: Vec<CNode> = Vec::with_capacity(new_community_count as usize);
         let mut m = 0.0;
         for community in self.communities.iter() {
-            if community.nodes.len() == 0 {
+            if community.nodes.is_empty() {
                 continue;
             }
             let new_community_id = community.next_id;
@@ -263,7 +262,7 @@ pub fn compute_modularity(nodes_len: usize, edges: &[Edge], node_community: Vec<
     let mut communities: HashMap<CommunityId, Vec<NodeId>> = HashMap::new();
 
     for (node_id, community_id) in node_community.iter().enumerate() {
-        communities.entry(*community_id).or_insert(Vec::new()).push(node_id as u32);
+        communities.entry(*community_id).or_default().push(node_id as u32);
     }
 
     let mut k = vec![0.0f32; nodes_len];
@@ -337,7 +336,7 @@ impl CNode {
         }
     }
 
-    fn init_cache(&mut self, edges: &Vec<WEdge>, node_component: &Vec<CommunityId>) {
+    fn init_cache(&mut self, edges: &[WEdge], node_component: &[CommunityId]) {
         let mut sum_weights = self.self_reference_weight;
         for edge in edges.iter() {
             sum_weights += edge.weight;

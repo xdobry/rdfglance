@@ -85,7 +85,7 @@ impl RDFWrap {
         RDFWrap {}
     }
 
-    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &Vec<String>, data_loading: Option<&DataLoading>) -> Result<u32> {
+    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &[String], data_loading: Option<&DataLoading>) -> Result<u32> {
         let mut total_triples = 0;
         let mut files = Vec::new();
         collect_rdf_files(dir_name, &mut files)?;
@@ -98,7 +98,7 @@ impl RDFWrap {
             data_loading.total_size.store(size_total, std::sync::atomic::Ordering::Relaxed);
         }   
         for file in &files {
-            match RDFWrap::load_file(&file, rdf_data, language_filter, data_loading) {
+            match RDFWrap::load_file(file, rdf_data, language_filter, data_loading) {
                 Ok(triples) => {
                     total_triples += triples;
                 }
@@ -604,10 +604,8 @@ impl RDFWrap {
                 }
             }
         }
-        let thread_res = handle.join().unwrap();
-        if let Err(e) = thread_res {
-            return Err(e);
-        }
+        let thread_res = handle.join();
+        thread_res.unwrap()?;
         let duration = start.elapsed();
         println!("Time taken to read the file {:?}", duration);
         println!(
