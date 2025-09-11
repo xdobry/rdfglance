@@ -1180,8 +1180,12 @@ impl RdfGlanceApp {
         }
 
         if !was_context_click && (secondary_clicked || single_clicked) {
-            self.ui_state.context_menu_node = None;
-            ui.memory_mut(|mem| mem.close_popup());
+            ui.memory_mut(|mem| {
+                if mem.is_popup_open(popup_id) {
+                    self.ui_state.context_menu_node = None;
+                    mem.close_popup();
+                }
+            });
         }
 
         if let Some(node_to_click) = node_to_click {

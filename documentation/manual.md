@@ -64,6 +64,13 @@ On the right side you can see all data properties and relation of the node.
 You can also use the relation buttons to expand chosen relation.
 You may hide or unhide some relation type or expand some relation type for all visible nodes.
 
+# Node and Edge Styling
+
+You can adapt many styling parameters as color, size, label and symbol for node and object property
+in dependency of type or predicate.
+
+![screenshot](screeshots/graph-styling.gif)
+
 # Meta Graph
 
 ![screenshot](screeshots/meta-graph.png)
@@ -75,9 +82,6 @@ The size of nodes indicates the number of instances.
 
 # Statistics
 
-![screenshot](screeshots/statistics-cluster.png)
-
-![screenshot](screeshots/statistics.png)
 
 The application implement several well known graph algorithms.
 The algorithms work only on the data in visual graph.
@@ -102,6 +106,8 @@ The groups are then used to color the nodes.
 The algorithms are well described in the web so I will not do it here.
 The algorithms are applied by choosing the menu item form statistics menu.
 After that the result as table are available on statistics tab.
+
+![screenshot](screeshots/statistics.gif)
 
 # Importing RDF Data from URL
 
@@ -135,6 +141,8 @@ The literals without defined language are always imported.
 After the loading can chose the display language.
 The application will display all data in this language and fallback to language-less literals 
 or "en"-literals if no literals in display language are found.
+
+![screenshot](screeshots/multilingual.gif)
 
 # Keyboard accessibility
 

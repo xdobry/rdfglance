@@ -1,0 +1,157 @@
+@prefix ex:    <http://example.org/it#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+
+#################################################################
+# Classes
+#################################################################
+
+ex:Computer rdf:type owl:Class ;
+    rdfs:label "Computer"@en ;
+    rdfs:label "Computer"@de ;
+    rdfs:label "Komputer"@pl .
+
+ex:Server rdf:type owl:Class ;
+    rdfs:label "Server"@en ;
+    rdfs:label "Server"@de ;
+    rdfs:label "Serwer"@pl .
+
+ex:Database rdf:type owl:Class ;
+    rdfs:label "Database"@en ;
+    rdfs:label "Datenbank"@de ;
+    rdfs:label "Baza danych"@pl .
+
+ex:Network rdf:type owl:Class ;
+    rdfs:label "Network"@en ;
+    rdfs:label "Netzwerk"@de ;
+    rdfs:label "Sieć"@pl .
+
+ex:Router rdf:type owl:Class ;
+    rdfs:label "Router"@en ;
+    rdfs:label "Router"@de ;
+    rdfs:label "Router"@pl .
+
+ex:Switch rdf:type owl:Class ;
+    rdfs:label "Switch"@en ;
+    rdfs:label "Switch"@de ;
+    rdfs:label "Przełącznik"@pl .
+
+ex:Firewall rdf:type owl:Class ;
+    rdfs:label "Firewall"@en ;
+    rdfs:label "Firewall"@de ;
+    rdfs:label "Zapora sieciowa"@pl .
+
+ex:Application rdf:type owl:Class ;
+    rdfs:label "Application"@en ;
+    rdfs:label "Anwendung"@de ;
+    rdfs:label "Aplikacja"@pl .
+
+ex:User rdf:type owl:Class ;
+    rdfs:label "User"@en ;
+    rdfs:label "Benutzer"@de ;
+    rdfs:label "Użytkownik"@pl .
+
+ex:Admin rdf:type owl:Class ;
+    rdfs:label "Administrator"@en ;
+    rdfs:label "Administrator"@de ;
+    rdfs:label "Administrator"@pl .
+
+#################################################################
+# Object Properties
+#################################################################
+
+ex:connectedTo rdf:type owl:ObjectProperty ;
+    rdfs:label "connected to"@en ;
+    rdfs:label "verbunden mit"@de ;
+    rdfs:label "połączony z"@pl .
+
+ex:uses rdf:type owl:ObjectProperty ;
+    rdfs:label "uses"@en ;
+    rdfs:label "nutzt"@de ;
+    rdfs:label "używa"@pl .
+
+ex:installedOn rdf:type owl:ObjectProperty ;
+    rdfs:label "installed on"@en ;
+    rdfs:label "installiert auf"@de ;
+    rdfs:label "zainstalowany na"@pl .
+
+ex:manages rdf:type owl:ObjectProperty ;
+    rdfs:label "manages"@en ;
+    rdfs:label "verwaltet"@de ;
+    rdfs:label "zarządza"@pl .
+
+ex:hosts rdf:type owl:ObjectProperty ;
+    rdfs:label "hosts"@en ;
+    rdfs:label "hostet"@de ;
+    rdfs:label "hostuje"@pl .
+
+#################################################################
+# Instances
+#################################################################
+
+ex:net1 rdf:type ex:Network ;
+    rdfs:label "Office Network"@en ;
+    rdfs:label "Büronetzwerk"@de ;
+    rdfs:label "Sieć biurowa"@pl .
+
+ex:router1 rdf:type ex:Router ;
+    rdfs:label "Office Router"@en ;
+    rdfs:label "Büro-Router"@de ;
+    rdfs:label "Router biurowy"@pl ;
+    ex:connectedTo ex:net1 .
+
+ex:switch1 rdf:type ex:Switch ;
+    rdfs:label "Main Switch"@en ;
+    rdfs:label "Haupt-Switch"@de ;
+    rdfs:label "Główny przełącznik"@pl ;
+    ex:connectedTo ex:router1 .
+
+ex:firewall1 rdf:type ex:Firewall ;
+    rdfs:label "Perimeter Firewall"@en ;
+    rdfs:label "Perimeter-Firewall"@de ;
+    rdfs:label "Zapora perymetryczna"@pl ;
+    ex:connectedTo ex:router1 .
+
+ex:srv1 rdf:type ex:Server ;
+    rdfs:label "Web Server"@en ;
+    rdfs:label "Webserver"@de ;
+    rdfs:label "Serwer WWW"@pl ;
+    ex:connectedTo ex:switch1 .
+
+ex:srv2 rdf:type ex:Server ;
+    rdfs:label "Mail Server"@en ;
+    rdfs:label "Mailserver"@de ;
+    rdfs:label "Serwer poczty"@pl ;
+    ex:connectedTo ex:switch1 .
+
+ex:db1 rdf:type ex:Database ;
+    rdfs:label "Main Database"@en ;
+    rdfs:label "Hauptdatenbank"@de ;
+    rdfs:label "Główna baza danych"@pl ;
+    ex:hostedBy ex:srv1 .
+
+ex:app1 rdf:type ex:Application ;
+    rdfs:label "CRM Application"@en ;
+    rdfs:label "CRM-Anwendung"@de ;
+    rdfs:label "Aplikacja CRM"@pl ;
+    ex:installedOn ex:srv1 ;
+    ex:uses ex:db1 .
+
+ex:user1 rdf:type ex:User ;
+    rdfs:label "Alice"@en ;
+    rdfs:label "Alice"@de ;
+    rdfs:label "Alicja"@pl ;
+    ex:uses ex:app1 .
+
+ex:user2 rdf:type ex:User ;
+    rdfs:label "Bob"@en ;
+    rdfs:label "Bob"@de ;
+    rdfs:label "Bohdan"@pl ;
+    ex:uses ex:app1 .
+
+ex:admin1 rdf:type ex:Admin ;
+    rdfs:label "System Administrator"@en ;
+    rdfs:label "Systemadministrator"@de ;
+    rdfs:label "Administrator systemu"@pl ;
+    ex:manages ex:srv1 , ex:srv2 , ex:db1 , ex:app1 .
