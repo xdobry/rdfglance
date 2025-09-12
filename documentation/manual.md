@@ -1,23 +1,24 @@
 # General Information
 
-At this time the application may not be self-explained. So here some screenshot with additional information.
+This guide is a brief tutorial, not a full reference, and highlights only the less obvious features of the application.
 
-First you should load some rdf data. The application supports ttl (turtle) and rdf/xml formats.
-There is some sample rdf data in the [sample-rdf-data](../sample-rdf-data/programming_languages.ttl) directory.
+First, you should load some RDF data.
+The application supports TTL (Turtle) and RDF/XML formats.
+Sample RDF data is available in the [sample-rdf-data](../sample-rdf-data/programming_languages.ttl) directory.
 
-You can load your rdf-file by:
-- using menu File/Import RDF File
-- drag file on the application
-- use file location as application start parameter. This work good if you associate the file extension with rdf-glance. So you can open ttl-file from file explorer with one double-click on it.
+You can load your your **RDF** by:
+- Using the menu **File → Import RDF File**
+- Dragging the file onto the application window
+- Providing the file location as an application start parameter. This works best if you associate the `.ttl` file extension with **RDFGlance**, so you can open a `.ttl` file from your file explorer with a double-click.
 
-After it you may chose possible tabs: Tables, Visual Graph, Browse, Meta Graph and Statistics
-The good point is to start is "Tables" tab.
+After loading data, you can choose among the following tabs: **Tables**, **Visual Graph**, **Browse**, **Meta Graph** and **Statistics**
+A good place to start is the **Tables** tab.
 
 # Tables Tab
 
 ![screenshot](screeshots/table.png)
 
-RDFGlance sort all nodes by types.
+**RDFGlance** sort all nodes by types.
 First you can see some statistics of RDF Date.
 
 Then you can see the list of all types with some statistic
@@ -53,94 +54,102 @@ Following information are show:
 
 ![screenshot](screeshots/visual-graph.png)
 
-Visual graph shows nodes and edges (relations) as visual graph.
-It is intended to manipulate the relations (hide, unhide, expand) to discover relations
-in the data.
+The **visual graph** displays nodes and edges (relationships) as an interactive graph.
+It is designed to let you manipulate relationships (hide, unhide, or expand) to explore connections within the data.
 
-You can manipulate the graph by clicking the nodes.
-Double click will expand all outgoing or incoming relation of the node.
+You can interact with the graph by clicking on nodes.
+A double-click will expand all outgoing or incoming relationships of the selected node.
 
-On the right side you can see all data properties and relation of the node.
-You can also use the relation buttons to expand chosen relation.
-You may hide or unhide some relation type or expand some relation type for all visible nodes.
+On the right-hand side, you can view all data properties and relationships of the selected node.
+You can also use the relation buttons to expand a chosen relationship.
+Additionally, you can hide or unhide specific relationship types or expand a relationship type for all visible nodes.
 
-# Node and Edge Styling
+## Node and Edge Styling
 
 You can adapt many styling parameters as color, size, label and symbol for node and object property
 in dependency of type or predicate.
 
 ![screenshot](screeshots/graph-styling.gif)
 
+## Safe Project
+
+You can save the application state in its own binary format.
+This preserves your node and edge styling, as well as the current state of the visual graph.
+
+The data are stored in a compressed binary format optimized for the application.
+Loading data in this format is faster, and the application requires less internal memory when reloading it.
+
+This functionality is available **only in the desktop version** of the application.
+
 # Meta Graph
 
 ![screenshot](screeshots/meta-graph.png)
 
-The meta graph show types as nodes and relation between them.
-It correspond to class diagram traditional programming data modelling.
-The meta graph does not use the owl or rdfs definitions but only is driven be analyze of the data.
-The size of nodes indicates the number of instances.
+The **meta graph** shows types as nodes and the relationships between them.
+It corresponds to a class diagram in traditional programming data modeling.
+The meta graph does not use OWL or RDFS definitions; instead, it is derived solely from an analysis of the data.
+
+The size of each node indicates the number of instances.
 
 # Statistics
 
 
-The application implement several well known graph algorithms.
-The algorithms work only on the data in visual graph.
-This way you need to chose which nodes should be analyzed by adding them to visual graph.
+The application implements several well-known graph algorithms.
+These algorithms operate only on the data present in the **visual graph**.
+Therefore, you must choose which nodes to analyze by adding them to the visual graph.
 
-There are currently 2 types of graph algorithms. 
-The first type assign to every node a number that is driven from topological information.
-This number that is scaled to value between 0 and 1.0 is automatically used as node size.
+There are currently two types of graph algorithms:
 
-  - betweenness centrality
-  - closeness centrality
-  - degree centrality
-  - page rank
-  - k-core centrality
-  - eigenvector centrality
+- **Node scoring algorithms** – These assign a numerical value to each node based on topological information.
+  The value, scaled between 0 and 1.0, is automatically used to determine the node size:
+  - Betweenness centrality
+  - loseness centrality
+  - Degree centrality
+  - PageRank
+  - K-core centrality
+  - Eigenvector centrality
+- **Clustering algorithms** – These group nodes into clusters based on topological information.
+The resulting groups are used to color the nodes:
+  - Louvain clustering (community detection) – used to color nodes
 
-There is also another type of algorithm that group nodes in cluster based on topological information.
-The groups are then used to color the nodes.
-
-  - louvain clustering (community detection) - used to color nodes
-
-The algorithms are well described in the web so I will not do it here.
-The algorithms are applied by choosing the menu item form statistics menu.
-After that the result as table are available on statistics tab.
+These algorithms are widely documented on the web, so detailed explanations are not included here.
+To apply an algorithm, choose it from the **Statistics** menu.
+The results will then be available as tables in the **Statistics** tab.
 
 ![screenshot](screeshots/statistics.gif)
 
 # Importing RDF Data from URL
 
-RDF is standard for publishing complex data in science and government area.
-You can download the RDF data directly from URL.
-The application will send content token to ask the server for TTL data.
-This work for both desktop and web variant.
-The web variant is limited by CORS policy (Cross-Origin Resource Sharing) of the browser.
-So the rdf publishing server must allow the cross access of resource (rdf data) but setting special http header.
-Otherwise you need to download to data to local file system and import it from the disk.
-An option for rdf data publisher will be to host the rdfglance wasm on own server.
+RDF is a standard for publishing complex data in scientific and government domains.
+You can download RDF data directly from a URL.
+The application will send a content token to request TTL data from the server.
+This works for both the desktop and web variants.
 
-For Web you can even lunch the application with additional url query parameter.
+The web variant is limited by the browser’s CORS policy (Cross-Origin Resource Sharing).
+Therefore, the RDF publishing server must allow cross-origin access to the resource (RDF data) by setting the appropriate HTTP headers.
+Otherwise, you will need to download the data to your local file system and import it from disk.
+Alternatively, RDF data publishers can host the **RDFGlance** WebAssembly application on their own server.
+
+For the web version, you can also launch the application with an additional URL query parameter:
 
 https://xdobry.github.io/rdfglance/?url=https://purl.humanatlas.io/asct-b/kidney
 
-So please add query parameter ?url={your rdf data url}
-
-And this will load the data direct at the start of web application.
+Simply add the query parameter `?url={your rdf data url}` to load the data automatically at the start of the web application.
 
 # Multilingual RDF Support
 
-RDF has build-in support for multilingual data by using string literals with defined language tag.
-Rdfglance support viewing of such data.
-First you may define the filter to import only literal in chosen language list.
-You may set in in settings.
-For example "en,de,pl" will accept only literals in language en,de and pl.
-You need to use the same language abbreviation as in raw RDF data.
-The literals without defined language are always imported.
+RDF has built-in support for multilingual data by using string literals with defined language tags.
+**RDFGlance** supports viewing such data.
 
-After the loading can chose the display language.
-The application will display all data in this language and fallback to language-less literals 
-or "en"-literals if no literals in display language are found.
+First, you can define a filter to import only literals in a chosen list of languages.
+You can set this filter in the settings.
+For example, entering `en,de,pl` will import only literals with the language tags **en**, **de**, or **pl**.
+Make sure to use the same language abbreviations as those used in the raw RDF data.
+Literals without a defined language tag are always imported.
+
+After loading, you can choose the display language.
+The application will show all data in this language and will fall back to language-less literals
+or to **en** literals if no literals in the selected display language are available.
 
 ![screenshot](screeshots/multilingual.gif)
 

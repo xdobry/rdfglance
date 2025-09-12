@@ -586,8 +586,33 @@ impl SortedNodeLayout {
             }
         }
         if self.layout_handle.is_none() {
-            if ui.button(ICON_REFRESH).on_hover_text("Start Layout (F5)").clicked() 
-            || ui.input(|i| i.key_pressed(egui::Key::F5)) {
+            let hover_text = {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    "Start Layout (Alt+R)"
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    "Start Layout (F5)"
+                }
+            };
+            
+            let refresh_clicked = ui.button(ICON_REFRESH).on_hover_text(hover_text).clicked();
+
+            let refresh_key = ui.input(|i| {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    // Alt + R for web
+                    i.modifiers.alt && i.key_pressed(egui::Key::R)
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    // F5 for desktop
+                    i.key_pressed(egui::Key::F5)
+                }
+            });
+
+            if refresh_clicked || refresh_key {
                 self.start_layout(config, hidden_predicates);
             }
         } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked() 

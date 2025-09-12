@@ -1,6 +1,6 @@
 # RDFGlance
 
-RDFGlance is an open-source application designed to provide a visual representation of RDF (Resource Description Framework) data. The application is programmed using Rust, ensuring high performance and safety.
+**RDFGlance** is an open-source application designed to provide a visual representation of RDF (Resource Description Framework) data. The application is programmed using `Rust`, ensuring high performance and safety.
 
 - Easy to install
 - Small Desktop App
@@ -23,9 +23,9 @@ The server with ttl data should allow cors by setting the http header "access-co
 
 ## Description
 
-RDFGlance allows users to easily visualize and interact with RDF data. 
-It is RDF Visualization tool.
-It provides a user-friendly interface to explore the relationships and properties within RDF datasets in different ways: as visual interactive graph, table or data sheet.
+**RDFGlance** allows users to easily visualize and interact with `RDF` data. 
+It is `RDF` Visualization tool.
+It provides a user-friendly interface to explore the relationships and properties within `RDF` datasets in different ways: as visual interactive graph, table or data sheet.
 The application is suitable for developers, researchers, publisher and anyone interested in working with semantic web technologies.
 
 My primary goal was to ensure the program runs as fast as possible and maintains high performance even when handling large datasets.
@@ -59,6 +59,7 @@ RDFGlance offers the following visualization capabilities for RDF data:
 - Semantic zoom based on graph statistics
 - Can open ttl file passed as start parameter
 - Can open ttl file dropped from explorer
+- Support for display of multilingual data
 
 The RDF Data can be loaded by using following formats:
 
@@ -93,7 +94,8 @@ So you can open rdf-glance just by double-click on the file in the file explorer
 
 ## Compilation
 
-To compile RDFGlance, you need to have [Rust installed](https://www.rust-lang.org/tools/install) on your system. Follow these steps to compile the application:
+To compile **RDFGlance**, you need to have [Rust installed](https://www.rust-lang.org/tools/install) on your system.
+Follow these steps to compile the application:
 
 1. Clone the repository:
   ```sh
@@ -117,7 +119,7 @@ After compiling the application, you can run it using the following command:
 ./target/release/rdf-glance
 ```
 
-For more information on how to use RDFGlance, refer to the documentation provided in the [repository](documentation/manual.md).
+For more information on how to use **RDFGlance**, refer to the documentation provided in the [repository](documentation/manual.md).
 
 ## Wasm Web Application Build
 
@@ -176,12 +178,12 @@ Please report your feature request as [github issue](https://github.com/xdobry/r
 
 ## Technology
 
-RDFGlance leverages the `egui` library, a simple and fast GUI library for Rust that can create both desktop and web applications using WebAssembly (Wasm).
-Unlike traditional web applications that rely on HTML and React, `egui` allows for a more lightweight and efficient approach. This results in a smaller application size and improved performance, enabling RDFGlance to handle and display larger RDF datasets, up to 100,000 triples, without any delays.
+**RDFGlance** leverages the `egui` library, a simple and fast GUI library for Rust that can create both desktop and web applications using WebAssembly (Wasm).
+Unlike traditional web applications that rely on HTML and React, `egui` allows for a more lightweight and efficient approach. This results in a smaller application size and improved performance, enabling **RDFGlance** to handle and display larger RDF datasets, up to 100,000 triples, without any delays.
 
-RDFGlance uses some oxigraph rust libraries. 
+**RDFGlance** uses some `oxigraph` rust libraries. 
 
-I have developed the application because my frustration about low performance of existing rdf solutions and I wanted to learn and test Rust and egui framework.
+I have developed the application because my frustration about low performance of existing rdf solutions and I wanted to learn and test Rust and `egui` framework.
 It is a learning and hobby project.
 
 ## Releases
@@ -190,9 +192,9 @@ You can use ready to use binaries for windows see [github releases](https://gith
 
 ## Contributing
 
-We welcome contributions from the community. If you would like to contribute to RDFGlance, please fork the repository and submit a pull request. Make sure to follow the contribution guidelines outlined in the repository.
+We welcome contributions from the community. If you would like to contribute to **RDFGlance**, please fork the repository and submit a pull request. Make sure to follow the contribution guidelines outlined in the repository.
 You can also create [github issue](https://github.com/xdobry/rdfglance/issues)
 
 ## License
 
-RDFGlance is licensed under the GPL License. See the `LICENSE` file for more details.
+**RDFGlance** is licensed under the GPL License. See the `LICENSE` file for more details.
