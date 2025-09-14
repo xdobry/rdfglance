@@ -6,7 +6,7 @@ First, you should load some RDF data.
 The application supports TTL (Turtle) and RDF/XML formats.
 Sample RDF data is available in the [sample-rdf-data](../sample-rdf-data/programming_languages.ttl) directory.
 
-You can load your your **RDF** by:
+You can load your **RDF** file by:
 - Using the menu **File → Import RDF File**
 - Dragging the file onto the application window
 - Providing the file location as an application start parameter. This works best if you associate the `.ttl` file extension with **RDFGlance**, so you can open a `.ttl` file from your file explorer with a double-click.
@@ -19,7 +19,7 @@ A good place to start is the **Tables** tab.
 ![screenshot](screeshots/table.png)
 
 **RDFGlance** sort all nodes by types.
-First you can see some statistics of RDF Date.
+First you can see some statistics of RDF data.
 
 Then you can see the list of all types with some statistic
 - count of all instances of this type
@@ -31,11 +31,13 @@ Remember that in RDF Schema an instance can have multiple types.
 
 After selecting the type you can see all instances as a table.
 You can sort the instances by some data property.
-The out/in columns shown the count of outgoing and ingoing edges (object properties).
-By clicking of the out/in cell you can browser all references in pop-up windows.
+The `out/in` column showns the count of outgoing and ingoing edges (object properties).
+By clicking of the `out/in` cell you can browser all references in pop-up windows.
 
 You can click on the cell to see the whole value of the data property or other values of the same predicate.
-Remember in rdf one node can have multiple objects of same predicate. 
+Remember in rdf one node can have multiple objects of same predicate.
+
+![screenshot](screeshots/table.gif)
 
 # Browser Tab 
 
@@ -49,6 +51,8 @@ Following information are show:
 - all data properties
 - all object properties (references)
 - all objects that reference this node (referenced by)
+
+![screenshot](screeshots/browser.gif)
 
 # Visual Graph
 

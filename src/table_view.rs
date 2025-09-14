@@ -1298,6 +1298,7 @@ impl TypeInstanceIndex {
         iri_display: IriDisplay,
     ) -> NodeAction {
         let mut instance_action = NodeAction::None;
+        let mut text_has_focus = false;
         egui::ScrollArea::horizontal().id_salt("h").show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
                 ui.vertical(|ui| {
@@ -1326,6 +1327,7 @@ impl TypeInstanceIndex {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.push_id("types", |ui| {
                         let type_filter_response = ui.text_edit_singleline(&mut self.types_filter);
+                        text_has_focus = type_filter_response.has_focus();
                         let label_context =
                             LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         if type_filter_response.changed() {
@@ -1461,7 +1463,6 @@ impl TypeInstanceIndex {
         if let Some(selected_type) = self.selected_type {
             if let Some(type_data) = self.types.get_mut(&selected_type) {
                 let mut table_action: TableAction = TableAction::None;
-                let mut text_has_focus = false;
                 ui.horizontal(|ui| {
                     let filter_immediately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
@@ -1469,7 +1470,7 @@ impl TypeInstanceIndex {
                     if ui.ctx().input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
                         text_edit_response.request_focus();
                     }
-                    text_has_focus = text_edit_response.has_focus();
+                    text_has_focus = text_has_focus || text_edit_response.has_focus();
                     if filter_immediately {
                         if text_edit_response.changed() {
                             table_action = TableAction::Filter;
