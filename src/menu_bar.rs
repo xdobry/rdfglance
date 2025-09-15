@@ -161,7 +161,7 @@ impl RdfGlanceApp {
                     self.ui_state.about_window = true;
                     ui.close_menu();
                 }
-                ui.hyperlink_to("Project Site on GitHub","https://github.com/xdobry/rdfglance");
+                ui.hyperlink_to("Manual/Documentation","https://github.com/xdobry/rdfglance/blob/main/documentation/manual.md");
                 ui.hyperlink_to("Report Issue / Feedback","https://github.com/xdobry/rdfglance/issues");
                 consume_keys = true;
             });   

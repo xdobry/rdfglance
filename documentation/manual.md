@@ -187,7 +187,6 @@ Delete Key will delete the selected last visited file entry.
 - G - Show selected instance in visual graph
 - R - Show references for selected instance
 - 1..9 - sort the data on n-th column ascendent
-- shift 1..9 - sort the data on n-tn column descendent
 
 In context of reference window
 - Enter - Browse reference
