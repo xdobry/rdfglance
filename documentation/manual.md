@@ -205,6 +205,8 @@ In context of selected node
 - H - Hide selected node
 - O - Hide other nodes than selected
 - T - Hide all nodes of the type of selected node
+- Enter - Browse current selected node
+- Shift-F10 - open context menu for selected node
 
 ## Shortcuts for Node Browser
 

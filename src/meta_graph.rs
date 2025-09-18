@@ -292,7 +292,7 @@ impl RdfGlanceApp {
                                 TypeNodeContextAction::HideSameInstCount => {
                                     if let Some(current_node) = self.type_index.types.get(&current_index) {
                                         let hidden_predicates = SortedVec::new();
-                                        self.meta_nodes.retain(&hidden_predicates, |node| {
+                                        self.meta_nodes.retain(&hidden_predicates, false,|node| {
                                             if let Some(type_data) = self.type_index.types.get(&node.node_index) {
                                                 !type_data.instances.len() <= current_node.instances.len()
                                             } else {

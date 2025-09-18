@@ -18,7 +18,7 @@
 <http://dbpedia.org/resource/.QL> a dbo:ProgrammingLanguage ;
     rdfs:label ".QL"@en ;
     dbo:influencedBy dbr:Datalog ;
-    dbp:paradigm dbr:Logic_programming_language,
+    dbp:paradigm dbr:Logic_programming,
         dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming ;
     dbp:typing dbr:Static_typing,
@@ -68,7 +68,7 @@ dbr:ALFA_\(XACML\) a dbo:ProgrammingLanguage ;
 dbr:ALGO a dbo:ProgrammingLanguage ;
     rdfs:label "ALGO"@en ;
     dbo:influencedBy dbr:ALGOL_58 ;
-    dbp:paradigm dbr:Imperative_programming_language,
+    dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming,
         dbr:Structured_programming ;
     dbp:typing dbr:Static_type,
@@ -408,7 +408,7 @@ dbr:Basic4GL a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:GW_BASIC,
         dbr:QuickBASIC ;
     dbo:latestReleaseDate "2017-07-30"^^xsd:date ;
-    dbp:paradigm dbr:Procedural_language .
+    dbp:paradigm dbr:Procedural_programming .
 
 dbr:Basic4ppc a dbo:ProgrammingLanguage ;
     rdfs:label "Basic4ppc"@en ;
@@ -525,7 +525,7 @@ dbr:CGOL a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ALGOL,
         dbr:FORTRAN,
         dbr:MLisp ;
-    dbp:paradigm dbr:Imperative_programming_language,
+    dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming,
         dbr:Structured_programming .
 
@@ -534,7 +534,7 @@ dbr:CHILL a dbo:ProgrammingLanguage ;
     dbo:designer dbr:ITU-T ;
     dbo:influencedBy dbr:COBOL,
         ns7:1 ;
-    dbp:paradigm dbr:Procedural_language ;
+    dbp:paradigm dbr:Procedural_programming ;
     dbp:typing dbr:Static_typing,
         dbr:Strong_typing .
 
@@ -899,7 +899,7 @@ dbr:DIBOL a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:BASIC,
         dbr:COBOL,
         dbr:Fortran ;
-    dbp:paradigm dbr:Imperative_programming_language,
+    dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming,
         dbr:Structured_programming ;
     dbp:typing dbr:Type_system .
@@ -2179,7 +2179,7 @@ dbr:MultiLisp a dbo:ProgrammingLanguage ;
 dbr:NELIAC a dbo:ProgrammingLanguage ;
     rdfs:label "NELIAC"@en ;
     dbo:influencedBy dbr:ALGOL_58 ;
-    dbp:paradigm dbr:Imperative_programming_language,
+    dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming,
         dbr:Structured_programming ;
     dbp:typing dbr:Static_type,
@@ -3547,7 +3547,7 @@ dbr:XBLite a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:QuickBASIC,
         dbr:XBasic ;
     dbo:latestReleaseDate "2010-09-07"^^xsd:date ;
-    dbp:paradigm dbr:Procedural_language ;
+    dbp:paradigm dbr:Procedural_programming ;
     dbp:typing dbr:Type_system .
 
 dbr:XLNT a dbo:ProgrammingLanguage ;
@@ -3807,7 +3807,7 @@ dbr:Alice_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ML_\(programming_language\),
         dbr:Oz_\(programming_language\) ;
     dbo:latestReleaseDate "2007-05-03"^^xsd:date ;
-    dbp:paradigm dbr:Concurrent_programming_language,
+    dbp:paradigm dbr:Concurrent_programming,
         dbr:Distributed_programming,
         dbr:Functional_programming,
         dbr:Imperative_programming,
@@ -3976,7 +3976,7 @@ dbr:CPL_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbo:designer dbr:Christopher_Strachey ;
     dbo:influencedBy dbr:ALGOL_60 ;
     dbp:paradigm dbr:Functional_programming,
-        dbr:Imperative_programming_language,
+        dbr:Imperative_programming,
         dbr:Multi-paradigm_programming_language,
         dbr:Procedural_programming,
         dbr:Structured_programming .
@@ -4075,8 +4075,6 @@ dbr:Computer_Sciences_Corporation a dbo:Person ;
     rdfs:label "Computer Sciences Corporation"@en .
 
 dbr:Concatenative_programming_language a <yago:Paradigm113804375> .
-
-dbr:Concurrent_Programming a <yago:Paradigm113804375> .
 
 dbr:Concurrent_object-oriented_programming a yago:Paradigm113804375 ;
     rdfs:label "Concurrent object-oriented programming"@en .
@@ -4648,7 +4646,7 @@ dbr:Joyce_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Communicating_sequential_processes,
         dbr:Concurrent_Pascal,
         dbr:Pascal_\(programming_language\) ;
-    dbp:paradigm dbr:Concurrent_programming_language,
+    dbp:paradigm dbr:Concurrent_programming,
         dbr:Imperative_programming,
         dbr:Structured_programming ;
     dbp:typing dbr:Strong_and_weak_typing .
@@ -4756,8 +4754,6 @@ dbr:Lisp_Machine_Lisp a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Interlisp,
         dbr:Lisp_\(programming_language\),
         dbr:Maclisp .
-
-dbr:Logic_programming_language a <yago:Paradigm113804375> .
 
 dbr:Lolcat a dbo:ProgrammingLanguage ;
     rdfs:label "Lolcat"@en .
@@ -5025,7 +5021,7 @@ dbr:Pi_calculus a <yago:Paradigm113804375> .
 dbr:Pict_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Pict (programming language)"@en ;
     dbo:influencedBy dbr:ML_\(programming_language\) ;
-    dbp:paradigm dbr:Concurrent_Programming ;
+    dbp:paradigm dbr:Concurrent_programming ;
     dbp:typing dbr:Type_system .
 
 dbr:Pierre_Weis a <dbo:Person> .
@@ -6250,8 +6246,6 @@ dbr:CSS a dbo:ProgrammingLanguage ;
 
 dbr:Common_Lisp_Object_System a <dbo:ProgrammingLanguage> .
 
-dbr:Concurrent_programming_language a <yago:Paradigm113804375> .
-
 dbr:David_Turner_\(computer_scientist\) a dbo:Person ;
     rdfs:label "David Turner (computer scientist)"@en .
 
@@ -6328,7 +6322,7 @@ dbr:Oz_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Lisp_\(programming_language\),
         dbr:Prolog ;
     dbo:latestReleaseDate "2018-09-05"^^xsd:date ;
-    dbp:paradigm dbr:Concurrent_programming_language,
+    dbp:paradigm dbr:Concurrent_programming,
         dbr:Constraint_programming,
         dbr:Distributed_programming,
         dbr:Functional_programming,
@@ -6337,8 +6331,6 @@ dbr:Oz_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming ;
     dbp:typing dbr:Dynamic_typing .
-
-dbr:Procedural_language a <yago:Paradigm113804375> .
 
 dbr:Reactive_programming a yago:Paradigm113804375 ;
     rdfs:label "Reactive programming"@en .
@@ -6538,7 +6530,7 @@ dbr:ALGOL_58 a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:FORTRAN,
         dbr:Plankalkül,
         dbr:Superplan ;
-    dbp:paradigm dbr:Imperative_programming_language,
+    dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming,
         dbr:Structured_programming ;
     dbp:typing dbr:Static_type,
@@ -6660,8 +6652,6 @@ dbr:COBOL a dbo:ProgrammingLanguage ;
 dbr:Educational_programming_language a <yago:Paradigm113804375> .
 
 dbr:F_Sharp_\(programming_language\) a <dbo:ProgrammingLanguage> .
-
-dbr:Imperative_programming_language a <yago:Paradigm113804375> .
 
 dbr:JOSS a dbo:ProgrammingLanguage ;
     rdfs:label "JOSS"@en ;

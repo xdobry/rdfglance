@@ -7,13 +7,11 @@ use egui::Pos2;
 use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
+use reqwest::header::HeaderMap;
 use std::{
-    collections::{HashMap, VecDeque},
-    sync::{
+    collections::{HashMap, VecDeque}, hash::Hash, sync::{
         atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
-    },
-    thread::{self, JoinHandle},
-    time::Duration,
+    }, thread::{self, JoinHandle}, time::Duration
 };
 
 #[derive(Clone, Copy)]
@@ -162,7 +160,10 @@ pub struct SortedNodeLayout {
     pub update_node_shapes: bool,
     pub has_semantic_zoom: bool,
     pub data_epoch: u32,
+    pub undo_stack: Vec<NodeCommand>,
+    pub redo_stack: Vec<NodeCommand>,
 }
+
 
 #[derive(Debug)]
 pub enum LayoutConfUpdate {
@@ -173,6 +174,26 @@ pub enum LayoutConfUpdate {
 pub struct LayoutHandle {
     pub join_handle: JoinHandle<()>,
     pub update_sender: mpsc::Sender<LayoutConfUpdate>,
+}
+
+/**
+ * It protocols action that has been done on visual graph
+ * It is not common command pattern because it can only undo the work
+ */
+pub enum NodeCommand {
+    AddElements(Vec<IriIndex>),
+    RemoveElements(Vec<NodeMemo>,Vec<EdgeMemo>),
+}
+
+pub struct NodeMemo {
+    pub index: IriIndex,
+    pub position: Pos2,
+}
+
+pub struct EdgeMemo {
+    pub from: usize,
+    pub to: usize,
+    pub predicate: IriIndex,
 }
 
 impl Default for SortedNodeLayout {
@@ -192,6 +213,8 @@ impl Default for SortedNodeLayout {
             update_node_shapes: true,
             has_semantic_zoom: false,
             data_epoch: 1,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 }
@@ -319,7 +342,7 @@ impl SortedNodeLayout {
                                 }
 
                                 // now need to set new edge indexes to new ones
-                                edges.iter_mut().for_each(|edge| {
+                                edges.par_iter_mut().for_each(|edge| {
                                     edge.from = new_positions[edge.from];
                                     edge.to = new_positions[edge.to];
                                 });
@@ -370,33 +393,8 @@ impl SortedNodeLayout {
         None
     }
 
-    // use retain operation if possible. Do not call it in the loop
     pub fn remove(&mut self, value: IriIndex, hidden_predicates: &SortedVec) {
-        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
-            if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&value)) {
-                nodes.remove(pos);
-                if positions.len() > pos {
-                    positions.remove(pos);
-                }
-                if node_shapes.len() > pos {
-                    node_shapes.remove(pos);
-                }
-                if individual_node_styles.len() > pos {
-                    individual_node_styles.remove(pos);
-                }
-                edges.retain(|e| e.from != pos && e.to != pos);
-                edges.iter_mut().for_each(|e| {
-                    if e.from > pos {
-                        e.from -= 1;
-                    }
-                    if e.to > pos {
-                        e.to -= 1;
-                    }
-                });
-                update_edges_groups(edges, hidden_predicates);
-            }
-        });
-        self.data_epoch += 1;
+        self.retain(hidden_predicates, false, |n| n.node_index != value);
     }
 
     pub fn clean_all(&mut self) {
@@ -411,7 +409,7 @@ impl SortedNodeLayout {
         });
     }
 
-    pub fn retain(&mut self, hidden_predicates: &SortedVec, f: impl Fn(&NodeLayout) -> bool) -> bool {
+    pub fn retain(&mut self, hidden_predicates: &SortedVec, is_undo: bool, f: impl Fn(&NodeLayout) -> bool) -> bool {
         let pos_to_remove = if let Ok(nodes) = self.nodes.read() {
             let pos_to_remove: Vec<usize> = nodes
                 .iter()
@@ -425,7 +423,20 @@ impl SortedNodeLayout {
         };
         if !pos_to_remove.is_empty() {
             self.data_epoch += 1;
-            self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+            let command = self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+                let node_memos = pos_to_remove.par_iter().map(|pos| NodeMemo {
+                    index: nodes[*pos].node_index,
+                    position: positions[*pos].pos,
+                }).collect::<Vec<NodeMemo>>();
+                let edge_memos: Vec<EdgeMemo> = edges.par_iter()
+                    .filter(|edge| pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok())
+                    .map(|edge|EdgeMemo { 
+                        from: edge.from, 
+                        to: edge.to, 
+                        predicate: edge.predicate 
+                    })
+                    .collect();
+
                 edges.retain(|e| {
                     pos_to_remove.binary_search(&e.from).is_err() && pos_to_remove.binary_search(&e.to).is_err()
                 });
@@ -464,7 +475,16 @@ impl SortedNodeLayout {
                     edge.to = new_positions[edge.to];
                 });
                 update_edges_groups(edges, hidden_predicates);
+                NodeCommand::RemoveElements(node_memos, edge_memos)
             });
+            if let Some(command) = command {
+                if is_undo {
+                    self.redo_stack.push(command);
+                } else {
+                    self.undo_stack.push(command);
+                    self.redo_stack.clear();
+                }
+            }
             false 
         } else {
             true
@@ -542,6 +562,8 @@ impl SortedNodeLayout {
             node_shapes.clear();
             individual_node_styles.clear();
         });
+        self.undo_stack.clear();
+        self.redo_stack.clear();
     }
 
     pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config, hidden_predicates: &SortedVec) {
@@ -928,6 +950,20 @@ impl SortedNodeLayout {
             }
         }
     }
+
+    pub fn undo(&mut self, config: &Config, hidden_predicates: &SortedVec) {
+        if let Some(command) = self.undo_stack.pop() {
+            command.undo(self, &hidden_predicates, config, true);
+        } else {
+            println!("Nothing to undo");
+        }
+    }
+
+    pub fn redo(&mut self, config: &Config, hidden_predicates: &SortedVec) {
+        if let Some(command) = self.redo_stack.pop() {
+            command.undo(self, &hidden_predicates, config, false);
+        }
+    }
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
@@ -1072,6 +1108,83 @@ pub fn layout_graph_nodes(
     (max_move.load(Ordering::Relaxed), positions)
 }
 
+impl NodeCommand {
+    pub fn undo(&self, sorted_nodes: &mut SortedNodeLayout, hidden_predicates: &SortedVec, config: &Config, from_undo: bool) {
+        match self {
+            NodeCommand::AddElements(added_nodes) => {
+                sorted_nodes.retain(hidden_predicates, from_undo, |node| !added_nodes.contains(&node.node_index));
+            }
+            NodeCommand::RemoveElements(removed_nodes,removed_edges) => {
+                sorted_nodes.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+                    // The implementation is similar to add_many
+                    // we assume that removed_nodes are unique and sorted by node index
+                    // which must be if they are produced by retain function
+                    let mut new_positions: Vec<usize> = Vec::with_capacity(nodes.len());
+                    for i in 0..nodes.len() {
+                        new_positions.push(i);
+                    }
+                    // we use in place merge on target vector. The vector is resized and the new elements
+                    // are inserted from the end by iterating the new nodes and old nodes from the end.
+                    let orig_len = nodes.len();
+                    let b_len = removed_nodes.len();
+
+                    nodes.resize(orig_len + b_len, NodeLayout { node_index: 0 });
+                    node_shapes.resize(orig_len + b_len, NodeShapeData::default());
+                    positions.resize(orig_len + b_len, NodePosition::default());
+                    individual_node_styles.resize(orig_len + b_len, IndividualNodeStyleData::default());
+
+                    let mut i = orig_len as isize - 1;
+                    let mut j = b_len as isize - 1;
+                    let mut k = (orig_len + b_len) as isize - 1;
+
+                    while j >= 0 {
+                        if i >= 0 && nodes[i as usize].node_index > removed_nodes[j as usize].index {
+                            let old_node = nodes[i as usize];
+                            nodes[k as usize] = old_node;
+                            node_shapes[k as usize] = node_shapes[i as usize];
+                            positions[k as usize] = positions[i as usize];
+                            new_positions[i as usize] = k as usize;
+                            individual_node_styles[k as usize] = individual_node_styles[i as usize];
+                            i -= 1;
+                        } else {
+                            nodes[k as usize] = NodeLayout {
+                                node_index: removed_nodes[j as usize].index,
+                            };
+                            node_shapes[k as usize] = NodeShapeData::default();
+                            positions[k as usize] = NodePosition { pos: removed_nodes[j as usize].position, vel: Vec2::ZERO };
+                            individual_node_styles[k as usize] = IndividualNodeStyleData::default();
+                            j -= 1;
+                        }
+                        k -= 1;
+                    }
+
+                    // now need to set new edge indexes to new ones
+                    edges.par_iter_mut().for_each(|edge| {
+                        edge.from = new_positions[edge.from];
+                        edge.to = new_positions[edge.to];
+                    });
+                    // Add also the removed edges with right indexes
+                    for edge in removed_edges.iter() {
+                        edges.push(Edge {
+                            from: edge.from,
+                            to: edge.to,
+                            predicate: edge.predicate,
+                            bezier_distance: 0.0,
+                        });
+                    }
+                });
+                let command = NodeCommand::AddElements(removed_nodes.iter().map(|n| n.index).collect());
+                if from_undo {
+                    sorted_nodes.redo_stack.push(command);
+                } else {
+                    sorted_nodes.undo_stack.push(command);
+                }
+            }
+        }
+        sorted_nodes.start_layout(config, hidden_predicates);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{config::Config, nobject::IriIndex};
@@ -1117,7 +1230,7 @@ mod tests {
             assert!(sorted_nodes.contains(*node_idx));
         }
         let to_remove: Vec<IriIndex> = vec![2, 5, 12];
-        sorted_nodes.retain(&sorted_vec, |node| !to_remove.contains(&node.node_index));
+        sorted_nodes.retain(&sorted_vec, false, |node| !to_remove.contains(&node.node_index));
         for removed_idx in &to_remove {
             assert!(!sorted_nodes.contains(*removed_idx));
         }
