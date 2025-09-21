@@ -1,5 +1,12 @@
 use crate::{
-    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec
+    GVisualizationStyle, SortedVec,
+    config::Config,
+    graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
+    graph_styles::NodeShape,
+    nobject::IriIndex,
+    quad_tree::{BHQuadtree, WeightedPoint},
+    statistics::{StatisticsData, StatisticsResult},
+    style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP},
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -7,11 +14,15 @@ use egui::Pos2;
 use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
-use reqwest::header::HeaderMap;
 use std::{
-    collections::{HashMap, VecDeque}, hash::Hash, sync::{
-        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
-    }, thread::{self, JoinHandle}, time::Duration
+    collections::{HashMap, VecDeque},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
 };
 
 #[derive(Clone, Copy)]
@@ -109,7 +120,7 @@ impl IndividualNodeStyleData {
         self.semantic_zoom_interval.set_from_normalized(value);
     }
     pub fn set_cluster(&mut self, cluster: u32) {
-        self.color_overwrite = (cluster+1) as u16;
+        self.color_overwrite = (cluster + 1) as u16;
     }
 }
 
@@ -153,17 +164,17 @@ pub struct SortedNodeLayout {
     pub individual_node_styles: Arc<RwLock<Vec<IndividualNodeStyleData>>>,
     pub layout_temperature: f32,
     pub keep_temperature: Arc<AtomicBool>,
-    pub compute_layout: bool,
     pub layout_handle: Option<LayoutHandle>,
     pub background_layout_finished: Arc<AtomicBool>,
     pub stop_background_layout: Arc<AtomicBool>,
     pub update_node_shapes: bool,
     pub has_semantic_zoom: bool,
+    pub compute_layout: bool,
+    pub lock_layout: bool,
     pub data_epoch: u32,
     pub undo_stack: Vec<NodeCommand>,
     pub redo_stack: Vec<NodeCommand>,
 }
-
 
 #[derive(Debug)]
 pub enum LayoutConfUpdate {
@@ -182,7 +193,7 @@ pub struct LayoutHandle {
  */
 pub enum NodeCommand {
     AddElements(Vec<IriIndex>),
-    RemoveElements(Vec<NodeMemo>,Vec<EdgeMemo>),
+    RemoveElements(Vec<NodeMemo>, Vec<EdgeMemo>),
 }
 
 pub struct NodeMemo {
@@ -215,6 +226,7 @@ impl Default for SortedNodeLayout {
             data_epoch: 1,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            lock_layout: false,
         }
     }
 }
@@ -270,7 +282,7 @@ impl SortedNodeLayout {
         values: &[(IriIndex, IriIndex)],
         config: &Config,
         inserted_callback: impl FnMut(&(IriIndex, IriIndex)),
-    ) -> bool {       
+    ) -> bool {
         self.stop_layout();
         let index_to_add = if let Ok(nodes) = self.nodes.read() {
             if nodes.len() >= config.max_visible_nodes {
@@ -407,6 +419,8 @@ impl SortedNodeLayout {
             node_shapes.clear();
             individual_node_styles.clear();
         });
+        self.redo_stack.clear();
+        self.undo_stack.clear();
     }
 
     pub fn retain(&mut self, hidden_predicates: &SortedVec, is_undo: bool, f: impl Fn(&NodeLayout) -> bool) -> bool {
@@ -424,16 +438,22 @@ impl SortedNodeLayout {
         if !pos_to_remove.is_empty() {
             self.data_epoch += 1;
             let command = self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
-                let node_memos = pos_to_remove.par_iter().map(|pos| NodeMemo {
-                    index: nodes[*pos].node_index,
-                    position: positions[*pos].pos,
-                }).collect::<Vec<NodeMemo>>();
-                let edge_memos: Vec<EdgeMemo> = edges.par_iter()
-                    .filter(|edge| pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok())
-                    .map(|edge|EdgeMemo { 
-                        from: edge.from, 
-                        to: edge.to, 
-                        predicate: edge.predicate 
+                let node_memos = pos_to_remove
+                    .par_iter()
+                    .map(|pos| NodeMemo {
+                        index: nodes[*pos].node_index,
+                        position: positions[*pos].pos,
+                    })
+                    .collect::<Vec<NodeMemo>>();
+                let edge_memos: Vec<EdgeMemo> = edges
+                    .par_iter()
+                    .filter(|edge| {
+                        pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                    })
+                    .map(|edge| EdgeMemo {
+                        from: edge.from,
+                        to: edge.to,
+                        predicate: edge.predicate,
                     })
                     .collect();
 
@@ -485,7 +505,7 @@ impl SortedNodeLayout {
                     self.redo_stack.clear();
                 }
             }
-            false 
+            false
         } else {
             true
         }
@@ -498,7 +518,26 @@ impl SortedNodeLayout {
      */
     pub fn remove_pos_list(&mut self, pos_to_remove: &[usize], hidden_predicates: &SortedVec) {
         self.data_epoch += 1;
-        self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+        let command = self.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
+            let node_memos = pos_to_remove
+                .par_iter()
+                .map(|pos| NodeMemo {
+                    index: nodes[*pos].node_index,
+                    position: positions[*pos].pos,
+                })
+                .collect::<Vec<NodeMemo>>();
+            let edge_memos: Vec<EdgeMemo> = edges
+                .par_iter()
+                .filter(|edge| {
+                    pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                })
+                .map(|edge| EdgeMemo {
+                    from: edge.from,
+                    to: edge.to,
+                    predicate: edge.predicate,
+                })
+                .collect();
+
             for pos in pos_to_remove.iter().rev() {
                 nodes.remove(*pos);
                 if positions.len() > *pos {
@@ -511,7 +550,7 @@ impl SortedNodeLayout {
                     individual_node_styles.remove(*pos);
                 }
                 edges.retain(|e| e.from != *pos && e.to != *pos);
-                edges.iter_mut().for_each(|e| {
+                edges.par_iter_mut().for_each(|e| {
                     if e.from > *pos {
                         e.from -= 1;
                     }
@@ -521,7 +560,12 @@ impl SortedNodeLayout {
                 });
             }
             update_edges_groups(edges, hidden_predicates);
+            NodeCommand::RemoveElements(node_memos, edge_memos)
         });
+        if let Some(command) = command {
+            self.undo_stack.push(command);
+            self.redo_stack.clear();
+        }
     }
 
     pub fn get_pos(&self, value: IriIndex) -> Option<usize> {
@@ -566,7 +610,13 @@ impl SortedNodeLayout {
         self.redo_stack.clear();
     }
 
-    pub fn show_handle_layout_ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, config: &Config, hidden_predicates: &SortedVec) {
+    pub fn show_handle_layout_ui(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        config: &Config,
+        hidden_predicates: &SortedVec,
+    ) {
         #[cfg(not(target_arch = "wasm32"))]
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
@@ -618,7 +668,7 @@ impl SortedNodeLayout {
                     "Start Layout (F5)"
                 }
             };
-            
+
             let refresh_clicked = ui.button(ICON_REFRESH).on_hover_text(hover_text).clicked();
 
             let refresh_key = ui.input(|i| {
@@ -633,30 +683,46 @@ impl SortedNodeLayout {
                     i.key_pressed(egui::Key::F5)
                 }
             });
-
             if refresh_clicked || refresh_key {
-                self.start_layout(config, hidden_predicates);
+                self.start_layout_force(config, hidden_predicates);
             }
-        } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked() 
+        } else if ui.button(ICON_STOP).on_hover_text("Stop Layout").clicked()
             || ui.input(|i| i.key_pressed(egui::Key::X))
         {
             self.stop_layout();
         }
-        if ui.selectable_label( keep_temperature, ICON_KEEP_TEMPERATURE).on_hover_text("Continue Layout/Keep Layout Temperature").clicked() {
+        if ui
+            .selectable_label(keep_temperature, ICON_KEEP_TEMPERATURE)
+            .on_hover_text("Continue Layout/Keep Layout Temperature")
+            .clicked()
+        {
             keep_temperature = !keep_temperature;
             self.keep_temperature.store(keep_temperature, Ordering::Relaxed);
+        }
+        if ui
+            .selectable_label(self.lock_layout, ICON_KEY)
+            .on_hover_text("Lock Layout (no layout changes)")
+            .clicked()
+        {
+            self.lock_layout = !self.lock_layout;
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_layout(&mut self, _config: &Config, _hidden_predicates: &SortedVec) {
+    pub fn start_layout_force(&mut self, _config: &Config, _hidden_predicates: &SortedVec) {
         self.compute_layout = true;
         self.layout_temperature = 100.0;
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn start_layout(&mut self, config: &Config, hidden_predicates: &SortedVec) {
-        self.start_background_layout(config, hidden_predicates, 100.0, );
+        if !self.lock_layout {
+            self.start_layout_force(config, hidden_predicates);
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn start_layout_force(&mut self, config: &Config, hidden_predicates: &SortedVec) {
+        self.start_background_layout(config, hidden_predicates, 100.0);
     }
 
     pub fn stop_layout(&mut self) {
@@ -713,7 +779,15 @@ impl SortedNodeLayout {
                     let nodes = nodes_clone.read().unwrap();
                     let node_shapes = node_shapes_clone.read().unwrap();
                     let edges = edges_clone.read().unwrap();
-                    layout_graph_nodes(&nodes, &node_shapes, &positions, &edges, &layout_config, &hidden_predicates, temperature)
+                    layout_graph_nodes(
+                        &nodes,
+                        &node_shapes,
+                        &positions,
+                        &edges,
+                        &layout_config,
+                        &hidden_predicates,
+                        temperature,
+                    )
                 };
                 if stop_layout.load(Ordering::Relaxed) {
                     // println!("Layout stoppend");
@@ -798,7 +872,7 @@ impl SortedNodeLayout {
 
         while let Some(u) = queue.pop_front() {
             for &v in &adj[u] {
-                if v<len && !visited.contains(v) {
+                if v < len && !visited.contains(v) {
                     visited.insert(v);
                     queue.push_back(v);
                 }
@@ -870,11 +944,17 @@ impl SortedNodeLayout {
                                 statistics_data.nodes[index] = (node.node_index, index as u32);
                             }
                             if statistics_data.selected_idx.is_none() && !statistics_data.nodes.is_empty() {
-                                statistics_data.selected_idx = Some((statistics_data.nodes[0].0,0));
+                                statistics_data.selected_idx = Some((statistics_data.nodes[0].0, 0));
                             }
                             statistics_data.results.clear();
                             if graph_algorithm.is_clustering() {
-                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config, hidden_predicates);
+                                let cluster = run_clustering_algorithm(
+                                    graph_algorithm,
+                                    nodes_len,
+                                    &edges,
+                                    config,
+                                    hidden_predicates,
+                                );
                                 let values = cluster.node_cluster.iter().map(|e| *e as f32).collect::<Vec<f32>>();
                                 for (index, value) in cluster.node_cluster.iter().enumerate() {
                                     individual_node_style[index].set_cluster(*value);
@@ -914,9 +994,18 @@ impl SortedNodeLayout {
                             }
                         } else {
                             if graph_algorithm.is_clustering() {
-                                let cluster = run_clustering_algorithm(graph_algorithm, nodes_len, &edges, config, hidden_predicates);
-                                let values = statistics_data.nodes.iter().map(|(_iri,pos)| 
-                                    cluster.node_cluster[*pos as usize] as f32).collect::<Vec<f32>>();
+                                let cluster = run_clustering_algorithm(
+                                    graph_algorithm,
+                                    nodes_len,
+                                    &edges,
+                                    config,
+                                    hidden_predicates,
+                                );
+                                let values = statistics_data
+                                    .nodes
+                                    .iter()
+                                    .map(|(_iri, pos)| cluster.node_cluster[*pos as usize] as f32)
+                                    .collect::<Vec<f32>>();
                                 if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
                                     for (index, value) in cluster.node_cluster.iter().enumerate() {
                                         individual_node_style[index].set_cluster(*value);
@@ -1109,12 +1198,20 @@ pub fn layout_graph_nodes(
 }
 
 impl NodeCommand {
-    pub fn undo(&self, sorted_nodes: &mut SortedNodeLayout, hidden_predicates: &SortedVec, config: &Config, from_undo: bool) {
+    pub fn undo(
+        &self,
+        sorted_nodes: &mut SortedNodeLayout,
+        hidden_predicates: &SortedVec,
+        config: &Config,
+        from_undo: bool,
+    ) {
         match self {
             NodeCommand::AddElements(added_nodes) => {
-                sorted_nodes.retain(hidden_predicates, from_undo, |node| !added_nodes.contains(&node.node_index));
+                sorted_nodes.retain(hidden_predicates, from_undo, |node| {
+                    !added_nodes.contains(&node.node_index)
+                });
             }
-            NodeCommand::RemoveElements(removed_nodes,removed_edges) => {
+            NodeCommand::RemoveElements(removed_nodes, removed_edges) => {
                 sorted_nodes.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                     // The implementation is similar to add_many
                     // we assume that removed_nodes are unique and sorted by node index
@@ -1151,7 +1248,10 @@ impl NodeCommand {
                                 node_index: removed_nodes[j as usize].index,
                             };
                             node_shapes[k as usize] = NodeShapeData::default();
-                            positions[k as usize] = NodePosition { pos: removed_nodes[j as usize].position, vel: Vec2::ZERO };
+                            positions[k as usize] = NodePosition {
+                                pos: removed_nodes[j as usize].position,
+                                vel: Vec2::ZERO,
+                            };
                             individual_node_styles[k as usize] = IndividualNodeStyleData::default();
                             j -= 1;
                         }
@@ -1218,14 +1318,18 @@ mod tests {
         // new indexes 2, 3, 12
         let config = Config::default();
         let new_pairs: Vec<(IriIndex, IriIndex)> = vec![(0, 5), (0, 5), (5, 2), (5, 12), (10, 2), (0, 3), (0, 10)];
-        assert!(sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
-            assert_ne!(5, *node_index);
-            assert_ne!(10, *node_index);
-        }));
-        assert!(!sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
-            // This should be never called
-            assert!(*node_index > 100);
-        }));
+        assert!(
+            sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
+                assert_ne!(5, *node_index);
+                assert_ne!(10, *node_index);
+            })
+        );
+        assert!(
+            !sorted_nodes.add_many(&new_pairs, &config, |(_parent_index, node_index)| {
+                // This should be never called
+                assert!(*node_index > 100);
+            })
+        );
         for (_parent_idx, node_idx) in &new_pairs {
             assert!(sorted_nodes.contains(*node_idx));
         }

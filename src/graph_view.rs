@@ -32,6 +32,7 @@ enum NodeContextAction {
     ExpandReferencedBy,
     ExpandThisType,
     HideThisTypePreserveEdges,
+    ShowAllInstanceInTable,
 }
 
 impl NodeContextAction {
@@ -78,6 +79,9 @@ impl NodeContextAction {
         }
         if ui.button("Expand this type").clicked() {
             return NodeContextAction::ExpandThisType;
+        }
+        if ui.button("List all Instances of this type").clicked() {
+            return NodeContextAction::ShowAllInstanceInTable;
         }
         NodeContextAction::None
     }
@@ -1010,7 +1014,6 @@ impl RdfGlanceApp {
                 node_action = NodeContextAction::show_menu(ui, self.ui_state.context_menu_opened_by_keyboard);
                 self.ui_state.context_menu_opened_by_keyboard = false;
                 if !matches!(node_action, NodeContextAction::None) {
-                    self.ui_state.context_menu_node = None;
                     ui.memory_mut(|mem| mem.close_popup());
                 }
             } else {
@@ -1023,17 +1026,24 @@ impl RdfGlanceApp {
                 ui.input(|i| {
                     if i.key_pressed(Key::E) {
                         node_action = NodeContextAction::Expand;
+                        self.ui_state.context_menu_node = Some(current_index);
                     } else if i.key_pressed(Key::H) {
                         node_action = NodeContextAction::Hide;
+                        self.ui_state.context_menu_node = Some(current_index);
                     } else if i.key_pressed(Key::O) {
                         node_action = NodeContextAction::HideOther;
+                        self.ui_state.context_menu_node = Some(current_index);
                     } else if i.key_pressed(Key::T) {
                         node_action = NodeContextAction::HideThisType;
+                        self.ui_state.context_menu_node = Some(current_index);
                     } else if i.key_pressed(Key::Enter) {
                         *node_browse = NodeAction::BrowseNode(current_index);
+                        self.ui_state.context_menu_node = Some(current_index);
                     }
                 });
             }
+        }
+        if let Some(current_index) = self.ui_state.context_menu_node {
             if !matches!(node_action, NodeContextAction::None) {
                 if let Ok(mut rdf_data) = self.rdf_data.write() {
                     let current_node = rdf_data.node_data.get_node_by_index_mut(current_index);
@@ -1218,12 +1228,31 @@ impl RdfGlanceApp {
                                 self.visible_nodes
                                     .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                             }
+                            NodeContextAction::ShowAllInstanceInTable => {
+                                let types = current_node.highest_priority_types(&self.visualization_style);
+                                if !types.is_empty() {
+                                    if let Ok(nodes) = self.visible_nodes.nodes.read() {
+                                        let h_type = types[0];
+                                        let mut all_instances: Vec<IriIndex> = Vec::new();
+                                        for node_layout in nodes.iter() {
+                                            let node = rdf_data.node_data.get_node_by_index(node_layout.node_index);
+                                            if let Some((_, node)) = node {
+                                                if node.types.contains(&h_type) {
+                                                    all_instances.push(node_layout.node_index);
+                                                }
+                                            }
+                                        }
+                                        *node_browse = NodeAction::ShowTypeInstances(h_type, all_instances);
+                                    }
+                                }
+                            }
                             NodeContextAction::None => {
                                 // do nothing
                             }
                         }
                     }
                 }
+                self.ui_state.context_menu_node = None;
             }
         }
 
