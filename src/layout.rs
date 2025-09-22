@@ -274,7 +274,12 @@ impl SortedNodeLayout {
 
     // use add_many operation if possible. Do not call it in the loop
     pub fn add_by_index(&mut self, value: IriIndex) -> bool {
-        self.add(NodeLayout::new(value))
+        let res = self.add(NodeLayout::new(value));
+        if res {
+            self.undo_stack.push(NodeCommand::AddElements(vec![value]));
+            self.redo_stack.clear();
+        }
+        res
     }
 
     pub fn add_many(

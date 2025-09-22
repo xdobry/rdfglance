@@ -1,9 +1,21 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout}, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{
-        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_LABEL, ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH
-    }, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
+    ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState,
+    config::Config,
+    distinct_colors::next_distinct_color,
+    drawing::{self, draw_node_label},
+    graph_styles::{NodeShape, NodeSize, NodeStyle},
+    layout::{
+        Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
+        update_edges_groups,
+    },
+    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
+    style::{
+        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_LABEL, ICON_PROPERTIES,
+        ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
+    },
+    uitools::popup_at,
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -27,6 +39,7 @@ enum NodeContextAction {
     HideUnconnected,
     HideOrphans,
     HideRedundantEdges,
+    HideZoomInvisible,
     Expand,
     ExpandReferenced,
     ExpandReferencedBy,
@@ -36,7 +49,7 @@ enum NodeContextAction {
 }
 
 impl NodeContextAction {
-    fn show_menu(ui: &mut egui::Ui, opened_by_keyboard: bool) -> NodeContextAction {
+    fn show_menu(ui: &mut egui::Ui, opened_by_keyboard: bool, has_zoom: bool) -> NodeContextAction {
         let hide_button = ui.button("Hide (H)");
         if opened_by_keyboard {
             hide_button.request_focus();
@@ -67,6 +80,10 @@ impl NodeContextAction {
         }
         if ui.button("Hide Redundant Edges").clicked() {
             return NodeContextAction::HideRedundantEdges;
+        }
+        let req = ui.add_enabled(has_zoom, egui::Button::new("Hide Semantic Zoom Invisible"));
+        if req.clicked() {
+            return NodeContextAction::HideZoomInvisible;
         }
         if ui.button("Expand (E)").clicked() {
             return NodeContextAction::Expand;
@@ -441,11 +458,17 @@ impl RdfGlanceApp {
                                     );
                                     if ui.button(reference_label.as_str()).clicked() {
                                         let mut npos = NeighborPos::new();
+                                        let mut nodes_to_add: Vec<(IriIndex, IriIndex)> = Vec::new();
                                         for (predicate_index, ref_iri) in &current_node.references {
                                             if predicate_index == reference_index {
-                                                npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
+                                                nodes_to_add.push((*iri_index, *ref_iri));
                                             }
                                         }
+                                        npos.add_many(
+                                            &mut self.visible_nodes,
+                                            &nodes_to_add,
+                                            &self.persistent_data.config_data,
+                                        );
                                         if !npos.is_empty() {
                                             update_layout_edges(
                                                 &npos,
@@ -483,7 +506,11 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         let mut npos = NeighborPos::new();
-                                        npos.add_many(&mut self.visible_nodes, &nodes_to_add, &self.persistent_data.config_data);
+                                        npos.add_many(
+                                            &mut self.visible_nodes,
+                                            &nodes_to_add,
+                                            &self.persistent_data.config_data,
+                                        );
                                         if !npos.is_empty() {
                                             update_layout_edges(
                                                 &npos,
@@ -569,11 +596,17 @@ impl RdfGlanceApp {
                                     );
                                     if ui.button(reference_label.as_str()).clicked() {
                                         let mut npos = NeighborPos::new();
+                                        let mut nodes_to_add: Vec<(IriIndex, IriIndex)> = Vec::new();
                                         for (predicate_index, ref_iri) in &current_node.reverse_references {
                                             if predicate_index == reference_index {
-                                                npos.add_by_index(&mut self.visible_nodes, *iri_index, *ref_iri);
+                                                nodes_to_add.push((*iri_index, *ref_iri));
                                             }
                                         }
+                                        npos.add_many(
+                                            &mut self.visible_nodes,
+                                            &nodes_to_add,
+                                            &self.persistent_data.config_data,
+                                        );
                                         if !npos.is_empty() {
                                             update_layout_edges(
                                                 &npos,
@@ -609,7 +642,11 @@ impl RdfGlanceApp {
                                             }
                                         }
                                         let mut npos = NeighborPos::new();
-                                        npos.add_many(&mut self.visible_nodes, &nodes_to_add, &self.persistent_data.config_data);
+                                        npos.add_many(
+                                            &mut self.visible_nodes,
+                                            &nodes_to_add,
+                                            &self.persistent_data.config_data,
+                                        );
                                         if !npos.is_empty() {
                                             update_layout_edges(
                                                 &npos,
@@ -676,7 +713,8 @@ impl RdfGlanceApp {
 
         let scene = egui::Scene::new().zoom_range(0.1..=4.0);
         let popup_id = ui.make_persistent_id("node_context_menu");
-        
+        let is_context_menu_open = ui.memory(|mem| mem.is_popup_open(popup_id));
+
         if let Ok(rdf_data) = self.rdf_data.read() {
             scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
                 let available_width = ui.available_width();
@@ -701,17 +739,20 @@ impl RdfGlanceApp {
                     Pos2::new(0.0, 0.0)
                 };
                 let mut node_selection_move = NodeSelectionMove::None;
-                let is_context_menu_open = ui.memory(|mem| mem.is_popup_open(popup_id));
-                if !is_context_menu_open {
-                    ctx.input(|input| {
-                        single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
-                        secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
-                        double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
-                        if input.pointer.button_pressed(egui::PointerButton::Primary) {
-                            primary_down = true;
-                        }
-                        if input.pointer.button_released(egui::PointerButton::Primary) {
-                            self.ui_state.node_to_drag = None;
+                ctx.input(|input| {
+                    single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
+                    secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
+                    double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
+                    if input.pointer.button_pressed(egui::PointerButton::Primary) {
+                        primary_down = true;
+                    }
+                    if input.pointer.button_released(egui::PointerButton::Primary) {
+                        self.ui_state.node_to_drag = None;
+                    }
+                    if !is_context_menu_open {
+                        if self.ui_state.context_menu_node.is_some() {
+                            self.ui_state.context_menu_opened_by_keyboard = false;
+                            self.ui_state.context_menu_node = None;
                         }
                         if input.key_pressed(egui::Key::ArrowUp) {
                             node_selection_move = NodeSelectionMove::Up;
@@ -725,7 +766,13 @@ impl RdfGlanceApp {
                         // There is currently not defined key for opening context menu so use Shift + F10
                         if input.modifiers.shift && input.key_pressed(egui::Key::F10) {
                             if let Some(selected_index) = self.ui_state.selected_node {
-                                if let Ok(pos) = self.visible_nodes.nodes.read().unwrap().binary_search_by(|e| e.node_index.cmp(&selected_index)) {
+                                if let Ok(pos) = self
+                                    .visible_nodes
+                                    .nodes
+                                    .read()
+                                    .unwrap()
+                                    .binary_search_by(|e| e.node_index.cmp(&selected_index))
+                                {
                                     if let Ok(positions) = self.visible_nodes.positions.read() {
                                         if let Some(transform) = transform {
                                             was_context_click = true;
@@ -739,8 +786,8 @@ impl RdfGlanceApp {
                                 }
                             }
                         }
-                    });
-                }
+                    }
+                });
                 let label_context = LabelContext::new(
                     self.ui_state.display_language,
                     self.persistent_data.config_data.iri_display,
@@ -869,7 +916,15 @@ impl RdfGlanceApp {
                                         }
                                     }
                                 } else {
-                                    NextNodeSelection::empty()
+                                    if let Some(first_node) = nodes.first() {
+                                        NextNodeSelection::new(
+                                            first_node.node_index,
+                                            positions[0].pos,
+                                            node_selection_move,
+                                        )
+                                    } else {
+                                        NextNodeSelection::empty()
+                                    }
                                 }
                             } else {
                                 NextNodeSelection::empty()
@@ -1011,7 +1066,8 @@ impl RdfGlanceApp {
         let mut node_action: NodeContextAction = NodeContextAction::None;
         popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
             if let Some(_node_index) = &self.ui_state.context_menu_node {
-                node_action = NodeContextAction::show_menu(ui, self.ui_state.context_menu_opened_by_keyboard);
+                let has_zoom = self.visible_nodes.has_semantic_zoom && self.ui_state.semantic_zoom_magnitude > 1;
+                node_action = NodeContextAction::show_menu(ui, self.ui_state.context_menu_opened_by_keyboard, has_zoom);
                 self.ui_state.context_menu_opened_by_keyboard = false;
                 if !matches!(node_action, NodeContextAction::None) {
                     ui.memory_mut(|mem| mem.close_popup());
@@ -1047,6 +1103,7 @@ impl RdfGlanceApp {
             if !matches!(node_action, NodeContextAction::None) {
                 if let Ok(mut rdf_data) = self.rdf_data.write() {
                     let current_node = rdf_data.node_data.get_node_by_index_mut(current_index);
+                    let mut check_selection = false;
                     if let Some((_, current_node)) = current_node {
                         match node_action {
                             NodeContextAction::Hide => {
@@ -1054,11 +1111,12 @@ impl RdfGlanceApp {
                                     .remove(current_index, &self.ui_state.hidden_predicates);
                                 self.visible_nodes
                                     .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                check_selection = true;
                             }
                             NodeContextAction::HideThisType => {
                                 let types = current_node.highest_priority_types(&self.visualization_style);
                                 if !types.is_empty() {
-                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false,|x| {
+                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
                                         let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                         if let Some((_, node)) = node {
                                             !node.has_same_type(&types)
@@ -1066,9 +1124,12 @@ impl RdfGlanceApp {
                                             true
                                         }
                                     });
-                                    self.visible_nodes
-                                        .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                    self.visible_nodes.start_layout(
+                                        &self.persistent_data.config_data,
+                                        &self.ui_state.hidden_predicates,
+                                    );
                                 }
+                                check_selection = true;
                             }
                             NodeContextAction::HideOther => {
                                 self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
@@ -1076,11 +1137,12 @@ impl RdfGlanceApp {
                                 });
                                 self.visible_nodes
                                     .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                check_selection = true;
                             }
                             NodeContextAction::HideOtherTypes => {
                                 let types = current_node.highest_priority_types(&self.visualization_style);
                                 if !types.is_empty() {
-                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates,false, |x| {
+                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
                                         let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                         if let Some((_, node)) = node {
                                             node.has_same_type(&types)
@@ -1088,30 +1150,35 @@ impl RdfGlanceApp {
                                             false
                                         }
                                     });
-                                    self.visible_nodes
-                                        .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                    self.visible_nodes.start_layout(
+                                        &self.persistent_data.config_data,
+                                        &self.ui_state.hidden_predicates,
+                                    );
                                 }
+                                check_selection = true;
                             }
                             NodeContextAction::HideUnrelated => {
-                                let was_change = self.visible_nodes.retain(&self.ui_state.hidden_predicates,false,  |x| {
-                                    if x.node_index == current_index {
-                                        return true;
-                                    }
-                                    current_node
-                                        .references
-                                        .iter()
-                                        .any(|(_predicate_index, ref_iri)| *ref_iri == x.node_index)
-                                        || current_node
-                                            .reverse_references
+                                let was_change =
+                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
+                                        if x.node_index == current_index {
+                                            return true;
+                                        }
+                                        current_node
+                                            .references
                                             .iter()
                                             .any(|(_predicate_index, ref_iri)| *ref_iri == x.node_index)
-                                });
+                                            || current_node
+                                                .reverse_references
+                                                .iter()
+                                                .any(|(_predicate_index, ref_iri)| *ref_iri == x.node_index)
+                                    });
                                 if was_change {
                                     self.visible_nodes.start_layout(
                                         &self.persistent_data.config_data,
                                         &self.ui_state.hidden_predicates,
                                     );
                                 }
+                                check_selection = true;
                             }
                             NodeContextAction::HideUnconnected => {
                                 if self
@@ -1123,13 +1190,33 @@ impl RdfGlanceApp {
                                         &self.ui_state.hidden_predicates,
                                     );
                                 }
+                                check_selection = true;
                             }
                             NodeContextAction::HideOrphans => {
                                 self.visible_nodes.hide_orphans(&self.ui_state.hidden_predicates);
+                                check_selection = true;
                             }
                             NodeContextAction::HideRedundantEdges => {
                                 self.visible_nodes
                                     .remove_redundant_edges(&self.ui_state.hidden_predicates);
+                            }
+                            NodeContextAction::HideZoomInvisible => {
+                                if self.visible_nodes.has_semantic_zoom && self.ui_state.semantic_zoom_magnitude > 1 {
+                                    let to_remove: Vec<usize> = if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
+                                        let to_remove: Vec<usize> = individual_node_styles.iter()
+                                            .enumerate().filter_map(|(index,node_style)| 
+                                            if !node_style.semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude) {
+                                                Some(index)
+                                            } else {
+                                                None
+                                            }
+                                        ).collect();
+                                        to_remove
+                                    } else {
+                                        Vec::new()
+                                    };
+                                    self.visible_nodes.remove_pos_list(&to_remove, &self.ui_state.hidden_predicates);
+                                }
                             }
                             NodeContextAction::Expand => {
                                 let mut node_change_context = NodeChangeContext {
@@ -1217,7 +1304,7 @@ impl RdfGlanceApp {
                                     &rdf_data.node_data,
                                     &self.ui_state.hidden_predicates,
                                 );
-                                self.visible_nodes.retain(&self.ui_state.hidden_predicates,false,  |x| {
+                                self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
                                     let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                     if let Some((_, node)) = node {
                                         !node.has_same_type(&types)
@@ -1250,19 +1337,25 @@ impl RdfGlanceApp {
                                 // do nothing
                             }
                         }
+                        if check_selection {
+                            if let Some(selected_node) = self.ui_state.selected_node {
+                                if self.visible_nodes.get_pos(selected_node).is_none() {
+                                    self.ui_state.selected_node = None;
+                                }
+                            }
+                        }
                     }
                 }
                 self.ui_state.context_menu_node = None;
             }
         }
-
         if !was_context_click && (secondary_clicked || single_clicked) {
-            ui.memory_mut(|mem| {
-                if mem.is_popup_open(popup_id) {
-                    self.ui_state.context_menu_node = None;
+            if is_context_menu_open {
+                self.ui_state.context_menu_node = None;
+                ui.memory_mut(|mem| {
                     mem.close_popup();
-                }
-            });
+                });
+            };
         }
 
         if let Some(node_to_click) = node_to_click {
@@ -1378,7 +1471,7 @@ pub fn draw_node(
             priority: 100,
             label_index: node_type_style.label_index,
             node_shape: if overwrite_size {
-                 NodeShape::Circle
+                NodeShape::Circle
             } else {
                 node_type_style.node_shape
             },
@@ -1614,21 +1707,12 @@ impl NeighborPos {
         Self { nodes: HashMap::new() }
     }
 
-    pub fn add_by_index(
+    pub fn add_many(
         &mut self,
         node_layout: &mut SortedNodeLayout,
-        root_node: IriIndex,
-        node_index: IriIndex,
+        nodes_to_add: &[(IriIndex, IriIndex)],
+        config: &Config,
     ) -> bool {
-        if node_layout.add_by_index(node_index) {
-            self.insert(root_node, node_index);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn add_many(&mut self, node_layout: &mut SortedNodeLayout, nodes_to_add: &[(IriIndex, IriIndex)], config: &Config) -> bool {
         node_layout.add_many(nodes_to_add, config, |(parent_index, node_index)| {
             self.insert(*parent_index, *node_index);
         })

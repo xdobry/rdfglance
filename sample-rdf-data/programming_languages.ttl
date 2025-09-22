@@ -105,14 +105,14 @@ dbr:AMBIT a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ALGOL_60 .
 
 dbr:AMOS_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "AMOS (programming language)"@en ;
+    rdfs:label "AMOS"@en ;
     dbo:influencedBy dbr:STOS_BASIC ;
     dbp:paradigm dbr:Imperative_programming,
         dbr:Procedural_programming ;
     dbp:typing "Static"@en .
 
 dbr:ATS_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ATS (programming language)"@en ;
+    rdfs:label "ATS"@en ;
     dbo:designer dbr:Hongwei_Xi ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:Dependent_ML,
@@ -315,7 +315,7 @@ dbr:Ateji_PX a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Atom_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Atom (programming language)"@en ;
+    rdfs:label "Atom"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/Bluespec,_Inc.>,
         dbr:Haskell_\(programming_language\) ;
     dbo:latestReleaseDate "2021-11-13"^^xsd:date ;
@@ -374,7 +374,7 @@ dbr:BLISS a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Data_type .
 
 dbr:B_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "B (programming language)"@en ;
+    rdfs:label "B"@en ;
     dbo:designer dbr:Ken_Thompson_\(computer_programmer\) ;
     dbo:influencedBy dbr:BCPL,
         ns7:I,
@@ -382,13 +382,13 @@ dbr:B_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing "typeless"@en .
 
 dbr:Babbage_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Babbage (programming language)"@en ;
+    rdfs:label "Babbage"@en ;
     dbp:paradigm dbr:High-level_assembler,
         dbr:Procedural_programming,
         dbr:Structured_programming .
 
 dbr:Ballerina_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ballerina (programming language)"@en ;
+    rdfs:label "Ballerina"@en ;
     dbo:designer dbr:Frank_Leymann,
         dbr:James_Clark_\(programmer\),
         dbr:Sanjiva_perera,
@@ -437,7 +437,7 @@ dbr:BeanShell a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Beatnik_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Beatnik (programming language)"@en ;
+    rdfs:label "Beatnik"@en ;
     dbp:paradigm dbr:Stack-oriented_programming .
 
 dbr:Bigloo a dbo:ProgrammingLanguage ;
@@ -452,12 +452,12 @@ dbr:Bigloo a dbo:ProgrammingLanguage ;
 dbr:Bogus_\(Ruby\) dbo:latestReleaseDate "2015-01-02"^^xsd:date .
 
 dbr:Boomerang_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Boomerang (programming language)"@en ;
+    rdfs:label "Boomerang"@en ;
     dbo:influencedBy dbr:OCaml ;
     dbo:latestReleaseDate "2009-09-02"^^xsd:date .
 
 dbr:Bosque_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Bosque (programming language)"@en ;
+    rdfs:label "Bosque"@en ;
     dbo:influencedBy dbr:JavaScript,
         dbr:ML_\(programming_language\),
         dbr:TypeScript ;
@@ -466,7 +466,7 @@ dbr:Bosque_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Typed_language .
 
 dbr:Bs_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Bs (programming language)"@en ;
+    rdfs:label "Bs"@en ;
     dbo:influencedBy dbr:BASIC,
         dbr:C_\(programming_language\),
         dbr:SNOBOL .
@@ -592,7 +592,7 @@ dbr:COWSEL a dbo:ProgrammingLanguage ;
         dbr:Lisp_\(programming_language\) .
 
 dbr:CS-4_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "CS-4 (programming language)"@en ;
+    rdfs:label "CS-4"@en ;
     dbo:designer dbr:Intermetrics ;
     dbp:typing "unknown"@en .
 
@@ -610,14 +610,14 @@ dbr:Cadence_SKILL a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamically-typed_language .
 
 dbr:Cameleon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cameleon (programming language)"@en ;
+    rdfs:label "Cameleon"@en ;
     dbo:influencedBy dbr:YAWL ;
     dbp:paradigm dbr:Functional_programming ;
     dbp:typing dbr:Dynamic_type,
         dbr:Static_type .
 
 dbr:Carbon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Carbon (programming language)"@en ;
+    rdfs:label "Carbon"@en ;
     dbo:designer dbr:Google ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:Rust_\(programming_language\) ;
@@ -631,13 +631,13 @@ dbr:Catrobat a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing .
 
 dbr:Cecil_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cecil (programming language)"@en ;
+    rdfs:label "Cecil"@en ;
     dbo:designer dbr:Craig_Chambers ;
     dbp:paradigm dbr:Object-oriented_programming ;
     dbp:typing "dynamic"@en .
 
 dbr:Ceylon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ceylon (programming language)"@en ;
+    rdfs:label "Ceylon"@en ;
     dbo:influencedBy dbr:Java_\(programming_language\),
         dbr:Lisp_\(programming_language\),
         dbr:ML_\(programming_language\),
@@ -651,7 +651,7 @@ dbr:Ceylon_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_safety .
 
 dbr:Chapel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Chapel (programming language)"@en ;
+    rdfs:label "Chapel"@en ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
@@ -676,7 +676,7 @@ dbr:Chapel_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:paradigm "Message-driven parallel programming, migratable objects, Object-oriented, asynchronous many-tasking"@en .
 
 dbr:Charm_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Charm (programming language)"@en ;
+    rdfs:label "Charm"@en ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:Pascal_\(programming_language\),
         <http://dbpedia.org/resource/RTL/2> ;
@@ -692,7 +692,7 @@ dbr:Chez_Scheme a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Chisel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Chisel (programming language)"@en ;
+    rdfs:label "Chisel"@en ;
     dbo:latestReleaseDate "2022-07-30"^^xsd:date ;
     dbp:typing dbr:Static_typing,
         dbr:Strong_and_weak_typing,
@@ -707,7 +707,7 @@ dbr:ChucK a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Strong_typing .
 
 dbr:Ciao_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ciao (programming language)"@en ;
+    rdfs:label "Ciao"@en ;
     dbo:influencedBy dbr:Prolog ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Logic_programming,
@@ -727,7 +727,7 @@ dbr:Cilk a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 dbr:Citrine_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Citrine (programming language)"@en ;
+    rdfs:label "Citrine"@en ;
     dbo:influencedBy dbr:Self_\(programming_language\),
         dbr:Smalltalk ;
     dbp:paradigm dbr:Object-oriented_programming,
@@ -735,7 +735,7 @@ dbr:Citrine_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing .
 
 dbr:Claire_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Claire (programming language)"@en ;
+    rdfs:label "Claire"@en ;
     dbo:designer dbr:Yves_Caseau ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:Lisp_\(programming_language\),
@@ -762,7 +762,7 @@ dbr:Coarray_Fortran a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Cobra_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cobra (programming language)"@en ;
+    rdfs:label "Cobra"@en ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Eiffel_\(programming_language\),
         dbr:Objective-C,
@@ -825,7 +825,7 @@ dbr:Constraint_Handling_Rules a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Prolog .
 
 dbr:Cool_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cool (programming language)"@en ;
+    rdfs:label "Cool"@en ;
     dbo:designer dbr:Alexander_Aiken ;
     dbo:influencedBy dbr:Java_\(programming_language\),
         dbr:ML_\(programming_language\),
@@ -841,7 +841,7 @@ dbr:CorVision a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Inform .
 
 dbr:Crystal_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Crystal (programming language)"@en ;
+    rdfs:label "Crystal"@en ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:C_Sharp_\(programming_language\),
         dbr:Go_\(programming_language\),
@@ -856,7 +856,7 @@ dbr:Crystal_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Cuneiform_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cuneiform (programming language)"@en ;
+    rdfs:label "Cuneiform"@en ;
     dbo:influencedBy dbr:Swift_\(parallel_scripting_language\) ;
     dbo:latestReleaseDate "2018-11-19"^^xsd:date ;
     dbp:paradigm dbr:Functional_programming,
@@ -864,7 +864,7 @@ dbr:Cuneiform_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing "static, simple types"@en .
 
 dbr:Curl_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Curl (programming language)"@en ;
+    rdfs:label "Curl"@en ;
     dbo:designer dbr:Massachusetts_Institute_of_Technology,
         dbr:Steve_Ward_\(computer_scientist\) ;
     dbo:influencedBy dbr:HTML,
@@ -877,7 +877,7 @@ dbr:Curl_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Strong_typing .
 
 dbr:Curry_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Curry (programming language)"@en ;
+    rdfs:label "Curry"@en ;
     dbo:influencedBy dbr:Haskell_\(programming_language\),
         dbr:Prolog_\(programming_language\) ;
     dbp:paradigm "functional, logic, non-strict, modular"@en ;
@@ -927,7 +927,7 @@ dbr:Dafny a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Dart_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Dart (programming language)"@en ;
+    rdfs:label "Dart"@en ;
     dbo:designer dbr:Lars_Bak_\(computer_programmer\) ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
@@ -948,7 +948,7 @@ dbr:Dart_\(programming_language\) a dbo:ProgrammingLanguage ;
         2 .
 
 dbr:Darwin_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Darwin (programming language)"@en ;
+    rdfs:label "Darwin"@en ;
     dbo:designer dbr:Gaston_Gonnet ;
     dbo:influencedBy dbr:Maple_\(software\) ;
     dbp:paradigm dbr:Imperative_programming,
@@ -969,7 +969,7 @@ dbr:Design_By_Numbers a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Strong_typing .
 
 dbr:Dexterity_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Dexterity (programming language)"@en ;
+    rdfs:label "Dexterity"@en ;
     dbp:paradigm dbr:Procedural_programming .
 
 dbr:Document_Style_Semantics_and_Specification_Language a dbo:ProgrammingLanguage ;
@@ -979,7 +979,7 @@ dbr:Document_Style_Semantics_and_Specification_Language a dbo:ProgrammingLanguag
         ""@en .
 
 dbr:Dolittle_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Dolittle (programming language)"@en ;
+    rdfs:label "Dolittle"@en ;
     dbo:influencedBy dbr:Logo_\(programming_language\) ;
     dbp:paradigm dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming .
@@ -988,7 +988,7 @@ dbr:Don_Syme a dbo:Person ;
     rdfs:label "Don Syme"@en .
 
 dbr:Draco_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Draco (programming language)"@en ;
+    rdfs:label "Draco"@en ;
     dbo:designer dbr:Chris_Gray_\(programmer\) ;
     dbo:influencedBy dbr:ALGOL_68,
         dbr:C_\(programming_language\),
@@ -1011,7 +1011,7 @@ dbr:ECL_\(data-centric_programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:EC_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "EC (programming language)"@en ;
+    rdfs:label "EC"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
         dbr:Python_\(programming_language\) ;
@@ -1025,13 +1025,13 @@ dbr:EC_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:ELAN_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ELAN (programming language)"@en ;
+    rdfs:label "ELAN"@en ;
     dbo:influencedBy dbr:ALGOL_68 ;
     dbp:typing dbr:Strong_and_weak_typing,
         dbr:Type_system .
 
 dbr:ELI_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ELI (programming language)"@en ;
+    rdfs:label "ELI"@en ;
     dbo:influencedBy dbr:APL_\(programming_language\),
         dbr:Q_\(programming_language_from_Kx_Systems\) ;
     dbo:latestReleaseDate "2015-08-10"^^xsd:date ;
@@ -1039,7 +1039,7 @@ dbr:ELI_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing .
 
 dbr:Ease_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ease (programming language)"@en ;
+    rdfs:label "Ease"@en ;
     dbo:influencedBy dbr:Occam_\(programming_language\) ;
     dbp:typing dbr:Strong_and_weak_typing .
 
@@ -1065,7 +1065,7 @@ dbr:Edinburgh_IMP a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:Eff_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Eff (programming language)"@en ;
+    rdfs:label "Eff"@en ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Imperative_programming,
         dbr:Multi-paradigm .
@@ -1077,7 +1077,7 @@ dbr:Elliott_ALGOL a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:Elm_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Elm (programming language)"@en ;
+    rdfs:label "Elm"@en ;
     dbo:influencedBy dbr:F_Sharp_\(programming_language\),
         dbr:Haskell_\(programming_language\),
         dbr:OCaml,
@@ -1109,7 +1109,7 @@ dbr:Embeddable_Common_Lisp a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Emerald_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Emerald (programming language)"@en ;
+    rdfs:label "Emerald"@en ;
     dbo:designer dbr:Hank_Levy_\(computer_scientist\) ;
     dbo:influencedBy dbr:Pascal_\(programming_language\),
         dbr:Simula,
@@ -1119,7 +1119,7 @@ dbr:Emerald_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Escher_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Escher (programming language)"@en ;
+    rdfs:label "Escher"@en ;
     dbo:influencedBy dbr:Simple_theory_of_types ;
     dbp:paradigm dbr:Declarative_programming,
         dbr:Functional_programming,
@@ -1128,7 +1128,7 @@ dbr:Escher_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Static_typing .
 
 dbr:Euphoria_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Euphoria (programming language)"@en ;
+    rdfs:label "Euphoria"@en ;
     dbo:influencedBy dbr:BASIC ;
     dbo:latestReleaseDate "2021-03-01"^^xsd:date ;
     dbp:paradigm dbr:Imperative_programming ;
@@ -1158,7 +1158,7 @@ dbr:Extensible_Embeddable_Language a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Ezhil_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ezhil (programming language)"@en ;
+    rdfs:label "Ezhil"@en ;
     dbo:designer dbr:Google_scholar ;
     dbo:influencedBy dbr:BASIC,
         dbr:Logo_\(programming_language\),
@@ -1171,7 +1171,7 @@ dbr:Ezhil_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 <http://dbpedia.org/resource/F*_(programming_language)> a dbo:ProgrammingLanguage ;
-    rdfs:label "F* (programming language)"@en ;
+    rdfs:label "F*"@en ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Imperative_programming,
         dbr:Multi-paradigm_programming_language ;
@@ -1181,7 +1181,7 @@ dbr:Ezhil_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:F-Script_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "F-Script (programming language)"@en ;
+    rdfs:label "F-Script"@en ;
     dbo:influencedBy dbr:APL_\(programming_language\),
         dbr:Smalltalk ;
     dbo:latestReleaseDate "2014-02-05"^^xsd:date ;
@@ -1198,13 +1198,13 @@ dbr:FACT_\(computer_language\) a dbo:ProgrammingLanguage ;
         dbr:Procedural_programming .
 
 dbr:FLOW_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "FLOW (programming language)"@en ;
+    rdfs:label "FLOW"@en ;
     dbo:influencedBy dbr:BASIC_programming_language ;
     dbp:paradigm dbr:Imperative_programming,
         dbr:Non-structured_programming .
 
 dbr:FL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "FL (programming language)"@en ;
+    rdfs:label "FL"@en ;
     dbo:designer dbr:John_Backus ;
     dbo:influencedBy dbr:FP_\(programming_language\) ;
     dbp:paradigm dbr:Function-level_programming,
@@ -1212,7 +1212,7 @@ dbr:FL_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing .
 
 dbr:FOCAL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "FOCAL (programming language)"@en ;
+    rdfs:label "FOCAL"@en ;
     dbo:designer dbr:Richard_Merrill_\(computer_scientist\) ;
     dbo:influencedBy dbr:JOSS ;
     dbp:paradigm dbr:Imperative_programming .
@@ -1222,7 +1222,7 @@ dbr:Facebook_Query_Language a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:SQL .
 
 dbr:Factor_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Factor (programming language)"@en ;
+    rdfs:label "Factor"@en ;
     dbo:influencedBy dbr:Forth_\(programming_language\),
         dbr:Joy_\(programming_language\),
         dbr:Lisp_\(programming_language\),
@@ -1233,7 +1233,7 @@ dbr:Factor_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Fantom_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Fantom (programming language)"@en ;
+    rdfs:label "Fantom"@en ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Erlang_\(programming_language\),
         dbr:Java_\(programming_language\),
@@ -1245,7 +1245,7 @@ dbr:Fantom_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Static_typing .
 
 dbr:Fjölnir_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Fjölnir (programming language)"@en ;
+    rdfs:label "Fjölnir"@en ;
     dbp:paradigm "procedural, object-oriented"@en ;
     dbp:typing "strong, dynamic"@en .
 
@@ -1256,7 +1256,7 @@ dbr:Flapjax a dbo:ProgrammingLanguage ;
         dbr:Dynamic_typing .
 
 dbr:Flix_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Flix (programming language)"@en ;
+    rdfs:label "Flix"@en ;
     dbo:influencedBy dbr:F_Sharp_\(programming_language\),
         dbr:Go_\(programming_language\),
         dbr:Haskell_\(programming_language\),
@@ -1284,7 +1284,7 @@ dbr:Flowgorithm a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Fortress_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Fortress (programming language)"@en ;
+    rdfs:label "Fortress"@en ;
     dbo:influencedBy dbr:Fortran,
         dbr:Haskell_\(programming_language\),
         dbr:Scala_\(programming_language\) ;
@@ -1305,7 +1305,7 @@ dbr:FreeBASIC a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Frenetic_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Frenetic (programming language)"@en ;
+    rdfs:label "Frenetic"@en ;
     dbo:influencedBy dbr:OCaml ;
     dbp:paradigm "Domain-specific , reactive, modular"@en ;
     dbp:typing "Dynamic"@en .
@@ -1318,7 +1318,7 @@ dbr:Fril a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Logic_programming .
 
 dbr:Frink_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Frink (programming language)"@en ;
+    rdfs:label "Frink"@en ;
     dbo:influencedBy dbr:Java_\(programming_language\) ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Imperative_programming,
@@ -1326,7 +1326,7 @@ dbr:Frink_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Object-oriented_programming .
 
 dbr:Futhark_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Futhark (programming language)"@en ;
+    rdfs:label "Futhark"@en ;
     dbo:influencedBy dbr:APL_programming_language,
         dbr:Haskell_\(programming_language\),
         dbr:NESL,
@@ -1389,7 +1389,7 @@ dbr:Gemstone_\(database\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Genie_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Genie (programming language)"@en ;
+    rdfs:label "Genie"@en ;
     dbp:paradigm dbr:Imperative_programming,
         dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming,
@@ -1404,7 +1404,7 @@ dbr:Global_Arrays a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 <http://dbpedia.org/resource/Go!_(programming_language)> a dbo:ProgrammingLanguage ;
-    rdfs:label "Go! (programming language)"@en ;
+    rdfs:label "Go!"@en ;
     dbo:designer dbr:Francis_McCabe,
         dbr:Keith_Clark_\(computer_scientist\) ;
     dbo:influencedBy dbr:Prolog ;
@@ -1412,7 +1412,7 @@ dbr:Global_Arrays a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Strong_typing .
 
 dbr:Golo_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Golo (programming language)"@en ;
+    rdfs:label "Golo"@en ;
     dbo:latestReleaseDate "2021-10-20"^^xsd:date ;
     dbp:typing dbr:Strong_and_weak_typing,
         dbr:Type_system .
@@ -1446,7 +1446,7 @@ dbr:Gremlin_\(query_language\) a dbo:ProgrammingLanguage ;
     dbo:latestReleaseDate "2022-07-18"^^xsd:date .
 
 dbr:Gödel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Gödel (programming language)"@en ;
+    rdfs:label "Gödel"@en ;
     dbo:latestReleaseDate "1995-08-11"^^xsd:date ;
     dbp:paradigm dbr:Declarative_programming,
         dbr:Logic_programming ;
@@ -1457,7 +1457,7 @@ dbr:HOL_\(proof_assistant\) a dbo:ProgrammingLanguage ;
     dbo:designer dbr:Michael_J_C_Gordon .
 
 dbr:Halide_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Halide (programming language)"@en ;
+    rdfs:label "Halide"@en ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Parallel_programming_model ;
     dbp:typing dbr:Static_typing .
@@ -1475,7 +1475,7 @@ dbr:Handel-C a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Harbour_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Harbour (programming language)"@en ;
+    rdfs:label "Harbour"@en ;
     dbo:influencedBy dbr:Clipper_\(programming_language\),
         dbr:DBase ;
     dbo:latestReleaseDate "2011-07-17"^^xsd:date ;
@@ -1541,7 +1541,7 @@ dbr:IBM_RPG a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Idris_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Idris (programming language)"@en ;
+    rdfs:label "Idris"@en ;
     dbo:influencedBy dbr:Agda_\(programming_language\),
         dbr:Clean_\(programming_language\),
         dbr:Coq,
@@ -1654,7 +1654,7 @@ dbr:JScript_.NET a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 dbr:J_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "J (programming language)"@en ;
+    rdfs:label "J"@en ;
     dbo:designer dbr:Kenneth_E._Iverson,
         dbr:Roger_Hui ;
     dbo:influencedBy dbr:APL_\(programming_language\) ;
@@ -1704,12 +1704,12 @@ dbr:Join_Java a dbo:ProgrammingLanguage ;
         dbr:Reflective_programming .
 
 dbr:Jolie_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Jolie (programming language)"@en ;
+    rdfs:label "Jolie"@en ;
     dbo:designer dbr:Fabrizio_Montesi ;
     dbo:latestReleaseDate "2022-07-25"^^xsd:date .
 
 dbr:Joule_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Joule (programming language)"@en ;
+    rdfs:label "Joule"@en ;
     dbo:influencedBy dbr:Actor_model,
         dbr:Logic_Programming ;
     dbp:paradigm dbr:Dataflow,
@@ -1750,7 +1750,7 @@ dbr:Judoscript a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Julia_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Julia (programming language)"@en ;
+    rdfs:label "Julia"@en ;
     dbo:designer dbr:Alan_Edelman,
         dbr:Jeff_Bezanson_\(programmer\),
         dbr:Stefan_Karpinski,
@@ -1780,7 +1780,7 @@ dbr:Julia_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:KRL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "KRL (programming language)"@en ;
+    rdfs:label "KRL"@en ;
     dbp:paradigm dbr:Knowledge_representation .
 
 dbr:KUKA_Robot_Language a dbo:ProgrammingLanguage ;
@@ -1789,7 +1789,7 @@ dbr:KUKA_Robot_Language a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Pascal_\(programming_language\) .
 
 dbr:K_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "K (programming language)"@en ;
+    rdfs:label "K"@en ;
     dbo:designer dbr:Arthur_Whitney_\(computer_scientist\) ;
     dbo:influencedBy <http://dbpedia.org/resource/A+_(programming_language)>,
         dbr:APL_\(programming_language\),
@@ -1800,7 +1800,7 @@ dbr:K_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Karel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Karel (programming language)"@en ;
+    rdfs:label "Karel"@en ;
     dbo:designer dbr:Richard_E._Pattis ;
     dbo:influencedBy dbr:Pascal_\(programming_language\) ;
     dbp:paradigm dbr:Procedural_programming .
@@ -1818,7 +1818,7 @@ dbr:Kojo_\(learning_environment\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Strong_and_weak_typing .
 
 dbr:Kotlin_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Kotlin (programming language)"@en ;
+    rdfs:label "Kotlin"@en ;
     dbo:designer dbr:JetBrains ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Eiffel_\(programming_language\),
@@ -1843,7 +1843,7 @@ dbr:Kotlin_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:LFE_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "LFE (programming language)"@en ;
+    rdfs:label "LFE"@en ;
     dbo:influencedBy dbr:Clojure_\(programming_language\),
         dbr:Common_Lisp,
         dbr:Elixir_\(programming_language\),
@@ -1889,7 +1889,7 @@ dbr:Language_Integrated_Query a dbo:ProgrammingLanguage ;
     dbp:typing "Strongly typed"@en .
 
 dbr:Lasso_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Lasso (programming language)"@en ;
+    rdfs:label "Lasso"@en ;
     dbo:influencedBy dbr:Dylan_\(programming_language\),
         dbr:Scala_\(programming_language\),
         dbr:Smalltalk ;
@@ -1919,7 +1919,7 @@ dbr:Level_I_BASIC a dbo:ProgrammingLanguage ;
         dbr:Tiny_BASIC .
 
 dbr:Limbo_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Limbo (programming language)"@en ;
+    rdfs:label "Limbo"@en ;
     dbo:designer dbr:Phil_Winterbottom,
         dbr:Rob_Pike,
         dbr:Sean_Dorward ;
@@ -1957,7 +1957,7 @@ dbr:Little_Smalltalk a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:Little_b_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Little b (programming language)"@en ;
+    rdfs:label "Little b"@en ;
     dbo:designer dbr:Aneil_Mallavarapu ;
     dbo:influencedBy dbr:Lisp_\(programming_language\) ;
     dbo:latestReleaseDate "2008-09-06"^^xsd:date ;
@@ -1966,7 +1966,7 @@ dbr:Little_b_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:LiveScript_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "LiveScript (programming language)"@en ;
+    rdfs:label "LiveScript"@en ;
     dbo:designer dbr:Jeremy_Ashkenas ;
     dbo:influencedBy dbr:CoffeeScript,
         dbr:F_Sharp_\(programming_language\),
@@ -2005,7 +2005,7 @@ dbr:Lucee a dbo:ProgrammingLanguage ;
     dbo:latestReleaseDate "2022-05-20"^^xsd:date .
 
 dbr:Lucid_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Lucid (programming language)"@en ;
+    rdfs:label "Lucid"@en ;
     dbo:influencedBy dbr:ISWIM ;
     dbp:paradigm dbr:Dataflow_programming ;
     dbp:typing "Typeless"@en .
@@ -2017,7 +2017,7 @@ dbr:M4_\(computer_language\) a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Macro_\(computer_science\) .
 
 dbr:MAD_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "MAD (programming language)"@en ;
+    rdfs:label "MAD"@en ;
     dbo:influencedBy dbr:ALGOL_58 ;
     dbp:paradigm dbr:Imperative_programming .
 
@@ -2095,7 +2095,7 @@ dbr:Malbolge a dbo:ProgrammingLanguage ;
     dbp:typing "Untyped"@en .
 
 dbr:Mary_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Mary (programming language)"@en ;
+    rdfs:label "Mary"@en ;
     dbo:influencedBy dbr:ALGOL_68 ;
     dbp:paradigm dbr:Imperative_programming ;
     dbp:typing dbr:Static_typing,
@@ -2138,7 +2138,7 @@ dbr:Microsoft_Small_Basic a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 dbr:Mirah_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Mirah (programming language)"@en ;
+    rdfs:label "Mirah"@en ;
     dbo:influencedBy dbr:Boo_\(programming_language\),
         dbr:Java_\(programming_language\),
         dbr:Ruby_\(programming_language\) ;
@@ -2193,7 +2193,7 @@ dbr:NEWP a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:NIL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "NIL (programming language)"@en ;
+    rdfs:label "NIL"@en ;
     dbo:influencedBy dbr:Lisp_\(programming_language\),
         dbr:Maclisp ;
     dbp:typing dbr:Dynamic_typing,
@@ -2264,7 +2264,7 @@ dbr:NewLISP a dbo:ProgrammingLanguage ;
     dbp:paradigm "Multi-paradigm"@en .
 
 dbr:Newspeak_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Newspeak (programming language)"@en ;
+    rdfs:label "Newspeak"@en ;
     dbo:designer dbr:Gilad_Bracha ;
     dbo:influencedBy dbr:BETA_\(programming_language\),
         dbr:E_\(programming_language\),
@@ -2284,7 +2284,7 @@ dbr:Nial a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing .
 
 dbr:Nim_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Nim (programming language)"@en ;
+    rdfs:label "Nim"@en ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         <http://dbpedia.org/resource/C++>,
         dbr:Lisp_\(programming_language\),
@@ -2307,7 +2307,7 @@ dbr:North_Star_BASIC a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Imperative_programming .
 
 dbr:Nu_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Nu (programming language)"@en ;
+    rdfs:label "Nu"@en ;
     dbo:influencedBy dbr:Lisp_\(programming_language\),
         dbr:Objective-C,
         dbr:Ruby_\(programming_language\) ;
@@ -2319,7 +2319,7 @@ dbr:Nu_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing "dynamic"@en .
 
 dbr:Nyquist_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Nyquist (programming language)"@en ;
+    rdfs:label "Nyquist"@en ;
     dbo:influencedBy dbr:Lisp_\(programming_language\) .
 
 dbr:Obliq a dbo:ProgrammingLanguage ;
@@ -2338,7 +2338,7 @@ dbr:Occam-π a dbo:ProgrammingLanguage ;
         dbr:Procedural_programming .
 
 dbr:Opa_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Opa (programming language)"@en ;
+    rdfs:label "Opa"@en ;
     dbo:influencedBy dbr:Erlang_\(programming_language\),
         dbr:JavaScript,
         dbr:OCaml ;
@@ -2395,7 +2395,7 @@ dbr:OptimJ a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Object-oriented_programming .
 
 dbr:Orc_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Orc (programming language)"@en ;
+    rdfs:label "Orc"@en ;
     dbo:designer dbr:Jayadev_Misra ;
     dbo:influencedBy dbr:Haskell_\(programming_language\),
         dbr:ML_\(programming_language\),
@@ -2412,7 +2412,7 @@ dbr:Oriel_\(scripting_language\) a dbo:ProgrammingLanguage ;
         dbr:Procedural_programming .
 
 dbr:Oxygene_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Oxygene (programming language)"@en ;
+    rdfs:label "Oxygene"@en ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Delphi_\(Programming_Language\) .
 
@@ -2427,7 +2427,7 @@ dbr:Oxygene_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 dbr:P4_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "P4 (programming language)"@en ;
+    rdfs:label "P4"@en ;
     dbp:paradigm dbr:Compiled_language,
         dbr:Domain-specific_language,
         dbr:Imperative_programming .
@@ -2506,13 +2506,13 @@ dbr:PWCT a dbo:ProgrammingLanguage ;
         dbr:Visual_programming_language .
 
 dbr:Pan_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pan (programming language)"@en ;
+    rdfs:label "Pan"@en ;
     dbp:paradigm dbr:Declarative_Language ;
     dbp:typing dbr:Dynamic_typing,
         dbr:Strong_typing .
 
 dbr:ParaSail_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ParaSail (programming language)"@en ;
+    rdfs:label "ParaSail"@en ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         dbr:ML_\(programming_language\),
         dbr:Modula,
@@ -2527,7 +2527,7 @@ dbr:ParaSail_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Parser_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Parser (programming language)"@en ;
+    rdfs:label "Parser"@en ;
     dbo:latestReleaseDate "2021-01-28"^^xsd:date ;
     dbp:paradigm "multiparadigm - macro, object-oriented"@en ;
     dbp:typing "dynamic"@en .
@@ -2598,13 +2598,13 @@ dbr:PicoLisp a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Pico_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pico (programming language)"@en ;
+    rdfs:label "Pico"@en ;
     dbo:influencedBy dbr:Scheme_\(programming_language\) ;
     dbp:paradigm dbr:Procedural_programming,
         dbr:Reflection_\(computer_science\) .
 
 dbr:Plus_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Plus (programming language)"@en ;
+    rdfs:label "Plus"@en ;
     dbo:influencedBy dbr:Pascal_\(programming_language\) ;
     dbp:paradigm dbr:Imperative_programming,
         dbr:Structured_programming ;
@@ -2738,7 +2738,7 @@ dbr:PureScript a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:Pure_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pure (programming language)"@en ;
+    rdfs:label "Pure"@en ;
     dbo:influencedBy dbr:Alice_\(programming_language\),
         dbr:Haskell_\(programming_language\),
         dbr:Lisp_\(programming_language\),
@@ -2778,13 +2778,13 @@ dbr:QUEL_query_languages a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Alpha_\(programming_language\) .
 
 dbr:Qalb_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Qalb (programming language)"@en ;
+    rdfs:label "Qalb"@en ;
     dbo:designer dbr:Ramsey_Nasser ;
     dbo:influencedBy dbr:Scheme_\(programming_language\) ;
     dbp:paradigm dbr:Functional_programming .
 
 dbr:Qore_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Qore (programming language)"@en ;
+    rdfs:label "Qore"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:D_language,
         dbr:Java_\(programming_language\),
@@ -2813,7 +2813,7 @@ dbr:RETRIEVE a dbo:ProgrammingLanguage ;
         dbr:Imperative_programming .
 
 dbr:RPL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "RPL (programming language)"@en ;
+    rdfs:label "RPL"@en ;
     dbo:designer dbr:Hewlett-Packard ;
     dbo:influencedBy dbr:Forth_\(programming_language\),
         dbr:Lisp_\(programming_language\),
@@ -2822,7 +2822,7 @@ dbr:RPL_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:paradigm "Stack, structured, concatenative, partially object-oriented"@en .
 
 dbr:Raku_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Raku (programming language)"@en ;
+    rdfs:label "Raku"@en ;
     dbo:designer dbr:Larry_Wall ;
     dbo:influencedBy dbr:Haskell_\(programming_language\),
         dbr:JavaScript,
@@ -2843,7 +2843,7 @@ dbr:Rapira a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_type .
 
 dbr:Raptor_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Raptor (programming language)"@en ;
+    rdfs:label "Raptor"@en ;
     dbo:influencedBy dbr:Flowchart ;
     dbo:latestReleaseDate "2015-04-22"^^xsd:date ;
     dbp:paradigm dbr:Imperative_programming,
@@ -2866,7 +2866,7 @@ dbr:Rc a dbo:ProgrammingLanguage ;
 dbr:Reason_\(programming_language\) dbo:latestReleaseDate "2022-06-28"^^xsd:date .
 
 dbr:Red_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Red (programming language)"@en ;
+    rdfs:label "Red"@en ;
     dbo:influencedBy dbr:Lua_\(programming_language\),
         dbr:Rebol,
         dbr:Scala_\(programming_language\) ;
@@ -2883,7 +2883,7 @@ dbr:Refal a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Ring_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ring (programming language)"@en ;
+    rdfs:label "Ring"@en ;
     dbo:designer dbr:Mahmoud_Samir_Fayed ;
     dbo:influencedBy dbr:BASIC,
         dbr:C_\(programming_language\),
@@ -2916,7 +2916,7 @@ dbr:Run_BASIC a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Liberty_BASIC .
 
 dbr:S3_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "S3 (programming language)"@en ;
+    rdfs:label "S3"@en ;
     dbo:influencedBy dbr:ALGOL_68 ;
     dbp:paradigm dbr:Imperative_programming,
         dbr:Structured_programming .
@@ -2945,7 +2945,7 @@ dbr:SDS_BASIC a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Imperative_programming .
 
 dbr:SK8_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "SK8 (programming language)"@en ;
+    rdfs:label "SK8"@en ;
     dbp:paradigm dbr:Object-oriented_programming ;
     dbp:typing "Strong, dynamic"@en .
 
@@ -2954,7 +2954,7 @@ dbr:SMALL a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ALGOL .
 
 dbr:SNAP_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "SNAP (programming language)"@en ;
+    rdfs:label "SNAP"@en ;
     dbp:paradigm dbr:Imperative_programming .
 
 dbr:SOAP a dbo:ProgrammingLanguage ;
@@ -2964,7 +2964,7 @@ dbr:SOAP a dbo:ProgrammingLanguage ;
     dbo:latestReleaseDate "2007-04-27"^^xsd:date .
 
 dbr:SPARK_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "SPARK (programming language)"@en ;
+    rdfs:label "SPARK"@en ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         dbr:Eiffel_\(programming_language\) ;
     dbo:latestReleaseDate "2021-06-01"^^xsd:date ;
@@ -2981,7 +2981,7 @@ ns14:PSM a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Multi-paradigm_programming_language .
 
 dbr:STELLA_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "STELLA (programming language)"@en ;
+    rdfs:label "STELLA"@en ;
     dbo:designer dbr:Barry_Richmond ;
     dbo:influencedBy dbr:DYNAMO_\(programming_language\) ;
     dbo:latestReleaseDate "2020-11-25"^^xsd:date ;
@@ -3102,7 +3102,7 @@ dbr:Solidity a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Object-oriented_programming .
 
 dbr:Source_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Source (programming language)"@en ;
+    rdfs:label "Source"@en ;
     dbo:influencedBy dbr:JavaScript,
         dbr:Scheme_\(programming_language\) ;
     dbo:latestReleaseDate "2021-12-31"^^xsd:date ;
@@ -3134,7 +3134,7 @@ dbr:Squeak a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Squirrel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Squirrel (programming language)"@en ;
+    rdfs:label "Squirrel"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:JavaScript,
         dbr:Lua_\(programming_language\),
@@ -3147,7 +3147,7 @@ dbr:Squirrel_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:StaDyn_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "StaDyn (programming language)"@en ;
+    rdfs:label "StaDyn"@en ;
     dbo:designer dbr:Francisco_Ortin ;
     dbo:influencedBy dbr:Boo_\(programming_language\),
         dbr:C_Sharp_\(programming_language\),
@@ -3212,7 +3212,7 @@ dbr:SuperPascal a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Swift_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Swift (programming language)"@en ;
+    rdfs:label "Swift"@en ;
     dbo:designer <http://dbpedia.org/resource/Apple_Inc.>,
         dbr:Chris_Lattner ;
     dbo:influencedBy dbr:CLU_\(programming_language\),
@@ -3280,12 +3280,12 @@ dbr:TI-BASIC_83 a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Action_language .
 
 dbr:TRAC_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "TRAC (programming language)"@en ;
+    rdfs:label "TRAC"@en ;
     dbo:designer dbr:Calvin_Mooers ;
     dbp:paradigm dbr:General-purpose_macro_processor .
 
 dbr:TTM_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "TTM (programming language)"@en ;
+    rdfs:label "TTM"@en ;
     dbo:influencedBy dbr:TRAC_programming_language ;
     dbp:paradigm dbr:General-purpose_macro_processor .
 
@@ -3295,13 +3295,13 @@ dbr:TUTOR a dbo:ProgrammingLanguage ;
     dbp:typing "none"@en .
 
 dbr:TXL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "TXL (programming language)"@en ;
+    rdfs:label "TXL"@en ;
     dbo:designer dbr:Charles_Halpern-Hamu,
         dbr:James_Cordy ;
     dbp:paradigm "Pattern-matching and Term-rewriting"@en .
 
 dbr:Tea_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Tea (programming language)"@en ;
+    rdfs:label "Tea"@en ;
     dbo:influencedBy dbr:Java_\(programming_language\),
         dbr:Scheme_\(programming_language\),
         dbr:Tcl ;
@@ -3322,7 +3322,7 @@ dbr:ToonTalk a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Concurrent_constraint_logic_programming .
 
 dbr:Tritium_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Tritium (programming language)"@en ;
+    rdfs:label "Tritium"@en ;
     dbo:designer dbr:Hampton_Catlin ;
     dbo:influencedBy dbr:Sass_\(stylesheet_language\),
         dbr:XSLT .
@@ -3334,7 +3334,7 @@ dbr:True_BASIC a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:BASIC .
 
 dbr:Turing_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Turing (programming language)"@en ;
+    rdfs:label "Turing"@en ;
     dbo:designer dbr:James_Cordy,
         dbr:Ric_Holt ;
     dbo:influencedBy dbr:Euclid_\(programming_language\),
@@ -3379,7 +3379,7 @@ dbr:Umple a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Static_typing .
 
 dbr:Unicon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Unicon (programming language)"@en ;
+    rdfs:label "Unicon"@en ;
     dbo:influencedBy dbr:Icon_programming_language ;
     dbp:paradigm dbr:Object-oriented_programming,
         dbr:Procedural_programming .
@@ -3400,7 +3400,7 @@ dbr:Unlambda a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Ur_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ur (programming language)"@en ;
+    rdfs:label "Ur"@en ;
     dbo:designer dbr:Adam_Chlipala ;
     dbo:influencedBy dbr:Haskell_\(programming_language\),
         dbr:ML_\(programming_language\) ;
@@ -3450,7 +3450,7 @@ dbr:Vadalog a dbo:ProgrammingLanguage ;
         dbr:Logic_programming .
 
 dbr:Vala_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Vala (programming language)"@en ;
+    rdfs:label "Vala"@en ;
     dbo:influencedBy dbr:Boo_\(programming_language\),
         <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
@@ -3535,7 +3535,7 @@ dbr:WordBASIC a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:QuickBASIC .
 
 dbr:X10_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "X10 (programming language)"@en ;
+    rdfs:label "X10"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:Java_\(programming_language\) ;
     dbo:latestReleaseDate "2019-01-08"^^xsd:date ;
@@ -3611,7 +3611,7 @@ dbr:Yoix a dbo:ProgrammingLanguage ;
     dbp:typing "Dynamic, Weak"@en .
 
 dbr:Yorick_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Yorick (programming language)"@en ;
+    rdfs:label "Yorick"@en ;
     dbo:designer dbr:David_H._Munro .
 
 dbr:ZPE_Programming_Environment a dbo:ProgrammingLanguage ;
@@ -3640,7 +3640,7 @@ dbr:Zebra_Programming_Language a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:BASIC .
 
 dbr:Zig_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Zig (programming language)"@en ;
+    rdfs:label "Zig"@en ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:C_\(programming_language\),
         dbr:Go_\(programming_language\),
@@ -3687,7 +3687,7 @@ dbr:Эль-76 a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 <http://dbpedia.org/resource/A+_(programming_language)> a dbo:ProgrammingLanguage ;
-    rdfs:label "A+ (programming language)"@en ;
+    rdfs:label "A+"@en ;
     dbo:designer dbr:Arthur_Whitney_\(computer_scientist\) ;
     dbo:influencedBy dbr:APL_\(programming_language\) ;
     dbo:latestReleaseDate "2008-03-27"^^xsd:date ;
@@ -3699,7 +3699,7 @@ dbr:ABB_Group a dbo:Person ;
     rdfs:label "ABB Group"@en .
 
 dbr:ABC_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ABC (programming language)"@en ;
+    rdfs:label "ABC"@en ;
     dbo:influencedBy dbr:ALGOL_68,
         dbr:SETL ;
     dbp:typing dbr:Polymorphism_\(computer_science\),
@@ -3782,7 +3782,7 @@ dbr:Alan_Edelman a dbo:Person ;
     dbp:nationality dbr:United_States .
 
 dbr:Alef_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Alef (programming language)"@en ;
+    rdfs:label "Alef"@en ;
     dbo:designer dbr:Phil_Winterbottom ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:Newsqueak ;
@@ -3802,7 +3802,7 @@ dbr:Alfred_Aho a dbo:Person ;
 dbr:Algebraic_types a <yago:Paradigm113804375> .
 
 dbr:Alice_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Alice (programming language)"@en ;
+    rdfs:label "Alice"@en ;
     dbo:designer dbr:Saarland_University ;
     dbo:influencedBy dbr:ML_\(programming_language\),
         dbr:Oz_\(programming_language\) ;
@@ -3820,10 +3820,10 @@ dbr:Allen_Newell a dbo:Person ;
     rdfs:label "Allen Newell"@en .
 
 dbr:Alpha_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Alpha (programming language)"@en .
+    rdfs:label "Alpha"@en .
 
 dbr:Alphard_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Alphard (programming language)"@en .
+    rdfs:label "Alphard"@en .
 
 dbr:Anders_Hejlsberg a dbo:Person ;
     rdfs:label "Anders Hejlsberg"@en ;
@@ -3886,7 +3886,7 @@ dbr:BBN_LISP a dbo:ProgrammingLanguage ;
     rdfs:label "BBN LISP"@en .
 
 dbr:BETA_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "BETA (programming language)"@en ;
+    rdfs:label "BETA"@en ;
     dbo:designer dbr:Bent_Bruun_Kristensen,
         dbr:Birger_Møller-Pedersen,
         dbr:Kristen_Nygaard,
@@ -3972,7 +3972,7 @@ dbr:COMIT a dbo:ProgrammingLanguage ;
     dbo:designer dbr:Victor_Yngve .
 
 dbr:CPL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "CPL (programming language)"@en ;
+    rdfs:label "CPL"@en ;
     dbo:designer dbr:Christopher_Strachey ;
     dbo:influencedBy dbr:ALGOL_60 ;
     dbp:paradigm dbr:Functional_programming,
@@ -4039,7 +4039,7 @@ dbr:Chuck_Geschke a dbo:Person ;
 dbr:Cilk_Plus a <dbo:ProgrammingLanguage> .
 
 dbr:Clarion_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Clarion (programming language)"@en .
+    rdfs:label "Clarion"@en .
 
 dbr:Class-based_programming a <yago:Paradigm113804375> .
 
@@ -4049,7 +4049,7 @@ dbr:Cleve_Moler a dbo:Person ;
     rdfs:label "Cleve Moler"@en .
 
 dbr:Clipper_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Clipper (programming language)"@en ;
+    rdfs:label "Clipper"@en ;
     dbo:latestReleaseDate "1997-05-20"^^xsd:date .
 
 dbr:Clojure_\(programming_language\) a <dbo:ProgrammingLanguage> .
@@ -4103,7 +4103,7 @@ dbr:Cray_MTA a <dbo:ProgrammingLanguage> .
 dbr:Cray_XMT a <dbo:ProgrammingLanguage> .
 
 dbr:Cyclone_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Cyclone (programming language)"@en ;
+    rdfs:label "Cyclone"@en ;
     dbo:designer <http://dbpedia.org/resource/AT&T_Labs> ;
     dbo:influencedBy dbr:C_\(programming_language\) ;
     dbo:latestReleaseDate "2006-05-08"^^xsd:date .
@@ -4142,7 +4142,7 @@ dbr:DBase a dbo:ProgrammingLanguage ;
 dbr:DSSSL a <dbo:ProgrammingLanguage> .
 
 dbr:DYNAMO_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "DYNAMO (programming language)"@en .
+    rdfs:label "DYNAMO"@en .
 
 dbr:D_language a <dbo:ProgrammingLanguage> .
 
@@ -4269,7 +4269,7 @@ dbr:Ed_Taft a <dbo:Person> .
 dbr:Edgar_T._Irons a <dbo:Person> .
 
 dbr:Elixir_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Elixir (programming language)"@en ;
+    rdfs:label "Elixir"@en ;
     dbo:designer dbr:José_Valim ;
     dbo:influencedBy dbr:Clojure,
         dbr:Erlang_\(programming_language\),
@@ -4282,7 +4282,7 @@ dbr:End-user_development a yago:Paradigm113804375 ;
     rdfs:label "End-user development"@en .
 
 dbr:Epigram_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Epigram (programming language)"@en ;
+    rdfs:label "Epigram"@en ;
     dbo:designer dbr:Conor_McBride ;
     dbo:influencedBy dbr:ALF_\(proof_assistant\) ;
     dbo:latestReleaseDate "2006-10-11"^^xsd:date ;
@@ -4295,7 +4295,7 @@ dbr:Erik_Meijer_\(computer_scientist\) a dbo:Person ;
     rdfs:label "Erik Meijer (computer scientist)"@en .
 
 dbr:Etoys_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Etoys (programming language)"@en ;
+    rdfs:label "Etoys"@en ;
     dbo:designer dbr:Alan_Kay ;
     dbo:influencedBy dbr:AgentSheets,
         dbr:HyperCard,
@@ -4308,7 +4308,7 @@ dbr:Etoys_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Euler_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Euler (programming language)"@en ;
+    rdfs:label "Euler"@en ;
     dbo:influencedBy dbr:ALGOL_60 ;
     dbp:typing dbr:Dynamic_typing .
 
@@ -4378,7 +4378,7 @@ dbr:Google_scholar a dbo:Person ;
     rdfs:label "Google scholar"@en .
 
 dbr:Gosu_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Gosu (programming language)"@en ;
+    rdfs:label "Gosu"@en ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Java_\(programming_language\) ;
     dbo:latestReleaseDate "2021-08-10"^^xsd:date ;
@@ -4453,7 +4453,7 @@ dbr:IEEE a dbo:Person ;
     rdfs:label "IEEE"@en .
 
 dbr:IMP_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "IMP (programming language)"@en ;
+    rdfs:label "IMP"@en ;
     dbo:designer dbr:Edgar_T._Irons ;
     dbo:influencedBy dbr:ALGOL_60 ;
     dbp:typing dbr:Static_type,
@@ -4477,7 +4477,7 @@ dbr:ITU-T a dbo:Person ;
 dbr:Icon_programming_language a <dbo:ProgrammingLanguage> .
 
 dbr:Id_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Id (programming language)"@en .
+    rdfs:label "Id"@en .
 
 dbr:Impromptu_\(programming_environment\) a dbo:ProgrammingLanguage ;
     rdfs:label "Impromptu (programming environment)"@en ;
@@ -4509,7 +4509,7 @@ dbr:InterLisp a <dbo:ProgrammingLanguage> .
 dbr:Interpress a <dbo:ProgrammingLanguage> .
 
 dbr:Io_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Io (programming language)"@en ;
+    rdfs:label "Io"@en ;
     dbo:influencedBy dbr:Actor_model_middle_history,
         dbr:Lisp_\(programming_language\),
         dbr:Lua_\(programming_language\),
@@ -4563,7 +4563,7 @@ dbr:Java_Community_Process a dbo:Person ;
 dbr:Java_virtual_machine a <dbo:ProgrammingLanguage> .
 
 dbr:Javascript_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Javascript (programming language)"@en .
+    rdfs:label "Javascript"@en .
 
 dbr:Jayadev_Misra a dbo:Person ;
     rdfs:label "Jayadev Misra"@en .
@@ -4628,7 +4628,7 @@ dbr:José_Valim a dbo:Person ;
     rdfs:label "José Valim"@en .
 
 dbr:Joy_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Joy (programming language)"@en ;
+    rdfs:label "Joy"@en ;
     dbo:influencedBy dbr:FP_\(programming_language\),
         dbr:Forth_\(programming_language\),
         dbr:Scheme_\(programming_language\) ;
@@ -4641,7 +4641,7 @@ dbr:Joy_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Joyce_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Joyce (programming language)"@en ;
+    rdfs:label "Joyce"@en ;
     dbo:designer dbr:Per_Brinch_Hansen ;
     dbo:influencedBy dbr:Communicating_sequential_processes,
         dbr:Concurrent_Pascal,
@@ -4771,7 +4771,7 @@ dbr:MACRO-11 a dbo:ProgrammingLanguage ;
 dbr:MASSCOMP a <dbo:ProgrammingLanguage> .
 
 dbr:MDL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "MDL (programming language)"@en ;
+    rdfs:label "MDL"@en ;
     dbo:influencedBy dbr:Lisp_\(programming_language\) ;
     dbp:typing dbr:Dynamic_typing,
         dbr:Strong_and_weak_typing .
@@ -4969,7 +4969,7 @@ dbr:Optional_typing a dbo:Typing ;
     rdfs:label "Optional typing"@en .
 
 dbr:Orwell_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Orwell (programming language)"@en ;
+    rdfs:label "Orwell"@en ;
     dbo:designer dbr:Philip_Wadler ;
     dbo:influencedBy dbr:Miranda_\(programming_language\) ;
     dbp:paradigm dbr:Functional_programming,
@@ -4985,7 +4985,7 @@ ns7:0 a <dbo:ProgrammingLanguage> .
 ns7:1 a <dbo:ProgrammingLanguage> .
 
 dbr:PLEX_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "PLEX (programming language)"@en ;
+    rdfs:label "PLEX"@en ;
     dbp:paradigm "procedural, imperative, concurrent"@en .
 
 dbr:POP-2 a <dbo:ProgrammingLanguage> .
@@ -5019,7 +5019,7 @@ dbr:Peter_Landin a dbo:Person ;
 dbr:Pi_calculus a <yago:Paradigm113804375> .
 
 dbr:Pict_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pict (programming language)"@en ;
+    rdfs:label "Pict"@en ;
     dbo:influencedBy dbr:ML_\(programming_language\) ;
     dbp:paradigm dbr:Concurrent_programming ;
     dbp:typing dbr:Type_system .
@@ -5031,7 +5031,7 @@ dbr:Pipeline_\(Unix\) a <dbo:ProgrammingLanguage> .
 dbr:Pipeline_programming a <yago:Paradigm113804375> .
 
 dbr:Pizza_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pizza (programming language)"@en ;
+    rdfs:label "Pizza"@en ;
     dbo:influencedBy dbr:Java_\(programming_language\) ;
     dbp:paradigm dbr:Algebraic_types,
         dbr:Generic_programming .
@@ -5122,7 +5122,7 @@ dbr:REXX a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Racket_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Racket (programming language)"@en ;
+    rdfs:label "Racket"@en ;
     dbo:influencedBy dbr:Eiffel_\(programming_language\),
         dbr:Scheme_\(programming_language\) ;
     dbp:paradigm dbr:Functional_programming,
@@ -5229,7 +5229,7 @@ dbr:Ross_Ihaka a dbo:Person ;
 dbr:Russians a dbo:Nationality .
 
 dbr:SAIL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "SAIL (programming language)"@en .
+    rdfs:label "SAIL"@en .
 
 dbr:SAML a <dbo:ProgrammingLanguage> .
 
@@ -5320,7 +5320,7 @@ dbr:Simscript a <dbo:ProgrammingLanguage> .
 dbr:Simula_67 a <dbo:ProgrammingLanguage> .
 
 <http://dbpedia.org/resource/Snap!_(programming_language)> a dbo:ProgrammingLanguage ;
-    rdfs:label "Snap! (programming language)"@en ;
+    rdfs:label "Snap!"@en ;
     dbo:designer dbr:Brian_Harvey_\(lecturer\),
         <https://github.com/jmoenig/> ;
     dbo:influencedBy dbr:Logo_\(programming_language\),
@@ -5438,7 +5438,7 @@ dbr:TOTVS a dbo:Person ;
 dbr:TRAC_programming_language a <dbo:ProgrammingLanguage> .
 
 dbr:T_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "T (programming language)"@en ;
+    rdfs:label "T"@en ;
     dbo:influencedBy dbr:Scheme_\(programming_language\) ;
     dbo:latestReleaseDate "1984-08-01"^^xsd:date ;
     dbp:paradigm dbr:Functional_programming,
@@ -5602,7 +5602,7 @@ dbr:WebAssembly a dbo:ProgrammingLanguage ;
 dbr:WebSocket a <dbo:ProgrammingLanguage> .
 
 dbr:Whiley_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Whiley (programming language)"@en ;
+    rdfs:label "Whiley"@en ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:Java_\(programming_language\),
         dbr:Python_\(programming_language\),
@@ -5694,7 +5694,7 @@ dbr:Yukihiro_Matsumoto a dbo:Person ;
 dbr:Yves_Caseau a <dbo:Person> .
 
 dbr:ZPL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ZPL (programming language)"@en ;
+    rdfs:label "ZPL"@en ;
     dbo:influencedBy dbr:C_\(programming_language\) ;
     dbp:paradigm dbr:Array_programming .
 
@@ -5776,7 +5776,7 @@ dbr:Charles_H._Moore a dbo:Person ;
     dbp:nationality "American"@en .
 
 dbr:Clean_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Clean (programming language)"@en ;
+    rdfs:label "Clean"@en ;
     dbo:designer dbr:Radboud_University_Nijmegen ;
     dbo:influencedBy dbr:Haskell_\(programming_language\),
         dbr:Miranda_\(programming_language\) ;
@@ -5854,7 +5854,7 @@ dbr:DIGITAL_Command_Language a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Imperative_programming .
 
 dbr:D_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "D (programming language)"@en ;
+    rdfs:label "D"@en ;
     dbo:designer dbr:Andrei_Alexandrescu,
         dbr:Walter_Bright ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
@@ -5879,7 +5879,7 @@ dbr:Datalog a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Weak_typing .
 
 dbr:Delphi_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Delphi (programming language)"@en .
+    rdfs:label "Delphi"@en .
 
 dbr:Distributed_computing a <yago:Paradigm113804375> .
 
@@ -5942,7 +5942,7 @@ dbr:Google a dbo:Person ;
     rdfs:label "Google"@en .
 
 dbr:Groovy_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Groovy (programming language)"@en .
+    rdfs:label "Groovy"@en .
 
 dbr:Guido_van_Rossum a dbo:Person ;
     rdfs:label "Guido van Rossum"@en ;
@@ -5980,7 +5980,7 @@ dbr:Haskell a dbo:ProgrammingLanguage ;
 dbr:HyperCard a <dbo:ProgrammingLanguage> .
 
 dbr:Icon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Icon (programming language)"@en ;
+    rdfs:label "Icon"@en ;
     dbo:designer dbr:Ralph_Griswold ;
     dbo:influencedBy dbr:ALGOL,
         dbr:SNOBOL ;
@@ -6119,7 +6119,7 @@ dbr:Plankalkül a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Procedural_programming .
 
 dbr:Planner_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Planner (programming language)"@en ;
+    rdfs:label "Planner"@en ;
     dbo:designer dbr:Carl_Hewitt ;
     dbp:paradigm dbr:Logic_programming,
         dbr:Procedural_programming,
@@ -6139,7 +6139,7 @@ dbr:S-algol a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ALGOL_60 .
 
 dbr:SASL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "SASL (programming language)"@en ;
+    rdfs:label "SASL"@en ;
     dbo:designer dbr:David_Turner_\(computer_scientist\) ;
     dbo:influencedBy dbr:ISWIM ;
     dbp:paradigm dbr:Functional_programming .
@@ -6230,7 +6230,7 @@ dbr:BCPL a dbo:ProgrammingLanguage ;
     dbp:typing "typeless"@en .
 
 dbr:Boo_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Boo (programming language)"@en ;
+    rdfs:label "Boo"@en ;
     dbo:designer dbr:Rodrigo_B._De_Oliveira ;
     dbo:influencedBy dbr:C_Sharp_\(programming_language\),
         dbr:Python_\(programming_language\) ;
@@ -6264,7 +6264,7 @@ dbr:Executive_Systems_Problem_Oriented_Language a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:FP_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "FP (programming language)"@en ;
+    rdfs:label "FP"@en ;
     dbo:designer dbr:John_Backus ;
     dbo:influencedBy dbr:APL_\(programming_language\) ;
     dbp:paradigm dbr:Function-level_programming .
@@ -6289,7 +6289,7 @@ dbr:Massachusetts_Institute_of_Technology a dbo:Person ;
     rdfs:label "Massachusetts Institute of Technology"@en .
 
 dbr:Miranda_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Miranda (programming language)"@en ;
+    rdfs:label "Miranda"@en ;
     dbo:designer dbr:David_Turner_\(computer_scientist\) ;
     dbo:influencedBy dbr:Hope_\(programming_language\),
         dbr:Kent_Recursive_Calculator,
@@ -6317,7 +6317,7 @@ dbr:Object_Pascal a dbo:ProgrammingLanguage ;
     dbp:typing "Static and dynamic , strong, safe"@en .
 
 dbr:Oz_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Oz (programming language)"@en ;
+    rdfs:label "Oz"@en ;
     dbo:influencedBy dbr:Erlang_\(programming_language\),
         dbr:Lisp_\(programming_language\),
         dbr:Prolog ;
@@ -6429,7 +6429,7 @@ dbr:Esoteric_programming_language a <dbo:ProgrammingLanguage>,
         <yago:Paradigm113804375> .
 
 dbr:Euclid_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Euclid (programming language)"@en ;
+    rdfs:label "Euclid"@en ;
     dbo:designer dbr:Butler_Lampson,
         dbr:Xerox_PARC ;
     dbo:influencedBy dbr:Pascal_\(programming_language\) ;
@@ -6452,7 +6452,7 @@ dbr:FORTRAN a dbo:ProgrammingLanguage ;
     rdfs:label "FORTRAN"@en .
 
 dbr:Go_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Go (programming language)"@en ;
+    rdfs:label "Go"@en ;
     dbo:designer dbr:Ken_Thompson,
         dbr:Rob_Pike,
         dbr:Robert_Griesemer ;
@@ -6489,7 +6489,7 @@ dbr:John_Backus a dbo:Person ;
     rdfs:label "John Backus"@en .
 
 dbr:Mesa_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Mesa (programming language)"@en ;
+    rdfs:label "Mesa"@en ;
     dbo:influencedBy dbr:ALGOL ;
     dbp:typing "Strong, static"@en .
 
@@ -6499,7 +6499,7 @@ dbr:Natural_language_programming a <dbo:ProgrammingLanguage>,
 dbr:Occam_\(programming_language\) a <dbo:ProgrammingLanguage> .
 
 dbr:R_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "R (programming language)"@en ;
+    rdfs:label "R"@en ;
     dbo:designer dbr:Robert_Gentleman_\(statistician\),
         dbr:Ross_Ihaka ;
     dbo:influencedBy dbr:Lisp_\(programming_language\),
@@ -6542,7 +6542,7 @@ dbr:Dataflow_programming a yago:Paradigm113804375 ;
     rdfs:label "Dataflow programming"@en .
 
 dbr:Dylan_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Dylan (programming language)"@en ;
+    rdfs:label "Dylan"@en ;
     dbo:influencedBy dbr:ALGOL,
         dbr:Common_Lisp_Object_System,
         dbr:EuLisp,
@@ -6602,7 +6602,7 @@ dbr:PHP a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:Scratch_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Scratch (programming language)"@en ;
+    rdfs:label "Scratch"@en ;
     dbo:influencedBy dbr:AgentCubes,
         dbr:AgentSheets,
         dbr:Etoys_\(programming_language\),
@@ -6622,7 +6622,7 @@ dbr:Visual_Basic a dbo:ProgrammingLanguage ;
     rdfs:label "Visual Basic"@en .
 
 dbr:CLU_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "CLU (programming language)"@en ;
+    rdfs:label "CLU"@en ;
     dbo:designer dbr:Barbara_Liskov ;
     dbo:influencedBy dbr:ALGOL_60,
         dbr:Alphard_\(programming_language\),
@@ -6666,7 +6666,7 @@ dbr:Dartmouth_BASIC a dbo:ProgrammingLanguage ;
     dbp:paradigm dbr:Imperative_programming .
 
 dbr:Forth_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Forth (programming language)"@en ;
+    rdfs:label "Forth"@en ;
     dbo:designer dbr:Charles_H._Moore ;
     dbp:paradigm "concatenative , procedural, reflective, some implementations are object-oriented"@en ;
     dbp:typing "Typeless"@en .
@@ -6700,7 +6700,7 @@ dbr:Visual_programming_language a yago:Paradigm113804375 ;
     rdfs:label "Visual programming language"@en .
 
 dbr:Erlang_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Erlang (programming language)"@en ;
+    rdfs:label "Erlang"@en ;
     dbo:designer dbr:Joe_Armstrong_\(programmer\) ;
     dbo:influencedBy dbr:Lisp_\(programming_language\),
         dbr:PLEX_\(programming_language\),
@@ -6710,7 +6710,7 @@ dbr:Erlang_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Lua_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Lua (programming language)"@en ;
+    rdfs:label "Lua"@en ;
     dbo:designer dbr:Roberto_Ierusalimschy ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:CLU_\(programming_language\),
@@ -6726,7 +6726,7 @@ dbr:Microsoft a dbo:Person ;
     rdfs:label "Microsoft"@en .
 
 dbr:Oberon_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Oberon (programming language)"@en ;
+    rdfs:label "Oberon"@en ;
     dbo:designer dbr:Niklaus_Wirth ;
     dbo:influencedBy dbr:Modula-2 ;
     dbo:latestReleaseDate "2020-03-06"^^xsd:date ;
@@ -6772,7 +6772,7 @@ ns7:I a dbo:ProgrammingLanguage ;
         dbr:Structured_programming .
 
 dbr:Rust_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Rust (programming language)"@en ;
+    rdfs:label "Rust"@en ;
     dbp:typing dbr:Affine_type_system,
         dbr:Nominal_type_system,
         dbr:Static_typing,
@@ -6780,7 +6780,7 @@ dbr:Rust_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:Scala_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Scala (programming language)"@en ;
+    rdfs:label "Scala"@en ;
     dbo:designer dbr:Martin_Odersky ;
     dbo:influencedBy dbr:Common_Lisp,
         dbr:Eiffel_\(programming_language\),
@@ -6838,7 +6838,7 @@ dbr:Standard_ML a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:APL_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "APL (programming language)"@en ;
+    rdfs:label "APL"@en ;
     dbp:paradigm dbr:Array_programming,
         dbr:Functional_programming,
         dbr:Modular_programming,
@@ -6846,7 +6846,7 @@ dbr:APL_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Type_system .
 
 dbr:Eiffel_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Eiffel (programming language)"@en ;
+    rdfs:label "Eiffel"@en ;
     dbo:designer dbr:Bertrand_Meyer ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         dbr:Simula,
@@ -6889,7 +6889,7 @@ dbr:Simula a dbo:ProgrammingLanguage ;
         dbr:Static_type .
 
 dbr:Ada_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ada (programming language)"@en ;
+    rdfs:label "Ada"@en ;
     dbo:influencedBy dbr:ALGOL_68,
         <http://dbpedia.org/resource/C++>,
         dbr:Eiffel_\(programming_language\),
@@ -6925,7 +6925,7 @@ dbr:Nominative_type_system a dbo:Typing ;
     rdfs:label "Nominative type system"@en .
 
 dbr:Self_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Self (programming language)"@en ;
+    rdfs:label "Self"@en ;
     dbo:designer dbr:David_Ungar ;
     dbo:influencedBy dbr:APL_\(programming_language\),
         dbr:Smalltalk ;
@@ -6943,7 +6943,7 @@ dbr:Prolog a dbo:ProgrammingLanguage ;
 dbr:Reflective_programming a <yago:Paradigm113804375> .
 
 dbr:Ruby_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Ruby (programming language)"@en ;
+    rdfs:label "Ruby"@en ;
     dbo:designer dbr:Yukihiro_Matsumoto ;
     dbo:influencedBy dbr:Ada_\(programming_language\),
         dbr:BASIC,
@@ -6980,7 +6980,7 @@ dbr:Fortran a dbo:ProgrammingLanguage ;
         dbr:Type_system .
 
 dbr:Logo_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Logo (programming language)"@en ;
+    rdfs:label "Logo"@en ;
     dbo:influencedBy dbr:Lisp_\(programming_language\) ;
     dbp:typing dbr:Dynamic_typing .
 
@@ -7053,7 +7053,7 @@ dbr:Duck_typing a dbo:Typing ;
 dbr:Logic_programming a <yago:Paradigm113804375> .
 
 dbr:ML_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "ML (programming language)"@en ;
+    rdfs:label "ML"@en ;
     dbo:designer dbr:Robin_Milner,
         dbr:University_of_Edinburgh ;
     dbo:influencedBy dbr:ISWIM ;
@@ -7066,7 +7066,7 @@ dbr:ML_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Type_inference .
 
 dbr:Haskell_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Haskell (programming language)"@en .
+    rdfs:label "Haskell"@en .
 
 dbr:ALGOL_60 a dbo:ProgrammingLanguage ;
     rdfs:label "ALGOL 60"@en ;
@@ -7075,7 +7075,7 @@ dbr:ALGOL_60 a dbo:ProgrammingLanguage ;
         dbr:Strong_and_weak_typing .
 
 dbr:Python_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Python (programming language)"@en ;
+    rdfs:label "Python"@en ;
     dbo:designer dbr:Guido_van_Rossum ;
     dbo:influencedBy dbr:ABC_\(programming_language\),
         dbr:ALGOL_68,
@@ -7095,7 +7095,7 @@ dbr:Python_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbp:typing "Duck, dynamic, strong typing; gradual"@en .
 
 dbr:C_Sharp_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "C Sharp (programming language)"@en ;
+    rdfs:label "C Sharp"@en ;
     dbo:designer dbr:Anders_Hejlsberg ;
     dbo:influencedBy <http://dbpedia.org/resource/C++>,
         dbr:Cω,
@@ -7176,7 +7176,7 @@ dbr:Type_inference a dbo:Typing ;
     rdfs:label "Type inference"@en .
 
 dbr:Pascal_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Pascal (programming language)"@en ;
+    rdfs:label "Pascal"@en ;
     dbo:designer dbr:Niklaus_Wirth ;
     dbo:influencedBy dbr:ALGOL_W,
         dbr:Simula ;
@@ -7207,7 +7207,7 @@ dbr:Smalltalk a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Scheme_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Scheme (programming language)"@en ;
+    rdfs:label "Scheme"@en ;
     dbo:influencedBy dbr:ALGOL,
         dbr:Lisp_\(programming_language\),
         dbr:MDL_\(programming_language\) ;
@@ -7216,7 +7216,7 @@ dbr:Scheme_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Strong_typing .
 
 dbr:Java_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Java (programming language)"@en ;
+    rdfs:label "Java"@en ;
     dbp:paradigm "Multi-paradigm: generic, object-oriented , functional, imperative, reflective, concurrent"@en ;
     dbp:typing dbr:Manifest_typing,
         dbr:Nominal_type_system,
@@ -7226,7 +7226,7 @@ dbr:Structured_programming a yago:Paradigm113804375 ;
     rdfs:label "Structured programming"@en .
 
 dbr:C_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "C (programming language)"@en ;
+    rdfs:label "C"@en ;
     dbp:paradigm "Multi-paradigm: imperative , structured"@en ;
     dbp:typing dbr:Manifest_typing,
         dbr:Nominal_type_system,
@@ -7234,7 +7234,7 @@ dbr:C_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Weak_typing .
 
 dbr:Lisp_\(programming_language\) a dbo:ProgrammingLanguage ;
-    rdfs:label "Lisp (programming language)"@en ;
+    rdfs:label "Lisp"@en ;
     dbo:designer dbr:John_McCarthy_\(computer_scientist\) ;
     dbo:influencedBy dbr:Information_Processing_Language ;
     dbp:paradigm dbr:Functional_programming,
