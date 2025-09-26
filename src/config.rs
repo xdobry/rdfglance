@@ -30,6 +30,8 @@ pub struct Config {
     pub short_iri: bool,
     #[serde(default = "default_40_000")]
     pub max_visible_nodes: usize,
+    #[serde(default = "default_250")]
+    pub gravity_effect_radius: f32,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Copy, Clone)]
@@ -57,6 +59,7 @@ impl Default for Config {
             community_randomize: true,
             short_iri: true,
             max_visible_nodes: 40_000,
+            gravity_effect_radius: 250.0,
         }
     }
 }
@@ -71,6 +74,10 @@ fn default_iri_display() -> IriDisplay {
 
 fn default_1() -> f32 {
     1.0
+}
+
+fn default_250() -> f32 {
+    250.0
 }
 
 fn default_40_000() -> usize {
@@ -141,6 +148,7 @@ impl RdfGlanceApp {
             "community detection randomize",
         );
         ui.add(Slider::new(&mut self.persistent_data.config_data.max_visible_nodes, 1000..=200_000).text("Max nodes in visual graph"));
+        ui.add(Slider::new(&mut self.persistent_data.config_data.gravity_effect_radius, 50.0..=1000.0).text("Gravity effect radius for layout"));
         NodeAction::None
     }
 

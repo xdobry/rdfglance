@@ -539,7 +539,7 @@ impl TypeData {
                 if primary_clicked && cell_rect.contains(mouse_pos) {
                     *instance_action = NodeAction::BrowseNode(*instance_index);
                 } else if secondary_clicked && cell_rect.contains(mouse_pos) {
-                    *instance_action = NodeAction::ShowVisual(*instance_index);
+                    *instance_action = NodeAction::AddVisual(*instance_index);
                 }
                 let s = format!("{}/{}", node.references.len(), node.reverse_references.len());
                 let ref_rect = egui::Rect::from_min_size(

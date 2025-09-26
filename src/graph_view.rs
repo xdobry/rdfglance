@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::{
     ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState,
@@ -204,6 +204,26 @@ impl RdfGlanceApp {
                 "No nodes to display. Go to tables or browser and add a node to graph using button with ",
                 ICON_GRAPH
             ));
+            if !self.visible_nodes.undo_stack.is_empty() || !self.visible_nodes.redo_stack.is_empty() {
+                ui.horizontal(|ui| {
+                    let undo_button =
+                        ui.add_enabled(!self.visible_nodes.undo_stack.is_empty(), egui::Button::new(ICON_UNDO));
+                    if undo_button.on_hover_text("Undo").clicked()
+                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Z))
+                    {
+                        self.visible_nodes
+                            .undo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                    }
+                    let redo_button =
+                        ui.add_enabled(!self.visible_nodes.redo_stack.is_empty(), egui::Button::new(ICON_REDO));
+                    if redo_button.on_hover_text("Redo").clicked()
+                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Y))
+                    {
+                        self.visible_nodes
+                            .redo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                    }
+                });
+            }
             return NodeAction::None;
         }
         ui.horizontal(|ui| {
@@ -260,6 +280,8 @@ impl RdfGlanceApp {
                 if let Some(layout_handle) = &self.visible_nodes.layout_handle {
                     let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateRepulsionConstant(
                         self.persistent_data.config_data.m_repulsion_constant));
+                } else {
+                    self.visible_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
                 }
             }
             ui.label("edges force");
@@ -268,6 +290,8 @@ impl RdfGlanceApp {
                 if let Some(layout_handle) = &self.visible_nodes.layout_handle {
                     let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateAttractionFactor(
                         self.persistent_data.config_data.m_attraction_factor));
+                } else {
+                    self.visible_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
                 }
             }
             if ui.selectable_label(self.ui_state.show_labels, ICON_LABEL).on_hover_text("Show Node Labels").clicked() {
@@ -701,6 +725,7 @@ impl RdfGlanceApp {
         let mut node_count = 0;
         let mut edge_count = 0;
         let mut secondary_clicked = false;
+        let mut is_shift_down = false;
         let mut single_clicked = false;
         let mut double_clicked = false;
         let mut primary_down = false;
@@ -714,6 +739,8 @@ impl RdfGlanceApp {
         let scene = egui::Scene::new().zoom_range(0.1..=4.0);
         let popup_id = ui.make_persistent_id("node_context_menu");
         let is_context_menu_open = ui.memory(|mem| mem.is_popup_open(popup_id));
+        let mut translation_vec: Option<Vec2> = None;
+        let mut zoom: Option<f32> = None;
 
         if let Ok(rdf_data) = self.rdf_data.read() {
             scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
@@ -749,19 +776,38 @@ impl RdfGlanceApp {
                     if input.pointer.button_released(egui::PointerButton::Primary) {
                         self.ui_state.node_to_drag = None;
                     }
+                    is_shift_down = input.modifiers.shift;
                     if !is_context_menu_open {
                         if self.ui_state.context_menu_node.is_some() {
                             self.ui_state.context_menu_opened_by_keyboard = false;
                             self.ui_state.context_menu_node = None;
                         }
-                        if input.key_pressed(egui::Key::ArrowUp) {
-                            node_selection_move = NodeSelectionMove::Up;
-                        } else if input.key_pressed(egui::Key::ArrowDown) {
-                            node_selection_move = NodeSelectionMove::Down;
-                        } else if input.key_pressed(egui::Key::ArrowLeft) {
-                            node_selection_move = NodeSelectionMove::Left;
-                        } else if input.key_pressed(egui::Key::ArrowRight) {
-                            node_selection_move = NodeSelectionMove::Right;
+                        if input.modifiers.is_none() {
+                            if input.key_pressed(egui::Key::ArrowUp) {
+                                node_selection_move = NodeSelectionMove::Up;
+                            } else if input.key_pressed(egui::Key::ArrowDown) {
+                                node_selection_move = NodeSelectionMove::Down;
+                            } else if input.key_pressed(egui::Key::ArrowLeft) {
+                                node_selection_move = NodeSelectionMove::Left;
+                            } else if input.key_pressed(egui::Key::ArrowRight) {
+                                node_selection_move = NodeSelectionMove::Right;
+                            }
+                        } else if input.modifiers.ctrl {
+                            // Translate the scene by keyboard
+                            if input.key_pressed(egui::Key::ArrowUp) {
+                                translation_vec = Some(Vec2::new(0.0, 20.0))
+                            } else if input.key_pressed(egui::Key::ArrowDown) {
+                                translation_vec = Some(Vec2::new(0.0, -20.0))
+                            } else if input.key_pressed(egui::Key::ArrowLeft) {
+                                translation_vec = Some(Vec2::new(20.0, 0.0))
+                            } else if input.key_pressed(egui::Key::ArrowRight) {
+                                translation_vec = Some(Vec2::new(-20.0, 0.0))
+                            }
+                        }
+                        if input.key_pressed(egui::Key::PageUp) {
+                            zoom = Some(0.9);
+                        } else if input.key_pressed(egui::Key::PageDown) {
+                            zoom = Some(1.1);
                         }
                         // There is currently not defined key for opening context menu so use Shift + F10
                         if input.modifiers.shift && input.key_pressed(egui::Key::F10) {
@@ -893,6 +939,19 @@ impl RdfGlanceApp {
                         if let Ok(mut positions) = self.visible_nodes.positions.write() {
                             positions[node_pos].pos =
                                 (mouse_pos - center - self.ui_state.drag_diff.to_vec2()).to_pos2();
+                            if self.ui_state.selected_nodes.contains(node_to_drag_index)
+                                && self.ui_state.selected_nodes.len() > 1
+                            {
+                                let drag_diff = mouse_pos - self.ui_state.drag_start;
+                                for selected_node in &self.ui_state.selected_nodes {
+                                    if selected_node != node_to_drag_index {
+                                        if let Some(selected_node_pos) = self.visible_nodes.get_pos(*selected_node) {
+                                            positions[selected_node_pos].pos += drag_diff;
+                                        }
+                                    }
+                                }
+                                self.ui_state.drag_start = mouse_pos;
+                            }
                         }
                     }
                 }
@@ -963,7 +1022,8 @@ impl RdfGlanceApp {
                                         object,
                                         object_iri,
                                         pos,
-                                        self.ui_state.selected_node == Some(node_layout.node_index),
+                                        self.ui_state.selected_node == Some(node_layout.node_index)
+                                            || self.ui_state.selected_nodes.contains(&node_layout.node_index),
                                         false,
                                         faded,
                                         ui.visuals(),
@@ -981,11 +1041,16 @@ impl RdfGlanceApp {
                                     if self.ui_state.context_menu_node.is_none() || was_action {
                                         if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                             self.ui_state.selected_node = Some(node_layout.node_index);
+                                            if !is_shift_down {
+                                                self.ui_state.selected_nodes.clear();
+                                            }
+                                            self.ui_state.selected_nodes.insert(node_layout.node_index);
                                             was_action = true;
                                         }
                                         if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                             self.ui_state.node_to_drag = Some(node_layout.node_index);
                                             self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
+                                            self.ui_state.drag_start = mouse_pos;
                                             was_action = true;
                                         }
                                         if double_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
@@ -1015,6 +1080,8 @@ impl RdfGlanceApp {
                             }
                             if let Some((next_selected, _pos)) = next_node_selection.next_selected {
                                 self.ui_state.selected_node = Some(next_selected);
+                                self.ui_state.selected_nodes.clear();
+                                self.ui_state.selected_nodes.insert(next_selected);
                             }
                         }
                     }
@@ -1059,6 +1126,13 @@ impl RdfGlanceApp {
                     let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                 }
             });
+        }
+        if let Some(translation_vec) = translation_vec {
+            self.graph_state.scene_rect = self.graph_state.scene_rect.translate(translation_vec)
+        }
+        if let Some(zoom) = zoom {
+            let center = self.graph_state.scene_rect.center();
+            self.graph_state.scene_rect = Rect::from_center_size(center, self.graph_state.scene_rect.size() * zoom);
         }
         if was_context_click {
             ui.memory_mut(|mem| mem.toggle_popup(popup_id));
@@ -1108,7 +1182,9 @@ impl RdfGlanceApp {
                         match node_action {
                             NodeContextAction::Hide => {
                                 self.visible_nodes
-                                    .remove(current_index, &self.ui_state.hidden_predicates);
+                                    .retain(&self.ui_state.hidden_predicates, false, |node| {
+                                        !self.ui_state.selected_nodes.contains(&node.node_index)
+                                    });
                                 self.visible_nodes
                                     .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                                 check_selection = true;
@@ -1202,20 +1278,29 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::HideZoomInvisible => {
                                 if self.visible_nodes.has_semantic_zoom && self.ui_state.semantic_zoom_magnitude > 1 {
-                                    let to_remove: Vec<usize> = if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
-                                        let to_remove: Vec<usize> = individual_node_styles.iter()
-                                            .enumerate().filter_map(|(index,node_style)| 
-                                            if !node_style.semantic_zoom_interval.is_visible(self.ui_state.semantic_zoom_magnitude) {
-                                                Some(index)
-                                            } else {
-                                                None
-                                            }
-                                        ).collect();
+                                    let to_remove: Vec<usize> = if let Ok(individual_node_styles) =
+                                        self.visible_nodes.individual_node_styles.read()
+                                    {
+                                        let to_remove: Vec<usize> = individual_node_styles
+                                            .iter()
+                                            .enumerate()
+                                            .filter_map(|(index, node_style)| {
+                                                if !node_style
+                                                    .semantic_zoom_interval
+                                                    .is_visible(self.ui_state.semantic_zoom_magnitude)
+                                                {
+                                                    Some(index)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .collect();
                                         to_remove
                                     } else {
                                         Vec::new()
                                     };
-                                    self.visible_nodes.remove_pos_list(&to_remove, &self.ui_state.hidden_predicates);
+                                    self.visible_nodes
+                                        .remove_pos_list(&to_remove, &self.ui_state.hidden_predicates);
                                 }
                             }
                             NodeContextAction::Expand => {
@@ -1225,7 +1310,7 @@ impl RdfGlanceApp {
                                     config: &self.persistent_data.config_data,
                                 };
                                 if rdf_data.expand_node(
-                                    current_index,
+                                    &self.ui_state.selected_nodes,
                                     ExpandType::Both,
                                     &mut node_change_context,
                                     &self.ui_state.hidden_predicates,
@@ -1243,7 +1328,7 @@ impl RdfGlanceApp {
                                     config: &self.persistent_data.config_data,
                                 };
                                 if rdf_data.expand_node(
-                                    current_index,
+                                    &self.ui_state.selected_nodes,
                                     ExpandType::References,
                                     &mut node_change_context,
                                     &self.ui_state.hidden_predicates,
@@ -1267,7 +1352,7 @@ impl RdfGlanceApp {
                                     config: &self.persistent_data.config_data,
                                 };
                                 if rdf_data.expand_node(
-                                    current_index,
+                                    &self.ui_state.selected_nodes,
                                     ExpandType::ReverseReferences,
                                     &mut node_change_context,
                                     &self.ui_state.hidden_predicates,
@@ -1341,6 +1426,7 @@ impl RdfGlanceApp {
                             if let Some(selected_node) = self.ui_state.selected_node {
                                 if self.visible_nodes.get_pos(selected_node).is_none() {
                                     self.ui_state.selected_node = None;
+                                    self.ui_state.selected_nodes.clear();
                                 }
                             }
                         }
@@ -1365,8 +1451,10 @@ impl RdfGlanceApp {
                     visible_nodes: &mut self.visible_nodes,
                     config: &self.persistent_data.config_data,
                 };
+                let mut nodes : BTreeSet<IriIndex> = BTreeSet::new();
+                nodes.insert(node_to_click);
                 if rdf_data.expand_node(
-                    node_to_click,
+                    &nodes,
                     ExpandType::Both,
                     &mut node_change_context,
                     &self.ui_state.hidden_predicates,
@@ -1525,7 +1613,7 @@ pub fn update_layout_edges(
     node_data: &NodeData,
     hidden_predicates: &SortedVec,
 ) {
-    let mut visited_nodes: HashSet<IriIndex> = HashSet::new();
+    let mut visited_nodes: HashSet<IriIndex> = HashSet::with_capacity(new_nodes.nodes.len());
     if let Ok(mut edges) = layout_nodes.edges.write() {
         for node_index in new_nodes.iter_values() {
             if let Some(node_pos) = layout_nodes.get_pos(*node_index) {

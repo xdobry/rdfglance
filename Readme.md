@@ -14,6 +14,7 @@
 - Zero runtime needed
 
 Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
+You can browse your RDF Data online.
 The WASM version does not offer all functionality. Especially no multithread non-blocking processing.
 
 You may pass query parameter with url of ttl data to be loaded.

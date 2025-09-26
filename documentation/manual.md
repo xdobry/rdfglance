@@ -199,6 +199,9 @@ global
 - Key - - Remove All leaves Nodes
 - F5 - refresh layout
 - Home - center view (reset zoom and translation)
+- Arrows - Move selection to next in corresponding direction
+- Ctrl-Arrows - Translate view
+- PageUp/PageDown - Zoom In/Zoom Out by 10%
 
 In context of selected node
 - E - Expand selected node

@@ -4,11 +4,10 @@ use anyhow::Error;
 use const_format::concatcp;
 use fixedbitset::FixedBitSet;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     path::Path,
     sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -259,20 +258,20 @@ pub struct NodeChangeContext<'a> {
 impl RdfData {
     fn expand_node(
         &mut self,
-        iri_index: IriIndex,
+        iri_indexes: &BTreeSet<IriIndex>,
         expand_type: ExpandType,
         node_change_context: &mut NodeChangeContext,
         hidden_predicates: &SortedVec,
     ) -> bool {
-        let refs_to_expand = {
-            let nnode = self.node_data.get_node_by_index(iri_index);
+        let mut refs_to_expand: Vec<(IriIndex,IriIndex)> = Vec::new();  
+        for iri_index in iri_indexes.iter() {
+            let nnode = self.node_data.get_node_by_index(*iri_index);
             if let Some((_, nnode)) = nnode {
-                let mut refs_to_expand = vec![];
                 match expand_type {
                     ExpandType::References | ExpandType::Both => {
                         for (predicate, ref_iri) in &nnode.references {
                             if !hidden_predicates.contains(*predicate) {
-                                refs_to_expand.push((iri_index, *ref_iri));
+                                refs_to_expand.push((*iri_index, *ref_iri));
                             }
                         }
                     }
@@ -282,15 +281,12 @@ impl RdfData {
                     ExpandType::ReverseReferences | ExpandType::Both => {
                         for (predicate, ref_iri) in &nnode.reverse_references {
                             if !hidden_predicates.contains(*predicate) {
-                                refs_to_expand.push((iri_index, *ref_iri));
+                                refs_to_expand.push((*iri_index, *ref_iri));
                             }
                         }
                     }
                     _ => {}
                 }
-                refs_to_expand
-            } else {
-                vec![]
             }
         };
         if refs_to_expand.is_empty() {
@@ -492,12 +488,14 @@ pub struct GVisualizationStyle {
 
 pub struct UIState {
     selected_node: Option<IriIndex>,
+    selected_nodes: BTreeSet<IriIndex>,
     context_menu_node: Option<IriIndex>,
     context_menu_pos: Pos2,
     context_menu_opened_by_keyboard: bool,
     node_to_drag: Option<IriIndex>,
     // Set if dragging for difference to dragged node center
     drag_diff: Pos2,
+    drag_start: Pos2,
     hidden_predicates: SortedVec,
     // 1 - magnitude see most nodes, 0 - should be not used, meaning all nodes (also the possible cluster nodes)
     semantic_zoom_magnitude: u8,
@@ -559,6 +557,7 @@ pub enum NodeAction {
     ShowType(IriIndex),
     ShowTypeInstances(IriIndex, Vec<IriIndex>),
     ShowVisual(IriIndex),
+    AddVisual(IriIndex)
 }
 
 impl UIState {
@@ -739,6 +738,7 @@ impl RdfGlanceApp {
             statistics_data: None,
             ui_state: UIState {
                 selected_node: None,
+                selected_nodes: BTreeSet::new(),
                 node_to_drag: None,
                 context_menu_node: None,
                 context_menu_pos: Pos2::new(0.0, 0.0),
@@ -750,6 +750,7 @@ impl RdfGlanceApp {
                 show_labels: true,
                 style_edit: StyleEdit::None,
                 drag_diff: Pos2::ZERO,
+                drag_start: Pos2::ZERO,
                 icon_name_filter: String::new(),
                 fade_unselected: false,
                 meta_count_to_size: true,
@@ -1545,6 +1546,12 @@ impl eframe::App for RdfGlanceApp {
                     self.display_type = DisplayType::Graph;
                     self.visible_nodes.add_by_index(node_index);
                     self.ui_state.selected_node = Some(node_index);
+                    self.ui_state.selected_nodes.insert(node_index);
+                }
+                NodeAction::AddVisual(node_index) => {
+                    self.visible_nodes.add_by_index(node_index);
+                    self.ui_state.selected_node = Some(node_index);
+                    self.ui_state.selected_nodes.insert(node_index);
                 }
                 NodeAction::None => {}
             }

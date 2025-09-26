@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use egui::{Color32, Pos2, Rect, Sense, Slider, Vec2};
+use egui::{Color32, Key, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
+    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, style::{ICON_REDO, ICON_UNDO}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
 };
 
 const NODE_RMIN: f32 = 4.0;
@@ -16,6 +16,16 @@ impl RdfGlanceApp {
         ui.horizontal(|ui| {
             if ui.button("Rebuild Meta Graph").clicked() {
                 self.build_meta_graph();
+            }
+            let undo_button = ui.add_enabled(!self.meta_nodes.undo_stack.is_empty(), egui::Button::new(ICON_UNDO));
+            if undo_button.on_hover_text("Undo").clicked() 
+                || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Z)) {
+                self.meta_nodes.undo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates );
+            }
+            let redo_button = ui.add_enabled(!self.meta_nodes.redo_stack.is_empty(), egui::Button::new(ICON_REDO));
+            if redo_button.on_hover_text("Redo").clicked() 
+                || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Y)) {
+                self.meta_nodes.redo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             }
             if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
                 self.meta_nodes.update_node_shapes = true;
@@ -31,6 +41,8 @@ impl RdfGlanceApp {
                 if let Some(layout_handle) = &self.meta_nodes.layout_handle {
                     let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateRepulsionConstant(
                         self.persistent_data.config_data.m_repulsion_constant));
+                } else {
+                    self.meta_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
                 }
             }
             ui.label("edges force");
@@ -42,6 +54,8 @@ impl RdfGlanceApp {
                 if let Some(layout_handle) = &self.meta_nodes.layout_handle {
                     let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateAttractionFactor(
                         self.persistent_data.config_data.m_attraction_factor));
+                } else {
+                    self.meta_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
                 }
             }
         });
@@ -373,7 +387,7 @@ impl RdfGlanceApp {
     pub fn build_meta_graph(&mut self) {
         self.meta_nodes.clear();
         for (type_index, _type_node) in self.type_index.types.iter() {
-            self.meta_nodes.add_by_index(*type_index);
+            self.meta_nodes.add(NodeLayout::new(*type_index));
         }
         self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
             &self.meta_nodes,
@@ -526,6 +540,7 @@ mod tests {
         let layout_config = LayoutConfig {
             repulsion_constant: vs.persistent_data.config_data.m_repulsion_constant,
             attraction_factor: vs.persistent_data.config_data.m_attraction_factor,
+            gravity_effect_radius: vs.persistent_data.config_data.gravity_effect_radius,
         };
         let hidden_predicates = SortedVec::new();
         let (max_move, positions) = layout_graph_nodes(

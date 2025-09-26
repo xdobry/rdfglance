@@ -236,7 +236,8 @@ impl SortedNodeLayout {
         Self::default()
     }
 
-    fn add(&mut self, value: NodeLayout) -> bool {
+    // This is low level add operation that do not change undo stack
+    pub fn add(&mut self, value: NodeLayout) -> bool {
         self.stop_layout();
         self.data_epoch += 1;
         if let Ok(mut nodes) = self.nodes.write() {
@@ -747,6 +748,7 @@ impl SortedNodeLayout {
         let mut layout_config = LayoutConfig {
             repulsion_constant: config.m_repulsion_constant,
             attraction_factor: config.m_attraction_factor,
+            gravity_effect_radius: config.gravity_effect_radius,
         };
         self.background_layout_finished.store(false, Ordering::Relaxed);
         self.stop_background_layout.store(false, Ordering::Relaxed);
@@ -1108,6 +1110,7 @@ pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
 pub struct LayoutConfig {
     pub repulsion_constant: f32,
     pub attraction_factor: f32,
+    pub gravity_effect_radius: f32,
 }
 
 pub fn layout_graph_nodes(
@@ -1151,6 +1154,9 @@ pub fn layout_graph_nodes(
             return Vec2::ZERO; // Avoid division by zero
         }
         let dist2 = dir.length();
+        if dist2 > config.gravity_effect_radius {
+            return Vec2::ZERO;
+        }
         let force_mag = (source.mass * repulsion_factor) / dist2;
         (dir / dist2) * force_mag
     };
