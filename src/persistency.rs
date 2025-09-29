@@ -582,8 +582,11 @@ impl SortedNodeLayout {
                         leb128::write::unsigned(writer, node_layout.node_index as u64)?;
                         writer.write_f32::<LittleEndian>(node_pos.pos.x)?;
                         writer.write_f32::<LittleEndian>(node_pos.pos.y)?;
-                        // Write number of fields
-                        leb128::write::unsigned(writer, 0)?;
+                        // Write number of fields                        
+                        leb128::write::unsigned(writer, if node_pos.locked {1} else {0})?;
+                        if node_pos.locked {
+                            write_field_index(writer, FieldType::FLAG, 1)?;
+                        }
                     }
                 }
             }
@@ -610,15 +613,31 @@ impl SortedNodeLayout {
             let x = reader.read_f32::<LittleEndian>()?;
             let y = reader.read_f32::<LittleEndian>()?;
             let field_number = leb128::read::unsigned(reader)?;
+            let mut locked = false;
             for _ in 0..field_number {
-                let (field_type, _field_index) = read_field_index(reader)?;
-                skip_field(reader, field_type)?;
+                let (field_type, field_index) = read_field_index(reader)?;
+                match field_index {
+                    1 => {
+                        match field_type {
+                            FieldType::FLAG => {
+                                locked = true;
+                            }
+                            _ => {
+                                skip_field(reader, field_type)?;
+                            }
+                        }
+                    }
+                    _ => {
+                        skip_field(reader, field_type)?;
+                    }
+                }
             }
             nodes.push(NodeLayout { node_index });
             node_shapes.push(NodeShapeData::default());
             positions.push(NodePosition {
                 pos: Pos2::new(x, y),
                 vel: Vec2::ZERO,
+                locked: locked,
             });
         }
         let edges_len = leb128::read::unsigned(reader)?;

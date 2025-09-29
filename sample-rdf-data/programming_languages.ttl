@@ -1459,7 +1459,7 @@ dbr:HOL_\(proof_assistant\) a dbo:ProgrammingLanguage ;
 dbr:Halide_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Halide"@en ;
     dbp:paradigm dbr:Functional_programming,
-        dbr:Parallel_programming_model ;
+        dbr:Parallel_programming ;
     dbp:typing dbr:Static_typing .
 
 dbr:Handel-C a dbo:ProgrammingLanguage ;
@@ -4997,9 +4997,7 @@ dbr:PS-algol a dbo:ProgrammingLanguage ;
 
 dbr:PSB-Prolog a <dbo:ProgrammingLanguage> .
 
-dbr:Parallel_programming a <yago:Paradigm113804375> .
-
-dbr:Parallel_programming_model a yago:Paradigm113804375 ;
+dbr:Parallel_programming a <yago:Paradigm113804375> ;
     rdfs:label "Parallel programming model"@en .
 
 dbr:Parametric_polymorphism a dbo:Typing ;

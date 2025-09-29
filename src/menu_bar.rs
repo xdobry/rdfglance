@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{global_theme_preference_switch, Align, Key, Layout, Modifiers};
+use egui::{accesskit::Node, global_theme_preference_switch, Align, Key, Layout, Modifiers};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
+use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, NodeAction, RdfGlanceApp, SystemMessage};
 
 enum MenuAction {
     None,
@@ -115,6 +115,26 @@ impl RdfGlanceApp {
                 }
                 consume_keys = true;
             });
+            if matches!(self.display_type, crate::DisplayType::Graph) {
+                ui.menu_button("Selection", |ui| {
+                    ui.add_enabled_ui(self.ui_state.selected_node.is_some() , |ui| {
+                        if ui.button("Lock Position").clicked() {
+                            self.ui_state.menu_action = Some(NodeContextAction::ChangeLockPosition(true));
+                            ui.close_menu();
+                        }
+                        if ui.button("Unlock Position").clicked() {
+                            self.ui_state.menu_action = Some(NodeContextAction::ChangeLockPosition(false));
+                            ui.close_menu();
+                        }
+                        if ui.button("Deselect All").clicked() {
+                            self.ui_state.selected_nodes.clear();
+                            self.ui_state.selected_node = None;
+                            ui.close_menu();
+                        }
+                    });
+                    consume_keys = true;
+                });
+            }
             ui.menu_button("Statistics", |ui| {
                 for entry in GraphAlgorithm::iter() {
                     let label = entry.to_string();

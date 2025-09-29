@@ -33,7 +33,7 @@ use string_interner::Symbol;
 use style::*;
 use table_view::TypeInstanceIndex;
 
-use crate::{config::Config, nobject::NObject, statistics::StatisticsData, uitools::primary_color};
+use crate::{config::Config, graph_view::NodeContextAction, nobject::NObject, statistics::StatisticsData, uitools::primary_color};
 
 pub mod browse_view;
 pub mod config;
@@ -510,6 +510,7 @@ pub struct UIState {
     cpu_usage: f32,
     about_window: bool,
     last_visited_selection: LastVisitedSelection,
+    menu_action: Option<NodeContextAction>,
 }
 
 pub enum LastVisitedSelection {
@@ -757,7 +758,8 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
-                last_visited_selection: LastVisitedSelection::File(0),                
+                last_visited_selection: LastVisitedSelection::File(0),
+                menu_action: None,              
             },
             help_open: false,
             load_handle: None,

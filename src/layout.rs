@@ -135,6 +135,7 @@ pub struct Edge {
 pub struct NodePosition {
     pub pos: Pos2,
     pub vel: Vec2,
+    pub locked: bool,
 }
 
 impl Default for NodePosition {
@@ -142,9 +143,10 @@ impl Default for NodePosition {
         Self {
             pos: Pos2::new(
                 rand::rng().random_range(-100.0..100.0),
-                rand::rng().random_range(-100.0..100.0),
+                rand::rng().random_range(-100.0..100.0),               
             ),
             vel: Vec2::new(0.0, 0.0),
+            locked: false,
         }
     }
 }
@@ -639,6 +641,7 @@ impl SortedNodeLayout {
             let config = LayoutConfig {
                 repulsion_constant: config.m_repulsion_constant,
                 attraction_factor: config.m_attraction_factor,
+                gravity_effect_radius: config.gravity_effect_radius,
             };
             let (max_move, new_positions) = layout_graph_nodes(
                 &self.nodes.read().unwrap(),
@@ -1190,18 +1193,22 @@ pub fn layout_graph_nodes(
         .par_iter()
         .zip(positions.par_iter())
         .map(|(f, position)| {
-            let mut v = position.vel;
-            let pos = position.pos;
-            v *= 0.4;
-            v += *f * 0.01;
-            let len = v.length();
-            if len > temperature {
-                v = (v / len) * temperature;
-                max_move.fetch_max(temperature, Ordering::Relaxed);
+            if position.locked {
+                return *position;
             } else {
-                max_move.fetch_max(len, Ordering::Relaxed);
+                let mut v = position.vel;
+                let pos = position.pos;
+                v *= 0.4;
+                v += *f * 0.01;
+                let len = v.length();
+                if len > temperature {
+                    v = (v / len) * temperature;
+                    max_move.fetch_max(temperature, Ordering::Relaxed);
+                } else {
+                    max_move.fetch_max(len, Ordering::Relaxed);
+                }
+                    NodePosition { pos: pos + v, vel: v, locked: position.locked }
             }
-            NodePosition { pos: pos + v, vel: v }
         })
         .collect();
 
@@ -1262,6 +1269,7 @@ impl NodeCommand {
                             positions[k as usize] = NodePosition {
                                 pos: removed_nodes[j as usize].position,
                                 vel: Vec2::ZERO,
+                                locked: false,
                             };
                             individual_node_styles[k as usize] = IndividualNodeStyleData::default();
                             j -= 1;
