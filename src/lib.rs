@@ -493,6 +493,10 @@ pub struct UIState {
     context_menu_pos: Pos2,
     context_menu_opened_by_keyboard: bool,
     node_to_drag: Option<IriIndex>,
+    // used for own translattion dragging, it start mouse pos and diff to left corner of scene rect
+    // need to calculate new scene rect position
+    translate_drag: Option<(Pos2,Pos2)>,
+    selection_start_rect: Option<Pos2>,
     // Set if dragging for difference to dragged node center
     drag_diff: Pos2,
     drag_start: Pos2,
@@ -759,7 +763,9 @@ impl RdfGlanceApp {
                 semantic_zoom_magnitude: 1,
                 about_window: false,
                 last_visited_selection: LastVisitedSelection::File(0),
-                menu_action: None,              
+                menu_action: None,
+                selection_start_rect: None,
+                translate_drag: None,       
             },
             help_open: false,
             load_handle: None,

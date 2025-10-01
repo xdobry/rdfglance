@@ -9,7 +9,7 @@ use crate::{
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
-use egui::{Key, Painter, Rect, Slider};
+use egui::{Key, Painter, Rect, Slider, Stroke, StrokeKind};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
@@ -740,10 +740,12 @@ impl RdfGlanceApp {
         let mut single_clicked = false;
         let mut double_clicked = false;
         let mut primary_down = false;
+        let mut secondary_down: bool = false;
         let mut was_context_click = false;
         let mut node_to_click: Option<IriIndex> = None;
         let mut node_to_hover: Option<IriIndex> = None;
         let mut was_action = false;
+        let mut start_translate = false;
 
         let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
 
@@ -752,6 +754,8 @@ impl RdfGlanceApp {
         let is_context_menu_open = ui.memory(|mem| mem.is_popup_open(popup_id));
         let mut translation_vec: Option<Vec2> = None;
         let mut zoom: Option<f32> = None;
+        let mut put_selection_rect: Option<Rect> = None;
+        let mut scaling: f32 = 1.0;
 
         if let Ok(rdf_data) = self.rdf_data.read() {
             scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
@@ -772,6 +776,7 @@ impl RdfGlanceApp {
                 let transform = ctx.layer_transform_to_global(ui.layer_id());
                 let mouse_pos = if let Some(transform) = transform {
                     let local_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                    scaling = transform.scaling;
                     transform.inverse() * local_mouse_pos
                 } else {
                     Pos2::new(0.0, 0.0)
@@ -781,13 +786,26 @@ impl RdfGlanceApp {
                     single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
                     secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
                     double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
-                    if input.pointer.button_pressed(egui::PointerButton::Primary) {
-                        primary_down = true;
-                    }
+                    primary_down = input.pointer.button_pressed(egui::PointerButton::Primary);
+                    secondary_down = input.pointer.button_pressed(egui::PointerButton::Secondary);
+                    is_shift_down = input.modifiers.shift;
                     if input.pointer.button_released(egui::PointerButton::Primary) {
                         self.ui_state.node_to_drag = None;
+                        if let Some(selection_start_rect) = self.ui_state.selection_start_rect.take() {
+                            let sel_rect = Rect::from_two_pos(selection_start_rect, mouse_pos);
+                            if sel_rect.size().min_elem() > 5.0 {
+                                put_selection_rect = Some(sel_rect);
+                                if !is_shift_down {
+                                    self.ui_state.selected_node = None;
+                                    self.ui_state.selected_nodes.clear();
+                                }
+                            }
+                        }
+                        self.ui_state.selection_start_rect = None;
                     }
-                    is_shift_down = input.modifiers.shift;
+                    if input.pointer.button_released(egui::PointerButton::Secondary) {
+                        self.ui_state.translate_drag = None;
+                    }
                     if !is_context_menu_open {
                         if self.ui_state.context_menu_node.is_some() {
                             self.ui_state.context_menu_opened_by_keyboard = false;
@@ -998,7 +1016,7 @@ impl RdfGlanceApp {
                                 }
                             } else {
                                 NextNodeSelection::empty()
-                            };
+                            };                          
                             let mut new_node_shapes: Option<Vec<NodeShapeData>> =
                                 if self.visible_nodes.update_node_shapes {
                                     Some(Vec::with_capacity(nodes.len()))
@@ -1021,6 +1039,11 @@ impl RdfGlanceApp {
                                         }
                                     }
                                     let pos = center + node_position.pos.to_vec2();
+                                    if let Some(put_selection_rect) = put_selection_rect {
+                                        if put_selection_rect.contains(pos) {
+                                            self.ui_state.selected_nodes.insert(node_layout.node_index);
+                                        }
+                                    }
                                     let faded = !selected_related_nodes_pos.is_empty()
                                         && selected_related_nodes_pos.binary_search(&node_pos).is_err();
                                     let (node_rect, node_shape) = draw_node(
@@ -1051,11 +1074,26 @@ impl RdfGlanceApp {
                                     }
                                     if self.ui_state.context_menu_node.is_none() || was_action {
                                         if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                            self.ui_state.selected_node = Some(node_layout.node_index);
-                                            if !is_shift_down {
-                                                self.ui_state.selected_nodes.clear();
+                                            if is_shift_down && self.ui_state.selected_nodes.contains(&node_layout.node_index)
+                                            {
+                                                self.ui_state.selected_nodes.remove(&node_layout.node_index);
+                                                if let Some(selected_index) = self.ui_state.selected_node {
+                                                    if self.ui_state.selected_nodes.is_empty() {
+                                                        self.ui_state.selected_node = None;
+                                                    } else {
+                                                        if self.ui_state.selected_nodes.contains(&selected_index) {
+                                                            self.ui_state.selected_node =
+                                                                self.ui_state.selected_nodes.iter().next().copied();
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                self.ui_state.selected_node = Some(node_layout.node_index);
+                                                if !is_shift_down {
+                                                    self.ui_state.selected_nodes.clear();
+                                                }
+                                                self.ui_state.selected_nodes.insert(node_layout.node_index);
                                             }
-                                            self.ui_state.selected_nodes.insert(node_layout.node_index);
                                             was_action = true;
                                         }
                                         if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
@@ -1079,6 +1117,8 @@ impl RdfGlanceApp {
                                     if !was_action && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                         node_to_hover = Some(node_layout.node_index);
                                         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
+                                    } else if secondary_down && self.ui_state.translate_drag.is_none() {
+                                        start_translate = true;
                                     }
                                     node_count += 1;
                                 }
@@ -1127,16 +1167,35 @@ impl RdfGlanceApp {
                         }
                     }
                 }
-
-                let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
-                if consume_events {
+                if primary_down && !was_action {
+                    self.ui_state.selection_start_rect = Some(mouse_pos);
+                    was_action = true;
+                }
+                if let Some(selection_start_rect) = self.ui_state.selection_start_rect {
+                    let rect = Rect::from_two_pos(selection_start_rect, mouse_pos);
+                    painter.rect_stroke(rect, 0.0, ui.visuals().selection.stroke, StrokeKind::Outside);
+                    was_action = true;
+                }
+                // let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
+                let consume_events = true;
+                if consume_events  {
                     // ui.max_rect does not give enough
-                    // so create a very big rect that capture all ares in scene
+                    // so create a very big rect that capture all area in scene
                     let max_rect: Rect =
                         Rect::from_min_max(Pos2::new(-5_000.0, -5_000.0), Pos2::new(10_000.0, 10_000.0));
                     let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                 }
             });
+        }
+        if start_translate {
+            self.ui_state.translate_drag = Some((global_mouse_pos, self.graph_state.scene_rect.min));
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Move);
+        } else if let Some((start_mouse_pos, start_rect_pos)) = self.ui_state.translate_drag {
+            let drag_diff = (start_mouse_pos - global_mouse_pos) / scaling;
+            let size = self.graph_state.scene_rect.size();
+            self.graph_state.scene_rect.min = start_rect_pos + drag_diff;
+            self.graph_state.scene_rect.max = self.graph_state.scene_rect.min + size;
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Move);
         }
         if let Some(translation_vec) = translation_vec {
             self.graph_state.scene_rect = self.graph_state.scene_rect.translate(translation_vec)
@@ -1195,6 +1254,11 @@ impl RdfGlanceApp {
                         self.ui_state.context_menu_node = Some(current_index);
                     }
                 });
+            }
+        }
+        if put_selection_rect.is_some() {
+            if self.ui_state.selected_node.is_none() && !self.ui_state.selected_nodes.is_empty() {
+                self.ui_state.selected_node = self.ui_state.selected_nodes.iter().next().copied();
             }
         }
         if let Some(current_index) = self.ui_state.context_menu_node {

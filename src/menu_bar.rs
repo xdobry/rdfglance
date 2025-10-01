@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, NodeAction, RdfGlanceApp, SystemMessage};
+use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
 
 enum MenuAction {
     None,
@@ -126,12 +126,27 @@ impl RdfGlanceApp {
                             self.ui_state.menu_action = Some(NodeContextAction::ChangeLockPosition(false));
                             ui.close_menu();
                         }
+                        if ui.button("Expand Selection").clicked() {
+                            self.visible_nodes.expand_selection(&mut self.ui_state);
+                            ui.close_menu();
+                        }
+                        if ui.button("Shirk Selection").clicked() {
+                            self.visible_nodes.shirk_selection(&mut self.ui_state);
+                            ui.close_menu();
+                        }
+                        if ui.button("Invert Selection").clicked() {
+                            self.visible_nodes.invert_selection(&mut self.ui_state);
+                            ui.close_menu();
+                        }
                         if ui.button("Deselect All").clicked() {
-                            self.ui_state.selected_nodes.clear();
-                            self.ui_state.selected_node = None;
+                            self.visible_nodes.deselect_all(&mut self.ui_state);
                             ui.close_menu();
                         }
                     });
+                    if ui.button("Select All").clicked() {
+                        self.visible_nodes.select_all(&mut self.ui_state);
+                        ui.close_menu();
+                    }
                     consume_keys = true;
                 });
             }

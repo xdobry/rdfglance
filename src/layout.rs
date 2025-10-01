@@ -1,5 +1,5 @@
 use crate::{
-    GVisualizationStyle, SortedVec,
+    GVisualizationStyle, SortedVec, UIState,
     config::Config,
     graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
     graph_styles::NodeShape,
@@ -15,7 +15,7 @@ use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeSet, HashMap, VecDeque},
     sync::{
         Arc, RwLock,
         atomic::{AtomicBool, Ordering},
@@ -143,7 +143,7 @@ impl Default for NodePosition {
         Self {
             pos: Pos2::new(
                 rand::rng().random_range(-100.0..100.0),
-                rand::rng().random_range(-100.0..100.0),               
+                rand::rng().random_range(-100.0..100.0),
             ),
             vel: Vec2::new(0.0, 0.0),
             locked: false,
@@ -1063,6 +1063,99 @@ impl SortedNodeLayout {
             command.undo(self, &hidden_predicates, config, false);
         }
     }
+
+    pub fn select_all(&self, ui_state: &mut UIState) {
+        if let Ok(nodes) = self.nodes.read() {
+            for node in nodes.iter() {
+                ui_state.selected_nodes.insert(node.node_index);
+            }
+            if ui_state.selected_node.is_none() && !nodes.is_empty() {
+                ui_state.selected_node = Some(nodes[0].node_index);
+            }
+        }
+    }
+
+    pub fn deselect_all(&self, ui_state: &mut UIState) {
+        ui_state.selected_nodes.clear();
+        ui_state.selected_node = None;
+    }
+
+    pub fn invert_selection(&self, ui_state: &mut UIState) {
+        if let Ok(nodes) = self.nodes.read() {
+            let mut new_selection: BTreeSet<IriIndex> = BTreeSet::new();
+            for node in nodes.iter() {
+                if !ui_state.selected_nodes.contains(&node.node_index) {
+                    new_selection.insert(node.node_index);
+                }
+            }
+            ui_state.selected_nodes = new_selection;
+            if ui_state.selected_node.is_none() && !ui_state.selected_nodes.is_empty() {
+                ui_state.selected_node = Some(*ui_state.selected_nodes.iter().next().unwrap());
+            } else if let Some(selected_index) = ui_state.selected_node {
+                if !ui_state.selected_nodes.contains(&selected_index) && !ui_state.selected_nodes.is_empty() {
+                    ui_state.selected_node = Some(*ui_state.selected_nodes.iter().next().unwrap());
+                }
+            }
+        }
+    }
+
+    pub fn expand_selection(&self, ui_state: &mut UIState) {
+        if let Ok(edges) = self.edges.read() {
+            if let Ok(nodes) = self.nodes.read() {
+                let mut new_selected: Vec<IriIndex> = Vec::new();
+                for selected_node in ui_state.selected_nodes.iter() {
+                    if let Some(pos) = self.get_pos(*selected_node) {
+                        for edge in edges.iter() {
+                            if edge.from == pos {
+                                let node_index = nodes[edge.to].node_index;
+                                new_selected.push(node_index);
+                            } else if edge.to == pos {
+                                let node_index = nodes[edge.from].node_index;
+                                new_selected.push(node_index);
+                            }
+                        }
+                    }
+                }
+                for node in new_selected {
+                    ui_state.selected_nodes.insert(node);
+                }
+            }
+        }
+    }
+
+    pub fn shirk_selection(&self, ui_state: &mut UIState) {
+        if let Ok(edges) = self.edges.read() {
+            if let Ok(nodes) = self.nodes.read() {
+                let mut to_remove: Vec<IriIndex> = Vec::new();
+                for selected_node in ui_state.selected_nodes.iter() {
+                    if let Some(pos) = self.get_pos(*selected_node) {
+                        let mut connected_num = 0;
+                        for edge in edges.iter() {
+                            if edge.from!=edge.to && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))
+                                || (edge.to == pos && ui_state.selected_nodes.contains(&nodes[edge.from].node_index))
+                            {
+                                connected_num += 1;
+                                if connected_num > 1 {
+                                    break;
+                                }
+                            }
+                        }
+                        if connected_num <= 1 {
+                            to_remove.push(*selected_node);
+                        }
+                    }
+                }
+                for node in to_remove {
+                    ui_state.selected_nodes.remove(&node);
+                }
+                if let Some(selected_index) = ui_state.selected_node {
+                    if !ui_state.selected_nodes.contains(&selected_index) && !ui_state.selected_nodes.is_empty() {
+                        ui_state.selected_node = Some(*ui_state.selected_nodes.iter().next().unwrap());
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
@@ -1207,7 +1300,11 @@ pub fn layout_graph_nodes(
                 } else {
                     max_move.fetch_max(len, Ordering::Relaxed);
                 }
-                    NodePosition { pos: pos + v, vel: v, locked: position.locked }
+                NodePosition {
+                    pos: pos + v,
+                    vel: v,
+                    locked: position.locked,
+                }
             }
         })
         .collect();
