@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::{collections::{BTreeSet, HashMap, HashSet}, fs::File, io::{BufWriter, Write}, path::Path};
 
 use crate::{
     config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{
@@ -1568,6 +1568,20 @@ impl RdfGlanceApp {
                     .push_str(format!("Nodes: {}, Edges: {}", node_count, edge_count).as_str());
             }
         }
+    }
+
+    pub fn export_edges(&self, path: &Path) -> std::io::Result<()> {
+        let mut file = BufWriter::new(File::create(path)?);
+        writeln!(file,"source,target")?;
+        if let Ok(edges) = self.visible_nodes.edges.read() {
+            for edge in edges.iter() {
+                if !self.ui_state.hidden_predicates.contains(edge.predicate) {
+                    writeln!(file, "{},{}", edge.from, edge.to)?;
+                }
+            }
+        }
+        let _ = file.flush();
+        Ok(())
     }
 }
 

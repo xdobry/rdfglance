@@ -79,6 +79,23 @@ impl RdfGlanceApp {
                     }
                     ui.close_menu();
                 }
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui.button("Export Edges").clicked() {
+                    if let Some(path) = FileDialog::new()
+                     .add_filter("CSV table", &["csv"])
+                    .set_file_name("edges.csv")
+                    .save_file() {
+                        let store_res = self.export_edges(Path::new(path.as_path()));
+                        match store_res {
+                            Err(e) => {
+                                self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                            }
+                            Ok(_) => {
+                            }
+                        }
+                    }
+                    ui.close_menu();
+                }
                 /*
                 if ui.button("Sparql Endpoint").clicked() {
                     self.sparql_dialog =
