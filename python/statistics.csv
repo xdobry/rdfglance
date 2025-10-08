@@ -1,0 +1,649 @@
+iri,label,type,Betweenness Centrality
+dbr:Lisp_(programming_language),Lisp,ProgrammingLanguage,1.0000
+dbr:C_(programming_language),C,ProgrammingLanguage,0.8977
+dbr:Smalltalk,Smalltalk,ProgrammingLanguage,0.7009
+dbr:C++,C++,ProgrammingLanguage,0.5976
+dbr:Scheme_(programming_language),Scheme,ProgrammingLanguage,0.5520
+dbr:Python_(programming_language),Python,ProgrammingLanguage,0.5032
+dbr:Java_(programming_language),Java,ProgrammingLanguage,0.4473
+dbr:C_Sharp_(programming_language),C Sharp,ProgrammingLanguage,0.4126
+dbr:Pascal_(programming_language),Pascal,ProgrammingLanguage,0.3990
+dbr:BASIC,BASIC,ProgrammingLanguage,0.3760
+dbr:ALGOL_60,ALGOL 60,ProgrammingLanguage,0.3681
+dbr:JavaScript,JavaScript,ProgrammingLanguage,0.3285
+dbr:ALGOL,ALGOL,ProgrammingLanguage,0.3276
+dbr:Perl,Perl,ProgrammingLanguage,0.2858
+dbr:Fortran,Fortran,ProgrammingLanguage,0.2633
+dbr:Logo_(programming_language),Logo,ProgrammingLanguage,0.2486
+dbr:COBOL,COBOL,ProgrammingLanguage,0.2444
+dbr:Wolfram_Language,Wolfram Language,ProgrammingLanguage,0.2409
+dbr:Haskell_(programming_language),Haskell,ProgrammingLanguage,0.2223
+dbr:Ruby_(programming_language),Ruby,ProgrammingLanguage,0.2188
+dbr:QuickBASIC,dbr:QuickBASIC,ProgrammingLanguage,0.2155
+dbr:PowerShell,PowerShell,ProgrammingLanguage,0.2140
+dbr:FreeBASIC,FreeBASIC,ProgrammingLanguage,0.1989
+dbr:Dartmouth_BASIC,Dartmouth BASIC,ProgrammingLanguage,0.1972
+dbr:Haskell,Haskell,ProgrammingLanguage,0.1871
+dbr:Prolog,Prolog,ProgrammingLanguage,0.1770
+dbr:SQL,SQL,ProgrammingLanguage,0.1697
+dbr:Gremlin_(query_language),Gremlin (query language),ProgrammingLanguage,0.1669
+dbr:ALGOL_68,ALGOL 68,ProgrammingLanguage,0.1619
+dbr:Scala_(programming_language),Scala,ProgrammingLanguage,0.1586
+ns7:I,PL/I,ProgrammingLanguage,0.1567
+dbr:Clojure,Clojure,ProgrammingLanguage,0.1524
+dbr:ML_(programming_language),ML,ProgrammingLanguage,0.1485
+dbr:Ada_(programming_language),Ada,ProgrammingLanguage,0.1464
+dbr:CoffeeScript,CoffeeScript,ProgrammingLanguage,0.1419
+dbr:Forth_(programming_language),Forth,ProgrammingLanguage,0.1360
+dbr:Tcl,Tcl,ProgrammingLanguage,0.1336
+dbr:Chapel_(programming_language),Chapel,ProgrammingLanguage,0.1257
+dbr:Microsoft_Small_Basic,Microsoft Small Basic,ProgrammingLanguage,0.1228
+dbr:Common_Lisp,Common Lisp,ProgrammingLanguage,0.1209
+dbr:JOSS,JOSS,ProgrammingLanguage,0.1192
+dbr:QBasic,QBasic,ProgrammingLanguage,0.1168
+dbr:Ring_(programming_language),Ring,ProgrammingLanguage,0.1156
+dbr:YAML,YAML,ProgrammingLanguage,0.1125
+dbr:APL_(programming_language),APL,ProgrammingLanguage,0.1104
+dbr:Julia_(programming_language),Julia,ProgrammingLanguage,0.1102
+dbr:ECMAScript,ECMAScript,ProgrammingLanguage,0.1085
+dbr:ALGOL_58,ALGOL 58,ProgrammingLanguage,0.1065
+dbr:Sass_(stylesheet_language),Sass (stylesheet language),ProgrammingLanguage,0.0995
+dbr:Simula,Simula,ProgrammingLanguage,0.0990
+dbr:PHP,PHP,ProgrammingLanguage,0.0987
+dbr:ECL_(data-centric_programming_language),ECL (data-centric programming language),ProgrammingLanguage,0.0964
+dbr:Standard_ML,Standard ML,ProgrammingLanguage,0.0962
+dbr:Modula-3,Modula-3,ProgrammingLanguage,0.0929
+dbr:CLU_(programming_language),CLU,ProgrammingLanguage,0.0918
+dbr:OCaml,OCaml,ProgrammingLanguage,0.0912
+dbr:Scratch_(programming_language),Scratch,ProgrammingLanguage,0.0870
+dbr:GW-BASIC,GW-BASIC,ProgrammingLanguage,0.0868
+dbr:Befunge,Befunge,ProgrammingLanguage,0.0866
+dbr:EuLisp,EuLisp,ProgrammingLanguage,0.0865
+dbr:Modula-2,Modula-2,ProgrammingLanguage,0.0814
+dbr:Self_(programming_language),Self,ProgrammingLanguage,0.0783
+dbr:ISWIM,ISWIM,ProgrammingLanguage,0.0744
+dbr:MATLAB,MATLAB,ProgrammingLanguage,0.0704
+dbr:R_(programming_language),R,ProgrammingLanguage,0.0699
+dbr:HyperTalk,HyperTalk,ProgrammingLanguage,0.0664
+dbr:Ajax_(programming),Ajax (programming),ProgrammingLanguage,0.0659
+dbr:Idris_(programming_language),Idris,ProgrammingLanguage,0.0638
+dbr:Claire_(programming_language),Claire,ProgrammingLanguage,0.0632
+dbr:Erlang_(programming_language),Erlang,ProgrammingLanguage,0.0615
+dbr:Dart_(programming_language),Dart,ProgrammingLanguage,0.0612
+dbr:Lua_(programming_language),Lua,ProgrammingLanguage,0.0597
+dbr:Rebol,Rebol,ProgrammingLanguage,0.0579
+dbr:Eiffel_(programming_language),Eiffel,ProgrammingLanguage,0.0557
+dbr:AMPL,AMPL,ProgrammingLanguage,0.0547
+dbr:SISAL,SISAL,ProgrammingLanguage,0.0540
+dbr:QML,QML,ProgrammingLanguage,0.0539
+dbr:Haxe,Haxe,ProgrammingLanguage,0.0536
+dbr:Visual_Basic,Visual Basic,ProgrammingLanguage,0.0531
+dbr:Programming_with_Big_Data_in_R,Programming with Big Data in R,ProgrammingLanguage,0.0529
+dbr:XML,XML,ProgrammingLanguage,0.0528
+dbr:FORTRAN,FORTRAN,ProgrammingLanguage,0.0526
+dbr:Jsish,Jsish,ProgrammingLanguage,0.0522
+dbr:FLOW-MATIC,FLOW-MATIC,ProgrammingLanguage,0.0522
+dbr:SPARQL,SPARQL,ProgrammingLanguage,0.0521
+dbr:RPL_(programming_language),RPL,ProgrammingLanguage,0.0479
+dbr:Dylan_(programming_language),Dylan,ProgrammingLanguage,0.0472
+dbr:Seed7,Seed7,ProgrammingLanguage,0.0444
+dbr:Nim_(programming_language),Nim,ProgrammingLanguage,0.0428
+dbr:NetRexx,NetRexx,ProgrammingLanguage,0.0413
+dbr:Rexx,Rexx,ProgrammingLanguage,0.0413
+dbr:LFE_(programming_language),LFE,ProgrammingLanguage,0.0404
+dbr:Factor_(programming_language),Factor,ProgrammingLanguage,0.0396
+dbr:ZPE_Programming_Environment,ZPE Programming Environment,ProgrammingLanguage,0.0394
+dbr:XBasic,XBasic,ProgrammingLanguage,0.0383
+dbr:XPath,XPath,ProgrammingLanguage,0.0376
+dbr:Handel-C,Handel-C,ProgrammingLanguage,0.0374
+dbr:BCPL,BCPL,ProgrammingLanguage,0.0370
+dbr:Joy_(programming_language),Joy,ProgrammingLanguage,0.0359
+dbr:Euclid_(programming_language),Euclid,ProgrammingLanguage,0.0357
+dbr:Occam_(programming_language),dbr:Occam_(programming_language),ProgrammingLanguage,0.0350
+dbr:VisSim,VisSim,ProgrammingLanguage,0.0348
+dbr:XSB,XSB,ProgrammingLanguage,0.0348
+dbr:Apple_Dylan,Apple Dylan,ProgrammingLanguage,0.0348
+dbr:MUMPS,MUMPS,ProgrammingLanguage,0.0348
+dbr:ShEx,ShEx,ProgrammingLanguage,0.0348
+dbr:*Lisp,*Lisp,ProgrammingLanguage,0.0348
+dbr:Tiny_BASIC,Tiny BASIC,ProgrammingLanguage,0.0348
+dbr:Visual_Basic_for_Applications,Visual Basic for Applications,ProgrammingLanguage,0.0348
+dbr:AWK,AWK,ProgrammingLanguage,0.0340
+dbr:Zig_(programming_language),Zig,ProgrammingLanguage,0.0334
+dbr:Snap!_(programming_language),Snap!,ProgrammingLanguage,0.0325
+dbr:Verilog,Verilog,ProgrammingLanguage,0.0323
+dbr:Ceylon_(programming_language),Ceylon,ProgrammingLanguage,0.0316
+dbr:Objective-C,Objective-C,ProgrammingLanguage,0.0307
+dbr:AmbientTalk,AmbientTalk,ProgrammingLanguage,0.0300
+dbr:Ezhil_(programming_language),Ezhil,ProgrammingLanguage,0.0299
+dbr:Io_(programming_language),Io,ProgrammingLanguage,0.0298
+dbr:Icon_(programming_language),Icon,ProgrammingLanguage,0.0294
+dbr:Malbolge,Malbolge,ProgrammingLanguage,0.0290
+dbr:Control_Language,Control Language,ProgrammingLanguage,0.0278
+dbr:Futhark_(programming_language),Futhark,ProgrammingLanguage,0.0273
+dbr:Fortress_(programming_language),Fortress,ProgrammingLanguage,0.0264
+dbr:Kotlin_(programming_language),Kotlin,ProgrammingLanguage,0.0259
+dbr:XSLT,XSLT,ProgrammingLanguage,0.0255
+dbr:Newspeak_(programming_language),Newspeak,ProgrammingLanguage,0.0252
+dbr:XQuery,XQuery,ProgrammingLanguage,0.0244
+dbr:Oberon_(programming_language),Oberon,ProgrammingLanguage,0.0235
+dbr:Object_Pascal,Object Pascal,ProgrammingLanguage,0.0234
+dbr:Esoteric_programming_language,dbr:Esoteric_programming_language,Paradigm113804375,0.0231
+dbr:Oaklisp,Oaklisp,ProgrammingLanguage,0.0230
+dbr:Mesa_(programming_language),Mesa,ProgrammingLanguage,0.0227
+dbr:FP_(programming_language),FP,ProgrammingLanguage,0.0225
+dbr:Datalog,Datalog,ProgrammingLanguage,0.0224
+dbr:Speedcoding,Speedcoding,ProgrammingLanguage,0.0223
+dbr:PostScript,PostScript,ProgrammingLanguage,0.0223
+dbr:NewLISP,NewLISP,ProgrammingLanguage,0.0222
+dbr:CMS-2,CMS-2,ProgrammingLanguage,0.0222
+dbr:JOVIAL,JOVIAL,ProgrammingLanguage,0.0221
+dbr:ABAP,ABAP,ProgrammingLanguage,0.0221
+dbr:Pure_(programming_language),Pure,ProgrammingLanguage,0.0220
+dbr:SUPER_BASIC,SUPER BASIC,ProgrammingLanguage,0.0218
+ns7:M,PL/M,ProgrammingLanguage,0.0217
+dbr:Ballerina_(programming_language),Ballerina,ProgrammingLanguage,0.0216
+dbr:Pyomo,Pyomo,ProgrammingLanguage,0.0215
+dbr:SystemVerilog,SystemVerilog,ProgrammingLanguage,0.0215
+dbr:PascalABC.NET,PascalABC.NET,ProgrammingLanguage,0.0211
+dbr:SuperPascal,SuperPascal,ProgrammingLanguage,0.0211
+dbr:Rust_(programming_language),Rust,ProgrammingLanguage,0.0209
+dbr:CGOL,CGOL,ProgrammingLanguage,0.0206
+dbr:HTML,HTML,ProgrammingLanguage,0.0206
+dbr:DOPE_(Dartmouth_Oversimplified_Programming_Experiment),DOPE (Dartmouth Oversimplified Programming Experiment),ProgrammingLanguage,0.0202
+dbr:Allegro_Common_Lisp,Allegro Common Lisp,ProgrammingLanguage,0.0202
+dbr:AssemblyScript,AssemblyScript,ProgrammingLanguage,0.0201
+dbr:Judoscript,Judoscript,ProgrammingLanguage,0.0199
+dbr:Miranda_(programming_language),Miranda,ProgrammingLanguage,0.0197
+dbr:SAC_programming_language,SAC programming language,ProgrammingLanguage,0.0195
+dbr:Qore_(programming_language),Qore,ProgrammingLanguage,0.0194
+dbr:Rapira,Rapira,ProgrammingLanguage,0.0191
+dbr:SNOBOL,SNOBOL,ProgrammingLanguage,0.0191
+dbr:Umple,Umple,ProgrammingLanguage,0.0190
+dbr:Perl_Data_Language,Perl Data Language,ProgrammingLanguage,0.0189
+dbr:Embeddable_Common_Lisp,Embeddable Common Lisp,ProgrammingLanguage,0.0187
+dbr:Raku_(programming_language),Raku,ProgrammingLanguage,0.0186
+dbr:BBC_BASIC,BBC BASIC,ProgrammingLanguage,0.0186
+dbr:ATS_(programming_language),ATS,ProgrammingLanguage,0.0185
+dbr:Maclisp,Maclisp,ProgrammingLanguage,0.0183
+dbr:B_(programming_language),B,ProgrammingLanguage,0.0183
+dbr:Object_REXX,Object REXX,ProgrammingLanguage,0.0182
+dbr:Curl_(programming_language),Curl,ProgrammingLanguage,0.0181
+dbr:StaDyn_(programming_language),StaDyn,ProgrammingLanguage,0.0181
+dbr:Information_Processing_Language,Information Processing Language,ProgrammingLanguage,0.0180
+dbr:Sed,Sed,ProgrammingLanguage,0.0176
+dbr:Brainfuck,Brainfuck,ProgrammingLanguage,0.0175
+dbr:WebAssembly,WebAssembly,ProgrammingLanguage,0.0174
+dbr:RAPID,RAPID,ProgrammingLanguage,0.0174
+dbr:Swift_(parallel_scripting_language),Swift (parallel scripting language),ProgrammingLanguage,0.0174
+dbr:Atom_(programming_language),Atom,ProgrammingLanguage,0.0174
+dbr:Curry_(programming_language),Curry,ProgrammingLanguage,0.0174
+dbr:Visual_Basic_(classic),dbr:Visual_Basic_(classic),ProgrammingLanguage,0.0174
+dbr:Visual_Basic_.NET,Visual Basic .NET,ProgrammingLanguage,0.0174
+dbr:Basic4GL,Basic4GL,ProgrammingLanguage,0.0174
+dbr:ACL2,ACL2,ProgrammingLanguage,0.0174
+dbr:AutoLISP,AutoLISP,ProgrammingLanguage,0.0174
+dbr:OpenMx,OpenMx,ProgrammingLanguage,0.0174
+dbr:Open_Roberta,Open Roberta,ProgrammingLanguage,0.0174
+dbr:Oxygene_(programming_language),Oxygene,ProgrammingLanguage,0.0174
+ns7:C,PL/C,ProgrammingLanguage,0.0174
+dbr:Polyphonic_C_Sharp,Polyphonic C Sharp,ProgrammingLanguage,0.0174
+dbr:A_Manufacturing_Language,A Manufacturing Language,ProgrammingLanguage,0.0174
+dbr:DIGITAL_Command_Language,DIGITAL Command Language,ProgrammingLanguage,0.0174
+dbr:BASIC-PLUS,BASIC-PLUS,ProgrammingLanguage,0.0174
+dbr:C*,C*,ProgrammingLanguage,0.0174
+dbr:Concurrent_Euclid,Concurrent Euclid,ProgrammingLanguage,0.0174
+dbr:QB64,QB64,ProgrammingLanguage,0.0174
+dbr:Epigram_(programming_language),Epigram,ProgrammingLanguage,0.0174
+ns15:CLI,C++/CLI,ProgrammingLanguage,0.0174
+dbr:Liberty_BASIC,Liberty BASIC,ProgrammingLanguage,0.0174
+dbr:HP_Time-Shared_BASIC,HP Time-Shared BASIC,ProgrammingLanguage,0.0174
+dbr:JScript_.NET,JScript .NET,ProgrammingLanguage,0.0174
+dbr:SenseTalk,SenseTalk,ProgrammingLanguage,0.0174
+dbr:CHILL,CHILL,ProgrammingLanguage,0.0174
+dbr:Jakarta_Persistence_Query_Language,Jakarta Persistence Query Language,ProgrammingLanguage,0.0174
+dbr:Stylus_(stylesheet_language),Stylus (stylesheet language),ProgrammingLanguage,0.0174
+dbr:JuMP,JuMP,ProgrammingLanguage,0.0174
+dbr:Turtlestitch,Turtlestitch,ProgrammingLanguage,0.0174
+dbr:XACML,XACML,ProgrammingLanguage,0.0174
+dbr:STOS_BASIC,STOS BASIC,ProgrammingLanguage,0.0174
+dbr:MSX_BASIC,MSX BASIC,ProgrammingLanguage,0.0174
+dbr:Kojo_(learning_environment),Kojo (learning environment),ProgrammingLanguage,0.0174
+dbr:XOTcl,XOTcl,ProgrammingLanguage,0.0174
+dbr:ELI_(programming_language),ELI,ProgrammingLanguage,0.0174
+dbr:Cω,Cω,ProgrammingLanguage,0.0174
+dbr:Level_I_BASIC,Level I BASIC,ProgrammingLanguage,0.0174
+dbr:Interlisp,Interlisp,ProgrammingLanguage,0.0174
+dbr:COWSEL,COWSEL,ProgrammingLanguage,0.0174
+dbr:Plankalkül,Plankalkül,ProgrammingLanguage,0.0174
+dbr:XBase,dbr:XBase,ProgrammingLanguage,0.0174
+dbr:XBLite,XBLite,ProgrammingLanguage,0.0167
+dbr:Oz_(programming_language),Oz,ProgrammingLanguage,0.0161
+dbr:Concurrent_Pascal,Concurrent Pascal,ProgrammingLanguage,0.0159
+dbr:SETL,SETL,ProgrammingLanguage,0.0151
+dbr:Crystal_(programming_language),Crystal,ProgrammingLanguage,0.0146
+dbr:Asm.js,Asm.js,ProgrammingLanguage,0.0146
+dbr:Swift_(programming_language),Swift,ProgrammingLanguage,0.0144
+dbr:Cool_(programming_language),Cool,ProgrammingLanguage,0.0136
+dbr:Tea_(programming_language),Tea,ProgrammingLanguage,0.0135
+dbr:COMAL,COMAL,ProgrammingLanguage,0.0134
+dbr:D_(programming_language),D,ProgrammingLanguage,0.0133
+dbr:JS++,JS++,ProgrammingLanguage,0.0131
+dbr:DIBOL,DIBOL,ProgrammingLanguage,0.0129
+dbr:TypeScript,TypeScript,ProgrammingLanguage,0.0128
+dbr:ALGOL_W,ALGOL W,ProgrammingLanguage,0.0125
+dbr:Language_Integrated_Query,Language Integrated Query,ProgrammingLanguage,0.0125
+dbr:APL_programming_language,dbr:APL_programming_language,ProgrammingLanguage,0.0123
+dbr:Nemerle,Nemerle,ProgrammingLanguage,0.0121
+dbr:Limbo_(programming_language),Limbo,ProgrammingLanguage,0.0119
+dbr:Orc_(programming_language),Orc,ProgrammingLanguage,0.0117
+dbr:CLACL,CLACL,ProgrammingLanguage,0.0116
+dbr:Impromptu_(programming_environment),Impromptu (programming environment),ProgrammingLanguage,0.0116
+dbr:Extempore_(software),Extempore (software),ProgrammingLanguage,0.0116
+dbr:Xtend,Xtend,ProgrammingLanguage,0.0108
+dbr:Etoys_(programming_language),Etoys,ProgrammingLanguage,0.0105
+dbr:Bs_(programming_language),Bs,ProgrammingLanguage,0.0104
+dbr:Yoix,Yoix,ProgrammingLanguage,0.0100
+dbr:Whiley_(programming_language),Whiley,ProgrammingLanguage,0.0099
+dbr:Euler_(programming_language),Euler,ProgrammingLanguage,0.0098
+dbr:IMP_(programming_language),IMP,ProgrammingLanguage,0.0098
+dbr:Squeak,Squeak,ProgrammingLanguage,0.0097
+dbr:F_Sharp_(programming_language),dbr:F_Sharp_(programming_language),ProgrammingLanguage,0.0096
+dbr:Ratfor,Ratfor,ProgrammingLanguage,0.0096
+dbr:Lola_(computing),Lola (computing),ProgrammingLanguage,0.0094
+dbr:Sather,Sather,ProgrammingLanguage,0.0093
+dbr:Draco_(programming_language),Draco,ProgrammingLanguage,0.0092
+dbr:Modula-2+,Modula-2+,ProgrammingLanguage,0.0092
+dbr:Charm_(programming_language),Charm,ProgrammingLanguage,0.0088
+ns7:pgSQL,PL/pgSQL,ProgrammingLanguage,0.0087
+ns14:PSM,SQL/PSM,ProgrammingLanguage,0.0087
+dbr:Lean_(proof_assistant),Lean (proof assistant),ProgrammingLanguage,0.0087
+dbr:Vala_(programming_language),Vala,ProgrammingLanguage,0.0082
+dbr:Apache_Groovy,Apache Groovy,ProgrammingLanguage,0.0081
+dbr:K_(programming_language),K,ProgrammingLanguage,0.0078
+dbr:Cyclone_(programming_language),Cyclone,ProgrammingLanguage,0.0069
+dbr:Lisp_programming_language,Lisp programming language,ProgrammingLanguage,0.0064
+dbr:Turing_(programming_language),Turing,ProgrammingLanguage,0.0061
+dbr:Natural_language_programming,dbr:Natural_language_programming,Paradigm113804375,0.0057
+dbr:Clean_(programming_language),Clean,ProgrammingLanguage,0.0056
+dbr:Assembly_language,Assembly language,Paradigm113804375,0.0056
+dbr:Dartmouth_ALGOL_30,Dartmouth ALGOL 30,ProgrammingLanguage,0.0055
+dbr:Extensible_Embeddable_Language,Extensible Embeddable Language,ProgrammingLanguage,0.0055
+dbr:Hot_Soup_Processor,Hot Soup Processor,ProgrammingLanguage,0.0055
+dbr:Logtalk,Logtalk,ProgrammingLanguage,0.0054
+dbr:Clascal,Clascal,ProgrammingLanguage,0.0054
+dbr:Emerald_(programming_language),Emerald,ProgrammingLanguage,0.0054
+dbr:CORAL,CORAL,ProgrammingLanguage,0.0054
+dbr:Executive_Systems_Problem_Oriented_Language,Executive Systems Problem Oriented Language,ProgrammingLanguage,0.0052
+dbr:MIVA_Script,MIVA Script,ProgrammingLanguage,0.0052
+dbr:Red_(programming_language),Red,ProgrammingLanguage,0.0050
+dbr:AgentSheets,AgentSheets,ProgrammingLanguage,0.0050
+dbr:Elixir_(programming_language),Elixir,ProgrammingLanguage,0.0049
+dbr:Boo_(programming_language),Boo,ProgrammingLanguage,0.0049
+dbr:Planner_(programming_language),Planner,ProgrammingLanguage,0.0048
+dbr:Joe-E,Joe-E,ProgrammingLanguage,0.0048
+dbr:Aldor,Aldor,ProgrammingLanguage,0.0047
+dbr:A♯_(Axiom),A♯ (Axiom),ProgrammingLanguage,0.0047
+dbr:ParaSail_(programming_language),ParaSail,ProgrammingLanguage,0.0044
+dbr:Flix_(programming_language),Flix,ProgrammingLanguage,0.0042
+dbr:COLA_(software_architecture),COLA (software architecture),ProgrammingLanguage,0.0042
+dbr:Newsqueak,Newsqueak,ProgrammingLanguage,0.0040
+dbr:XUL,XUL,ProgrammingLanguage,0.0039
+dbr:Tritium_(programming_language),Tritium,ProgrammingLanguage,0.0039
+dbr:LiveScript_(programming_language),LiveScript,ProgrammingLanguage,0.0038
+dbr:AgentCubes,AgentCubes,ProgrammingLanguage,0.0037
+dbr:Obliq,Obliq,ProgrammingLanguage,0.0036
+dbr:ABC_(programming_language),ABC,ProgrammingLanguage,0.0036
+dbr:Squirrel_(programming_language),Squirrel,ProgrammingLanguage,0.0036
+dbr:F-Script_(programming_language),F-Script,ProgrammingLanguage,0.0036
+dbr:Opa_(programming_language),Opa,ProgrammingLanguage,0.0034
+dbr:Incr_Tcl,Incr Tcl,ProgrammingLanguage,0.0033
+dbr:Itk,Itk,ProgrammingLanguage,0.0033
+dbr:NWScript,NWScript,ProgrammingLanguage,0.0032
+dbr:Solidity,Solidity,ProgrammingLanguage,0.0030
+dbr:Franz_Lisp,Franz Lisp,ProgrammingLanguage,0.0030
+dbr:Fantom_(programming_language),Fantom,ProgrammingLanguage,0.0029
+dbr:Lisp_Machine_Lisp,Lisp Machine Lisp,ProgrammingLanguage,0.0029
+dbr:NIL_(programming_language),NIL,ProgrammingLanguage,0.0028
+dbr:Gambas,Gambas,ProgrammingLanguage,0.0028
+dbr:PCASTL,PCASTL,ProgrammingLanguage,0.0028
+dbr:Bosque_(programming_language),Bosque,ProgrammingLanguage,0.0027
+dbr:Reverse_Polish_Notation,dbr:Reverse_Polish_Notation,ProgrammingLanguage,0.0025
+dbr:BeanShell,BeanShell,ProgrammingLanguage,0.0025
+dbr:Php4delphi,Php4delphi,ProgrammingLanguage,0.0025
+dbr:Oberon-2,Oberon-2,ProgrammingLanguage,0.0024
+dbr:ISLISP,ISLISP,ProgrammingLanguage,0.0024
+dbr:Joyce_(programming_language),Joyce,ProgrammingLanguage,0.0023
+dbr:PureScript,PureScript,ProgrammingLanguage,0.0023
+dbr:Kawa_(Scheme_implementation),Kawa (Scheme implementation),ProgrammingLanguage,0.0021
+dbr:Component_Pascal,Component Pascal,ProgrammingLanguage,0.0021
+dbr:Object_Oberon,Object Oberon,ProgrammingLanguage,0.0020
+ns25:k,SP/k,ProgrammingLanguage,0.0020
+dbr:PL360,PL360,ProgrammingLanguage,0.0018
+dbr:NEWP,NEWP,ProgrammingLanguage,0.0018
+dbr:Cobra_(programming_language),Cobra,ProgrammingLanguage,0.0017
+dbr:Racket_(programming_language),Racket,ProgrammingLanguage,0.0017
+dbr:Nu_(programming_language),Nu,ProgrammingLanguage,0.0017
+dbr:Lasso_(programming_language),Lasso,ProgrammingLanguage,0.0017
+dbr:Mirah_(programming_language),Mirah,ProgrammingLanguage,0.0014
+dbr:Urbiscript,Urbiscript,ProgrammingLanguage,0.0014
+dbr:Communicating_sequential_processes,dbr:Communicating_sequential_processes,ProgrammingLanguage,0.0014
+dbr:Elm_(programming_language),Elm,ProgrammingLanguage,0.0013
+dbr:E_(programming_language),dbr:E_(programming_language),ProgrammingLanguage,0.0013
+dbr:ALTRAN,ALTRAN,ProgrammingLanguage,0.0012
+dbr:Alice_(programming_language),Alice,ProgrammingLanguage,0.0012
+dbr:Cadence_SKILL,Cadence SKILL,ProgrammingLanguage,0.0011
+dbr:VHDL,VHDL,ProgrammingLanguage,0.0010
+dbr:Carbon_(programming_language),Carbon,ProgrammingLanguage,0.0010
+dbr:Go_(programming_language),Go,ProgrammingLanguage,0.0008
+dbr:Delphi_(programming_language),Delphi,ProgrammingLanguage,0.0008
+dbr:BETA_(programming_language),BETA,ProgrammingLanguage,0.0008
+dbr:CPL_(programming_language),CPL,ProgrammingLanguage,0.0007
+dbr:NewtonScript,NewtonScript,ProgrammingLanguage,0.0007
+dbr:OpenLisp,OpenLisp,ProgrammingLanguage,0.0007
+dbr:Le_Lisp,Le Lisp,ProgrammingLanguage,0.0007
+dbr:Zonnon,Zonnon,ProgrammingLanguage,0.0007
+dbr:X10_(programming_language),X10,ProgrammingLanguage,0.0006
+dbr:Nial,Nial,ProgrammingLanguage,0.0006
+dbr:Hope_(programming_language),dbr:Hope_(programming_language),ProgrammingLanguage,0.0005
+dbr:SASL_(programming_language),SASL,ProgrammingLanguage,0.0005
+dbr:Modula,Modula,ProgrammingLanguage,0.0004
+dbr:Ur_(programming_language),Ur,ProgrammingLanguage,0.0004
+dbr:Hy,Hy,ProgrammingLanguage,0.0004
+dbr:RTL/2,RTL/2,ProgrammingLanguage,0.0004
+dbr:Caml,Caml,ProgrammingLanguage,0.0003
+dbr:Common_Lisp_Object_System,dbr:Common_Lisp_Object_System,ProgrammingLanguage,0.0003
+dbr:Project_Verona,Project Verona,ProgrammingLanguage,0.0003
+dbr:STOIC,STOIC,ProgrammingLanguage,0.0002
+dbr:Coq,dbr:Coq,ProgrammingLanguage,0.0001
+dbr:Strongtalk,Strongtalk,ProgrammingLanguage,0.0001
+dbr:StarLogo,StarLogo,ProgrammingLanguage,0.0001
+dbr:ActionScript,ActionScript,ProgrammingLanguage,0.0000
+dbr:Kent_Recursive_Calculator,Kent Recursive Calculator,ProgrammingLanguage,0.0000
+dbr:Groovy_(programming_language),Groovy,ProgrammingLanguage,0.0000
+dbr:CSS,CSS,ProgrammingLanguage,0.0000
+ns7:SQL,PL/SQL,ProgrammingLanguage,0.0000
+dbr:SCM_(Scheme_implementation),SCM (Scheme implementation),ProgrammingLanguage,0.0000
+dbr:Regular_expression,dbr:Regular_expression,ProgrammingLanguage,0.0000
+dbr:Think_C,dbr:Think_C,ProgrammingLanguage,0.0000
+dbr:ANSI_C,ANSI C,ProgrammingLanguage,0.0000
+dbr:ALGO,ALGO,ProgrammingLanguage,0.0000
+dbr:Nyquist_(programming_language),Nyquist,ProgrammingLanguage,0.0000
+dbr:.QL,.QL,ProgrammingLanguage,0.0000
+dbr:Occam-π,Occam-π,ProgrammingLanguage,0.0000
+dbr:GW_BASIC,dbr:GW_BASIC,ProgrammingLanguage,0.0000
+dbr:Li-Chen_Wang,dbr:Li-Chen_Wang,ProgrammingLanguage,0.0000
+dbr:ALGOL_X,ALGOL X,ProgrammingLanguage,0.0000
+dbr:Q_(programming_language_from_Kx_Systems),dbr:Q_(programming_language_from_Kx_Systems),ProgrammingLanguage,0.0000
+dbr:Mx_(programming_language),dbr:Mx_(programming_language),ProgrammingLanguage,0.0000
+dbr:Ease_(programming_language),Ease,ProgrammingLanguage,0.0000
+dbr:Blockly,dbr:Blockly,ProgrammingLanguage,0.0000
+dbr:OptimJ,OptimJ,ProgrammingLanguage,0.0000
+dbr:SAIL_(programming_language),SAIL,ProgrammingLanguage,0.0000
+dbr:EasyLanguage,EasyLanguage,ProgrammingLanguage,0.0000
+dbr:Pict_(programming_language),Pict,ProgrammingLanguage,0.0000
+dbr:Edinburgh_IMP,Edinburgh IMP,ProgrammingLanguage,0.0000
+dbr:Delphi_(Programming_Language),dbr:Delphi_(Programming_Language),ProgrammingLanguage,0.0000
+dbr:P*,P*,ProgrammingLanguage,0.0000
+dbr:Cuneiform_(programming_language),Cuneiform,ProgrammingLanguage,0.0000
+dbr:Atlas_Autocode,Atlas Autocode,ProgrammingLanguage,0.0000
+dbr:Cornell_University_Programming_Language,dbr:Cornell_University_Programming_Language,ProgrammingLanguage,0.0000
+dbr:Elliott_ALGOL,Elliott ALGOL,ProgrammingLanguage,0.0000
+dbr:XPL,dbr:XPL,ProgrammingLanguage,0.0000
+dbr:Alef_(programming_language),Alef,ProgrammingLanguage,0.0000
+dbr:Basic4ppc,Basic4ppc,ProgrammingLanguage,0.0000
+dbr:LispWorks,LispWorks,ProgrammingLanguage,0.0000
+dbr:Managed_Extensions_for_C++,dbr:Managed_Extensions_for_C++,ProgrammingLanguage,0.0000
+dbr:C--,C--,ProgrammingLanguage,0.0000
+dbr:Little_Smalltalk,Little Smalltalk,ProgrammingLanguage,0.0000
+dbr:Pascal_Script,Pascal Script,ProgrammingLanguage,0.0000
+dbr:Emacs_Lisp,Emacs Lisp,ProgrammingLanguage,0.0000
+dbr:IDL_(programming_language),dbr:IDL_(programming_language),ProgrammingLanguage,0.0000
+dbr:Pharo,Pharo,ProgrammingLanguage,0.0000
+dbr:Phoenix_Object_Basic,Phoenix Object Basic,ProgrammingLanguage,0.0000
+dbr:Little_b_(programming_language),Little b,ProgrammingLanguage,0.0000
+dbr:Pico_(programming_language),Pico,ProgrammingLanguage,0.0000
+dbr:Plus_(programming_language),Plus,ProgrammingLanguage,0.0000
+dbr:Pnuts,Pnuts,ProgrammingLanguage,0.0000
+ns21:AL,C/AL,ProgrammingLanguage,0.0000
+dbr:Join_calculus,dbr:Join_calculus,ProgrammingLanguage,0.0000
+dbr:Portable_Standard_Lisp,Portable Standard Lisp,ProgrammingLanguage,0.0000
+dbr:Dependent_ML,Dependent ML,ProgrammingLanguage,0.0000
+dbr:Chef_(software),dbr:Chef_(software),ProgrammingLanguage,0.0000
+dbr:Euphoria_(programming_language),Euphoria,ProgrammingLanguage,0.0000
+dbr:MLisp,dbr:MLisp,ProgrammingLanguage,0.0000
+dbr:KornShell,dbr:KornShell,ProgrammingLanguage,0.0000
+dbr:Puppet_(software),dbr:Puppet_(software),ProgrammingLanguage,0.0000
+dbr:Tk_(software),dbr:Tk_(software),ProgrammingLanguage,0.0000
+dbr:Profile_Scripting_Language,Profile Scripting Language,ProgrammingLanguage,0.0000
+dbr:Programming_Language_for_Business,Programming Language for Business,ProgrammingLanguage,0.0000
+dbr:Abbreviated_Test_Language_for_All_Systems,Abbreviated Test Language for All Systems,ProgrammingLanguage,0.0000
+dbr:Message_Passing_Interface,dbr:Message_Passing_Interface,ProgrammingLanguage,0.0000
+dbr:ZeroMQ,dbr:ZeroMQ,ProgrammingLanguage,0.0000
+dbr:Basic_For_Qt,Basic For Qt,ProgrammingLanguage,0.0000
+ns7:1,ns7:1,ProgrammingLanguage,0.0000
+dbr:A+_(programming_language),A+,ProgrammingLanguage,0.0000
+dbr:Astronomical_Data_Query_Language,Astronomical Data Query Language,ProgrammingLanguage,0.0000
+dbr:Prolog_(programming_language),dbr:Prolog_(programming_language),ProgrammingLanguage,0.0000
+dbr:Ateji_PX,Ateji PX,ProgrammingLanguage,0.0000
+dbr:General_Algebraic_Modeling_System,dbr:General_Algebraic_Modeling_System,ProgrammingLanguage,0.0000
+dbr:AMBIT,AMBIT,ProgrammingLanguage,0.0000
+dbr:QBASIC,dbr:QBASIC,ProgrammingLanguage,0.0000
+dbr:Qalb_(programming_language),Qalb,ProgrammingLanguage,0.0000
+dbr:Gosu_(programming_language),Gosu,ProgrammingLanguage,0.0000
+dbr:D_language,dbr:D_language,ProgrammingLanguage,0.0000
+dbr:QuakeC,QuakeC,ProgrammingLanguage,0.0000
+dbr:FL_(programming_language),FL,ProgrammingLanguage,0.0000
+dbr:ARLA_(programming_language),dbr:ARLA_(programming_language),ProgrammingLanguage,0.0000
+dbr:CS-1_(programming_language),dbr:CS-1_(programming_language),ProgrammingLanguage,0.0000
+dbr:Lucid_(programming_language),Lucid,ProgrammingLanguage,0.0000
+dbr:FOCAL_(programming_language),FOCAL,ProgrammingLanguage,0.0000
+"dbr:Bluespec,_Inc.","dbr:Bluespec,_Inc.",ProgrammingLanguage,0.0000
+dbr:POP-2,dbr:POP-2,ProgrammingLanguage,0.0000
+dbr:Facebook_Query_Language,Facebook Query Language,ProgrammingLanguage,0.0000
+dbr:AutoIt,AutoIt,ProgrammingLanguage,0.0000
+dbr:Macsyma,dbr:Macsyma,ProgrammingLanguage,0.0000
+dbr:Cython,Cython,ProgrammingLanguage,0.0000
+dbr:Alma-0,Alma-0,ProgrammingLanguage,0.0000
+dbr:Run_BASIC,Run BASIC,ProgrammingLanguage,0.0000
+dbr:XLISP,dbr:XLISP,ProgrammingLanguage,0.0000
+dbr:S3_(programming_language),S3,ProgrammingLanguage,0.0000
+dbr:Combined_Programming_Language,dbr:Combined_Programming_Language,ProgrammingLanguage,0.0000
+dbr:Frenetic_(programming_language),Frenetic,ProgrammingLanguage,0.0000
+dbr:SAMPL,SAMPL,ProgrammingLanguage,0.0000
+dbr:SDS_BASIC,SDS BASIC,ProgrammingLanguage,0.0000
+dbr:SMALL,SMALL,ProgrammingLanguage,0.0000
+dbr:SPARK_(programming_language),SPARK,ProgrammingLanguage,0.0000
+dbr:Frink_(programming_language),Frink,ProgrammingLanguage,0.0000
+dbr:MAD_(programming_language),MAD,ProgrammingLanguage,0.0000
+dbr:STRINGCOMP,STRINGCOMP,ProgrammingLanguage,0.0000
+dbr:Caché_ObjectScript,Caché ObjectScript,ProgrammingLanguage,0.0000
+dbr:CAL_(programming_language),dbr:CAL_(programming_language),ProgrammingLanguage,0.0000
+dbr:Script.NET,Script.NET,ProgrammingLanguage,0.0000
+dbr:BASIC-8,BASIC-8,ProgrammingLanguage,0.0000
+dbr:NESL,NESL,ProgrammingLanguage,0.0000
+dbr:XTalk,dbr:XTalk,ProgrammingLanguage,0.0000
+dbr:Sense_(programming),Sense (programming),ProgrammingLanguage,0.0000
+dbr:GNU_Guile,GNU Guile,ProgrammingLanguage,0.0000
+dbr:RelaxNG,dbr:RelaxNG,ProgrammingLanguage,0.0000
+dbr:Turtle_(syntax),dbr:Turtle_(syntax),ProgrammingLanguage,0.0000
+dbr:MATH-MATIC,MATH-MATIC,ProgrammingLanguage,0.0000
+dbr:Source_(programming_language),Source,ProgrammingLanguage,0.0000
+dbr:Spice_Lisp,Spice Lisp,ProgrammingLanguage,0.0000
+ns16:L,DG/L,ProgrammingLanguage,0.0000
+dbr:Sketchpad,dbr:Sketchpad,ProgrammingLanguage,0.0000
+dbr:MBASIC,MBASIC,ProgrammingLanguage,0.0000
+dbr:GOLOG,GOLOG,ProgrammingLanguage,0.0000
+dbr:StrongTalk,dbr:StrongTalk,ProgrammingLanguage,0.0000
+dbr:Stalin_(Scheme_implementation),Stalin (Scheme implementation),ProgrammingLanguage,0.0000
+dbr:Standard_ML_of_New_Jersey,Standard ML of New Jersey,ProgrammingLanguage,0.0000
+dbr:StepTalk,StepTalk,ProgrammingLanguage,0.0000
+ns12:GNU_Scheme,MIT/GNU Scheme,ProgrammingLanguage,0.0000
+dbr:AppleScript,AppleScript,ProgrammingLanguage,0.0000
+dbr:LESS_(stylesheet_language),dbr:LESS_(stylesheet_language),ProgrammingLanguage,0.0000
+dbr:Gambit_(Scheme_implementation),Gambit (Scheme implementation),ProgrammingLanguage,0.0000
+dbr:Game_Oriented_Assembly_Lisp,Game Oriented Assembly Lisp,ProgrammingLanguage,0.0000
+dbr:Gemstone_(database),Gemstone (database),ProgrammingLanguage,0.0000
+dbr:MLton,MLton,ProgrammingLanguage,0.0000
+dbr:Go!_(programming_language),Go!,ProgrammingLanguage,0.0000
+dbr:Bigloo,Bigloo,ProgrammingLanguage,0.0000
+dbr:Java_virtual_machine,dbr:Java_virtual_machine,ProgrammingLanguage,0.0000
+dbr:KUKA_Robot_Language,KUKA Robot Language,ProgrammingLanguage,0.0000
+dbr:OpenVera,dbr:OpenVera,ProgrammingLanguage,0.0000
+dbr:DARSIMCO,DARSIMCO,ProgrammingLanguage,0.0000
+dbr:Boomerang_(programming_language),Boomerang,ProgrammingLanguage,0.0000
+dbr:Systems_Programming_Language,Systems Programming Language,ProgrammingLanguage,0.0000
+dbr:TELCOMP,TELCOMP,ProgrammingLanguage,0.0000
+dbr:INTERCAL,dbr:INTERCAL,ProgrammingLanguage,0.0000
+dbr:Catrobat,Catrobat,ProgrammingLanguage,0.0000
+dbr:Mary_(programming_language),Mary,ProgrammingLanguage,0.0000
+dbr:True_BASIC,True BASIC,ProgrammingLanguage,0.0000
+dbr:Active_Oberon,Active Oberon,ProgrammingLanguage,0.0000
+dbr:Karel_(programming_language),Karel,ProgrammingLanguage,0.0000
+dbr:ColorForth,ColorForth,ProgrammingLanguage,0.0000
+dbr:Maker_culture,dbr:Maker_culture,ProgrammingLanguage,0.0000
+dbr:EcmaScript,dbr:EcmaScript,ProgrammingLanguage,0.0000
+dbr:UCBLogo,UCBLogo,ProgrammingLanguage,0.0000
+dbr:NekoVM,dbr:NekoVM,ProgrammingLanguage,0.0000
+dbr:Unified_Modeling_Language,dbr:Unified_Modeling_Language,ProgrammingLanguage,0.0000
+dbr:Unified_Parallel_C,Unified Parallel C,ProgrammingLanguage,0.0000
+dbr:Split-C,Split-C,ProgrammingLanguage,0.0000
+dbr:Clojure_(programming_language),dbr:Clojure_(programming_language),ProgrammingLanguage,0.0000
+dbr:Javascript_(programming_language),Javascript,ProgrammingLanguage,0.0000
+dbr:Dolittle_(programming_language),Dolittle,ProgrammingLanguage,0.0000
+dbr:VBScript,VBScript,ProgrammingLanguage,0.0000
+dbr:Hop_(software),Hop (software),ProgrammingLanguage,0.0000
+dbr:Tymshare_SUPER_BASIC,dbr:Tymshare_SUPER_BASIC,ProgrammingLanguage,0.0000
+dbr:Vilnius_BASIC,Vilnius BASIC,ProgrammingLanguage,0.0000
+dbr:MultiLisp,MultiLisp,ProgrammingLanguage,0.0000
+dbr:Actor-Based_Concurrent_Language,dbr:Actor-Based_Concurrent_Language,ProgrammingLanguage,0.0000
+dbr:MASSCOMP,dbr:MASSCOMP,ProgrammingLanguage,0.0000
+dbr:Stardent_Computer,dbr:Stardent_Computer,ProgrammingLanguage,0.0000
+dbr:NELIAC,NELIAC,ProgrammingLanguage,0.0000
+dbr:AngelScript,AngelScript,ProgrammingLanguage,0.0000
+dbr:Wang_BASIC,Wang BASIC,ProgrammingLanguage,0.0000
+dbr:WordBASIC,WordBASIC,ProgrammingLanguage,0.0000
+dbr:Hy_(programming_language),dbr:Hy_(programming_language),ProgrammingLanguage,0.0000
+dbr:Atom_BASIC,dbr:Atom_BASIC,ProgrammingLanguage,0.0000
+dbr:Agda_(programming_language),dbr:Agda_(programming_language),ProgrammingLanguage,0.0000
+dbr:XLNT,XLNT,ProgrammingLanguage,0.0000
+dbr:Nqthm,dbr:Nqthm,ProgrammingLanguage,0.0000
+dbr:OTcl,OTcl,ProgrammingLanguage,0.0000
+dbr:Communicating_Sequential_Processes,dbr:Communicating_Sequential_Processes,ProgrammingLanguage,0.0000
+dbr:PSB-Prolog,dbr:PSB-Prolog,ProgrammingLanguage,0.0000
+dbr:SB-Prolog,dbr:SB-Prolog,ProgrammingLanguage,0.0000
+dbr:Cray_MTA,dbr:Cray_MTA,ProgrammingLanguage,0.0000
+dbr:Ikarus_(Scheme_implementation),Ikarus (Scheme implementation),ProgrammingLanguage,0.0000
+dbr:Language_H,Language H,ProgrammingLanguage,0.0000
+dbr:Cray_XMT,dbr:Cray_XMT,ProgrammingLanguage,0.0000
+dbr:Integer_BASIC,Integer BASIC,ProgrammingLanguage,0.0000
+dbr:VB.NET,VB.NET,ProgrammingLanguage,0.0000
+dbr:Zebra_Programming_Language,Zebra Programming Language,ProgrammingLanguage,0.0000
+dbr:High_Performance_Fortran,dbr:High_Performance_Fortran,ProgrammingLanguage,0.0000
+dbr:LLVM_IR,dbr:LLVM_IR,ProgrammingLanguage,0.0000
+dbr:Napier88,Napier88,ProgrammingLanguage,0.0000
+dbr:ΛProlog,ΛProlog,ProgrammingLanguage,0.0000
+dbr:PS-algol,PS-algol,ProgrammingLanguage,0.0000
+dbr:AIMACO,AIMACO,ProgrammingLanguage,0.0000
+dbr:COMTRAN,COMTRAN,ProgrammingLanguage,0.0000
+dbr:ALF_(proof_assistant),dbr:ALF_(proof_assistant),ProgrammingLanguage,0.0000
+dbr:ALGOL_Y,ALGOL Y,ProgrammingLanguage,0.0000
+dbr:ARITH-MATIC,ARITH-MATIC,ProgrammingLanguage,0.0000
+dbr:ARPAnet,dbr:ARPAnet,ProgrammingLanguage,0.0000
+dbr:AWK_(programming_language),dbr:AWK_(programming_language),ProgrammingLanguage,0.0000
+dbr:Actor_model_middle_history,dbr:Actor_model_middle_history,ProgrammingLanguage,0.0000
+dbr:S-algol,S-algol,ProgrammingLanguage,0.0000
+dbr:ZPL_(programming_language),ZPL,ProgrammingLanguage,0.0000
+dbr:Alphard_(programming_language),Alphard,ProgrammingLanguage,0.0000
+dbr:JSONiq,JSONiq,ProgrammingLanguage,0.0000
+dbr:BBN_LISP,BBN LISP,ProgrammingLanguage,0.0000
+dbr:Begriffsschrift,dbr:Begriffsschrift,ProgrammingLanguage,0.0000
+dbr:P′′,P′′,ProgrammingLanguage,0.0000
+dbr:Burroughs_B5000,dbr:Burroughs_B5000,ProgrammingLanguage,0.0000
+dbr:CMS_EXEC,dbr:CMS_EXEC,ProgrammingLanguage,0.0000
+dbr:COMIT,COMIT,ProgrammingLanguage,0.0000
+dbr:ALGOL_N,ALGOL N,ProgrammingLanguage,0.0000
+dbr:NetLogo,NetLogo,ProgrammingLanguage,0.0000
+dbr:Classic_Visual_Basic,dbr:Classic_Visual_Basic,ProgrammingLanguage,0.0000
+dbr:Job_Control_Language,dbr:Job_Control_Language,ProgrammingLanguage,0.0000
+dbr:BLISS,BLISS,ProgrammingLanguage,0.0000
+dbr:Polyphonic_C_sharp,dbr:Polyphonic_C_sharp,ProgrammingLanguage,0.0000
+dbr:DSSSL,dbr:DSSSL,ProgrammingLanguage,0.0000
+dbr:EISPACK,dbr:EISPACK,ProgrammingLanguage,0.0000
+dbr:EXEC_2,dbr:EXEC_2,ProgrammingLanguage,0.0000
+dbr:Ed_(text_editor),dbr:Ed_(text_editor),ProgrammingLanguage,0.0000
+dbr:ALFA_(XACML),ALFA (XACML),ProgrammingLanguage,0.0000
+dbr:HyperCard,dbr:HyperCard,ProgrammingLanguage,0.0000
+dbr:Chez_Scheme,Chez Scheme,ProgrammingLanguage,0.0000
+dbr:FACT_computer_language,dbr:FACT_computer_language,ProgrammingLanguage,0.0000
+dbr:Gofer_(programming_language),dbr:Gofer_(programming_language),ProgrammingLanguage,0.0000
+dbr:Google_Native_Client,dbr:Google_Native_Client,ProgrammingLanguage,0.0000
+dbr:Hack_(programming_language),dbr:Hack_(programming_language),ProgrammingLanguage,0.0000
+dbr:Haml,Haml,ProgrammingLanguage,0.0000
+dbr:IBM_BASICA,dbr:IBM_BASICA,ProgrammingLanguage,0.0000
+dbr:IBM_Cassette_BASIC,dbr:IBM_Cassette_BASIC,ProgrammingLanguage,0.0000
+dbr:IBM_Disk_BASIC,dbr:IBM_Disk_BASIC,ProgrammingLanguage,0.0000
+dbr:JScript,JScript,ProgrammingLanguage,0.0000
+dbr:J_(programming_language),J,ProgrammingLanguage,0.0000
+dbr:Macintosh_Common_Lisp,Macintosh Common Lisp,ProgrammingLanguage,0.0000
+dbr:Id_(programming_language),Id,ProgrammingLanguage,0.0000
+dbr:Ciao_(programming_language),Ciao,ProgrammingLanguage,0.0000
+dbr:Hibernate_(Java),dbr:Hibernate_(Java),ProgrammingLanguage,0.0000
+dbr:InterLisp,dbr:InterLisp,ProgrammingLanguage,0.0000
+dbr:Interpress,dbr:Interpress,ProgrammingLanguage,0.0000
+dbr:Clarion_(programming_language),Clarion,ProgrammingLanguage,0.0000
+dbr:JSON,JSON,ProgrammingLanguage,0.0000
+dbr:J_Sharp,dbr:J_Sharp,ProgrammingLanguage,0.0000
+dbr:LINPACK,dbr:LINPACK,ProgrammingLanguage,0.0000
+dbr:Laning_and_Zierler_system,dbr:Laning_and_Zierler_system,ProgrammingLanguage,0.0000
+dbr:LeLisp,dbr:LeLisp,ProgrammingLanguage,0.0000
+dbr:Less_(stylesheet_language),Less (stylesheet language),ProgrammingLanguage,0.0000
+dbr:Lisp_1.5,dbr:Lisp_1.5,ProgrammingLanguage,0.0000
+dbr:REXX,REXX,ProgrammingLanguage,0.0000
+dbr:Cilk,Cilk,ProgrammingLanguage,0.0000
+dbr:MDL_(programming_language),MDL,ProgrammingLanguage,0.0000
+dbr:Join_Java,Join Java,ProgrammingLanguage,0.0000
+dbr:Machine_code,dbr:Machine_code,ProgrammingLanguage,0.0000
+dbr:Citrine_(programming_language),Citrine,ProgrammingLanguage,0.0000
+dbr:Fossil_(software),dbr:Fossil_(software),ProgrammingLanguage,0.0000
+dbr:T_programming_language,dbr:T_programming_language,ProgrammingLanguage,0.0000
+dbr:ObjVlisp,ObjVlisp,ProgrammingLanguage,0.0000
+dbr:SQLite,dbr:SQLite,ProgrammingLanguage,0.0000
+dbr:Orwell_(programming_language),Orwell,ProgrammingLanguage,0.0000
+dbr:WebSocket,dbr:WebSocket,ProgrammingLanguage,0.0000
+ns7:0,ns7:0,ProgrammingLanguage,0.0000
+dbr:PLEX_(programming_language),PLEX,ProgrammingLanguage,0.0000
+dbr:Pizza_(programming_language),Pizza,ProgrammingLanguage,0.0000
+dbr:AMOS_(programming_language),AMOS,ProgrammingLanguage,0.0000
+dbr:Qt_(framework),Qt (framework),ProgrammingLanguage,0.0000
+dbr:XAML,dbr:XAML,ProgrammingLanguage,0.0000
+dbr:Snobol4,dbr:Snobol4,ProgrammingLanguage,0.0000
+dbr:SAML,dbr:SAML,ProgrammingLanguage,0.0000
+dbr:SASL_programming_language,dbr:SASL_programming_language,ProgrammingLanguage,0.0000
+dbr:SIOD,SIOD,ProgrammingLanguage,0.0000
+dbr:S_(programming_language),dbr:S_(programming_language),ProgrammingLanguage,0.0000
+dbr:Schoonschip,dbr:Schoonschip,ProgrammingLanguage,0.0000
+dbr:Semi-Automatic_Ground_Environment,dbr:Semi-Automatic_Ground_Environment,ProgrammingLanguage,0.0000
+dbr:Simscript,dbr:Simscript,ProgrammingLanguage,0.0000
+dbr:Simula_67,dbr:Simula_67,ProgrammingLanguage,0.0000
+dbr:Speakeasy_(computational_environment),dbr:Speakeasy_(computational_environment),ProgrammingLanguage,0.0000
+dbr:OPS5,OPS5,ProgrammingLanguage,0.0000
+dbr:Superplan,Superplan,ProgrammingLanguage,0.0000
+dbr:COIN-OR,dbr:COIN-OR,ProgrammingLanguage,0.0000
+dbr:Symbolic_Manipulation_Program,dbr:Symbolic_Manipulation_Program,ProgrammingLanguage,0.0000
+dbr:T_(programming_language),T,ProgrammingLanguage,0.0000
+dbr:Unix_shell,dbr:Unix_shell,ProgrammingLanguage,0.0000
+dbr:Visual_J++,dbr:Visual_J++,ProgrammingLanguage,0.0000
+dbr:EC_(programming_language),EC,ProgrammingLanguage,0.0000
+dbr:XPointer,dbr:XPointer,ProgrammingLanguage,0.0000
+dbr:Z_notation,dbr:Z_notation,ProgrammingLanguage,0.0000
+dbr:SQR,dbr:SQR,ProgrammingLanguage,0.0000
+dbr:TMG_(language),TMG (language),ProgrammingLanguage,0.0000
+dbr:AdvPL,AdvPL,ProgrammingLanguage,0.0000
+dbr:Processing_(programming_language),dbr:Processing_(programming_language),ProgrammingLanguage,0.0000
+dbr:Nineteen_Eighty-Four,dbr:Nineteen_Eighty-Four,ProgrammingLanguage,0.0000
+dbr:Constraint_Handling_Rules,Constraint Handling Rules,ProgrammingLanguage,0.0000
+dbr:Coarray_Fortran,Coarray Fortran,ProgrammingLanguage,0.0000
+dbr:ELAN_(programming_language),ELAN,ProgrammingLanguage,0.0000
+dbr:Wolfram_Mathematica,dbr:Wolfram_Mathematica,ProgrammingLanguage,0.0000
+dbr:WQL,WQL,ProgrammingLanguage,0.0000

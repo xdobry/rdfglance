@@ -26,3 +26,4 @@ pub const ICON_CLEAN_ALL: &str = "\u{1f5d1}";
 pub const ICON_UNDO: &str = "\u{21a9}";
 pub const ICON_REDO: &str = "\u{21aa}";
 pub const ICON_KEY: &str = "\u{1f511}";
+pub const ICON_EXPORT: &str = "\u{1f4e4}";

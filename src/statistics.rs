@@ -1,15 +1,11 @@
 use std::{borrow::Cow, cmp::min};
 
-use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
+use const_format::concatcp;
+use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, TextBuffer, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{
-    GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState,
-    config::{Config, IriDisplay},
-    graph_algorithms::GraphAlgorithm,
-    nobject::{IriIndex, LabelContext},
-    table_view::{text_wrapped, text_wrapped_link},
-    uitools::ScrollBar,
+    config::{Config, IriDisplay}, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext, LangIndex}, style::ICON_EXPORT, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState
 };
 
 const ROW_HIGHT: f32 = 17.0;
@@ -85,7 +81,36 @@ impl StatisticsResult {
 impl RdfGlanceApp {
     pub fn show_statistics(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         if self.statistics_data.is_some() {
-            ui.label("Statistics Data Available");
+            ui.horizontal(|ui| {
+                ui.label("Statistics Data Available");
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui
+                    .button(concatcp!(ICON_EXPORT, " Export CSV"))
+                    .on_hover_text("Export as CSV file")
+                    .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("RDF Glance project", &["rdfglance"])
+                        .set_file_name("project.rdfglance")
+                        .save_file()
+                    {
+                        use std::path::Path;
+                        let store_res = self.statistics_data.as_ref().unwrap().export_csv(
+                            &self.rdf_data.read().unwrap(),
+                            Path::new(path.as_path()),
+                            self.persistent_data.config_data.iri_display,
+                            &self.visualization_style,
+                            self.ui_state.display_language,
+                        );
+                        match store_res {
+                            Err(e) => {
+                                self.system_message = crate::SystemMessage::Error(format!("Can not save project: {}", e));
+                            }
+                            Ok(_) => {}
+                        }
+                    }
+                }
+            });
             self.show_statistics_data(ctx, ui)
         } else {
             ui.label("No Statistics Data yet. Add some nodes to visual graph and run statistics algorithms on this");
@@ -346,7 +371,6 @@ impl StatisticsData {
                             ui.visuals(),
                         );
                         if primary_clicked && label_rect.contains(mouse_pos) {
-                            println!("Primary clicked on node: {}", node_iri);
                             *instance_action = NodeAction::BrowseNode(instance_index.0);
                         } else if secondary_clicked && label_rect.contains(mouse_pos) {
                             *instance_action = NodeAction::ShowVisual(instance_index.0);
@@ -487,4 +511,174 @@ impl StatisticsData {
             }
         }
     }
+
+    fn export_csv(&self, rdf_data: &RdfData, path: &std::path::Path,
+        iri_display: IriDisplay,
+        styles: &GVisualizationStyle,
+        lang_index: LangIndex,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut wtr = csv::Writer::from_path(path)?;
+        for title in vec!["iri", "label", "type"] {
+            wtr.write_field(title)?;
+        }
+        let label_context = LabelContext::new(lang_index, iri_display, &rdf_data.prefix_manager);
+        for result in self.results.iter() {
+            wtr.write_field(result.graph_algorithm().to_string().as_str())?;
+        }
+        wtr.write_record(None::<&[u8]>)?;
+        for (idx, (iri_index, _pos)) in self.nodes.iter().enumerate() {
+            if let Some((iri,node)) = rdf_data.node_data.get_node_by_index(*iri_index) {
+                let iri_ref: &str = iri;
+                wtr.write_field(iri_ref)?;
+                let label = node.node_label(
+                    iri,
+                    styles,
+                    false,
+                    lang_index,
+                    &rdf_data.node_data.indexers,
+                );
+                wtr.write_field(label)?;
+                let types = node.highest_priority_types(styles);
+                if types.is_empty() {
+                    wtr.write_field("")?;
+                } else {
+                    for type_index in types.iter() {
+                         wtr.write_field(
+                            rdf_data
+                                .node_data
+                                .type_display(*type_index, &label_context, &rdf_data.node_data.indexers)
+                                .as_str(),
+                        )?;
+                        break;
+                    }
+                }
+                for result in self.results.iter() {
+                    wtr.write_field(result.get_value_str(idx).as_str())?;
+                }
+                wtr.write_record(None::<&[u8]>)?;
+            }
+        }
+        wtr.flush()?;
+        Ok(())
+    }
+}
+
+pub fn distribute_to_zoom_layers(values: &Vec<f32>) -> Vec<u8> {
+    let mut values_with_indices: Vec<_> = values.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+    values_with_indices.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    println!("Sorted values: {} {}", values_with_indices[0].0,values_with_indices[0].1);
+    let mut layers = vec![0u8; values.len()];
+    let data_len = values.len();
+    let a = if data_len < 12 { 1 } else { 4 };
+    if let Ok(q) = compute_q(values.len() as f64, a as f64, 10, 1e-10, 1000) {
+        let ranges: Vec<(usize, usize)> = {
+            let mut ranges = Vec::new();
+            let mut pos = 0;
+            let mut start = a as f64;
+            for idx in 0..10 {
+                let end = if idx == 9 {
+                    data_len - 1
+                } else {
+                    (pos as f64 + start + 0.5) as usize - 1
+                };
+                if end >= data_len - 1 {
+                    ranges.push((pos as usize, data_len - 1));
+                    break;
+                } else {
+                    ranges.push((pos as usize, end));
+                }
+                pos = end + 1;
+                start *= q;
+            }
+            ranges
+        };
+        let mut corrected_ranges: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+        let mut next_start: isize = -1;
+        for (idx, &(mut start, mut end)) in ranges.iter().enumerate() {
+            if next_start >= 0 {
+                start = next_start as usize;
+            }
+            next_start = -1;
+            if end < start {
+                end = start;
+                next_start = (end + 1) as isize;
+                if next_start as usize > data_len - 1 {
+                    break;
+                }
+            }
+            if idx > 0 {
+                let (last_start, mut last_end) = corrected_ranges.last().copied().unwrap();
+
+                // Compare values at the current start and previous range's end
+                if values_with_indices[start].0 == values_with_indices[last_end].0 {
+                    if values_with_indices[start].0 == values_with_indices[end].0 {
+                        if values_with_indices[last_start].0 == values_with_indices[last_end].0 {
+                            next_start = (end + 1) as isize;
+                            // Extend previous range
+                            corrected_ranges.last_mut().unwrap().1 = end;
+                            continue;
+                        } else {
+                            // shrink previous range from the end
+                            while values_with_indices[last_end].0 == values_with_indices[start].0 && last_end > last_start {
+                                last_end -= 1;
+                            }
+                            corrected_ranges.last_mut().unwrap().1 = last_end;
+                            start = last_end + 1;
+                        }
+                    } else {
+                        // shift start forward to skip duplicates
+                        while values_with_indices[last_end].0 == values_with_indices[start].0 && start <= end {
+                            start += 1;
+                        }
+                        corrected_ranges.last_mut().unwrap().1 = start - 1;
+                    }
+                }
+            }
+            corrected_ranges.push((start, end));
+        }
+
+        for (layer, (start, end)) in corrected_ranges.iter().enumerate() {
+            // println!("Layer {}: {} - {}", layer + 1, start, end);
+            for (_value, index) in values_with_indices.iter().skip(*start).take(end - start + 1) {
+                layers[*index] = 10 - layer as u8;
+            }
+        }
+    }
+    layers
+}
+
+fn compute_q(sum: f64, a: f64, n: usize, tol: f64, max_iter: usize) -> Result<f64, String> {
+    if n == 0 {
+        panic!("n must be > 0");
+    }
+    if (sum - a).abs() < tol {
+        return Ok(1.0); // Spezialfall: Summe = erstes Glied -> q=1
+    }
+
+    // f(q) = a*(1 - q^n)/(1 - q) - S
+    let f = |q: f64| -> f64 {
+        if (q - 1.0).abs() < tol {
+            // Limes q -> 1
+            a * (n as f64) - sum
+        } else {
+            a * (1.0 - q.powi(n as i32)) / (1.0 - q) - sum
+        }
+    };
+
+    let mut low = 0.0_f64;
+    let mut high = f64::max(2.0, sum / a);
+
+    for _ in 0..max_iter {
+        let mid = (low + high) / 2.0;
+        let val = f(mid);
+        if val.abs() < tol {
+            return Ok(mid);
+        }
+        if f(low) * val < 0.0 {
+            high = mid;
+        } else {
+            low = mid;
+        }
+    }
+    Err("No solution found max_iter reached".to_string())
 }

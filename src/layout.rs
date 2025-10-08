@@ -1,12 +1,5 @@
 use crate::{
-    GVisualizationStyle, SortedVec, UIState,
-    config::Config,
-    graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
-    graph_styles::NodeShape,
-    nobject::IriIndex,
-    quad_tree::{BHQuadtree, WeightedPoint},
-    statistics::{StatisticsData, StatisticsResult},
-    style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP},
+    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{distribute_to_zoom_layers, StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec, UIState
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -90,6 +83,10 @@ impl LayerInterval {
         let scaled = clamped * 9.0 + 1.0; // 0→1, 1→10
         self.to = scaled.round() as u8;
         self.from = 0;
+    }
+    pub fn set_from_layout(&mut self, layout_layer: u8) {
+        self.from = 0;
+        self.to = layout_layer;
     }
 }
 
@@ -973,9 +970,11 @@ impl SortedNodeLayout {
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
                             } else {
-                                let values = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
-                                for (index, value) in values.iter().enumerate() {
+                                let values: Vec<f32> = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
+                                let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
+                                for (index, (layer, value)) in values_layers.iter().zip(&values).enumerate() {
                                     individual_node_style[index].set_size_value(*value, visualization_style);
+                                    individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
                                 }
                                 statistics_data
                                     .results
@@ -991,14 +990,19 @@ impl SortedNodeLayout {
                             .iter()
                             .find(|res| res.graph_algorithm() == graph_algorithm);
                         if let Some(result) = result {
-                            // no action the data is already but we need to set the individual node styles
+                            // no action needed the data is already in result but we need to set the individual node styles
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                for (index, value) in result.get_data_vec().iter().enumerate() {
-                                    let node_index = statistics_data.nodes[index].1 as usize;
-                                    if graph_algorithm.is_clustering() {
+                                if graph_algorithm.is_clustering() {
+                                    for (index, value) in result.get_data_vec().iter().enumerate() {
+                                        let node_index = statistics_data.nodes[index].1 as usize;
                                         individual_node_style[node_index].set_cluster(*value as u32);
-                                    } else {
+                                    }
+                                } else {
+                                    let values_layers: Vec<u8> = distribute_to_zoom_layers(result.get_data_vec());
+                                    for (index, (value, layer)) in result.get_data_vec().iter().zip(&values_layers).enumerate() {
+                                        let node_index = statistics_data.nodes[index].1 as usize;
                                         individual_node_style[node_index].set_size_value(*value, visualization_style);
+                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
                                     }
                                 }
                             }
@@ -1032,9 +1036,11 @@ impl SortedNodeLayout {
                                     .iter()
                                     .map(|(_iri, pos)| values[*pos as usize])
                                     .collect::<Vec<f32>>();
+                                let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
                                 if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                    for (index, value) in values.iter().enumerate() {
+                                    for (index, (value,layer)) in values.iter().zip(&values_layers).enumerate() {
                                         individual_node_style[index].set_size_value(*value, visualization_style);
+                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
                                     }
                                 }
                                 statistics_data
