@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
+use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::circular::circular_layout, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
 
 enum MenuAction {
     None,
@@ -164,6 +164,14 @@ impl RdfGlanceApp {
                         self.visible_nodes.select_all(&mut self.ui_state);
                         ui.close_menu();
                     }
+                    ui.separator();
+                    ui.add_enabled_ui(self.ui_state.selected_nodes.len()>2 , |ui| {
+                        if ui.button("Cicular Layout").clicked() {
+                            circular_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
+                            ui.close_menu();
+                        }
+                    });
+
                     consume_keys = true;
                 });
             }
