@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{Align, Key, Layout, Modifiers, accesskit::Node, global_theme_preference_switch};
+use egui::{Align, Key, Layout, Modifiers, global_theme_preference_switch};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -11,8 +11,7 @@ use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
 use crate::{
-    ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage, graph_algorithms::GraphAlgorithm,
-    graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG,
+    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::circular::circular_layout, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
 };
 
 enum MenuAction {
@@ -202,6 +201,14 @@ impl RdfGlanceApp {
                         self.visible_nodes.select_all(&mut self.ui_state);
                         ui.close_menu();
                     }
+                    ui.separator();
+                    ui.add_enabled_ui(self.ui_state.selected_nodes.len()>2 , |ui| {
+                        if ui.button("Circular Layout").clicked() {
+                            circular_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
+                            ui.close_menu();
+                        }
+                    });
+
                     consume_keys = true;
                 });
             }

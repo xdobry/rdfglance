@@ -1110,7 +1110,7 @@ impl SortedNodeLayout {
             if let Ok(nodes) = self.nodes.read() {
                 let mut new_selected: Vec<IriIndex> = Vec::new();
                 for selected_node in ui_state.selected_nodes.iter() {
-                    if let Some(pos) = self.get_pos(*selected_node) {
+                    if let Some(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok() {
                         for edge in edges.iter() {
                             if edge.from == pos {
                                 let node_index = nodes[edge.to].node_index;
@@ -1134,7 +1134,7 @@ impl SortedNodeLayout {
             if let Ok(nodes) = self.nodes.read() {
                 let mut to_remove: Vec<IriIndex> = Vec::new();
                 for selected_node in ui_state.selected_nodes.iter() {
-                    if let Some(pos) = self.get_pos(*selected_node) {
+                    if let Some(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok() {
                         let mut connected_num = 0;
                         for edge in edges.iter() {
                             if edge.from!=edge.to && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))

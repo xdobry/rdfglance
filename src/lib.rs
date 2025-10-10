@@ -40,6 +40,7 @@ pub mod config;
 pub mod distinct_colors;
 pub mod drawing;
 pub mod graph_algorithms;
+pub mod layoutalg;
 pub mod graph_styles;
 pub mod graph_view;
 pub mod layout;
