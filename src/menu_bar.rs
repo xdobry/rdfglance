@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use const_format::concatcp;
-use egui::{accesskit::Node, global_theme_preference_switch, Align, Key, Layout, Modifiers};
+use egui::{Align, Key, Layout, Modifiers, accesskit::Node, global_theme_preference_switch};
 #[cfg(target_arch = "wasm32")]
 use poll_promise::Promise;
 #[cfg(target_arch = "wasm32")]
@@ -10,7 +10,10 @@ use rfd::AsyncFileDialog;
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-use crate::{graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage};
+use crate::{
+    ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage, graph_algorithms::GraphAlgorithm,
+    graph_view::NodeContextAction, statistics::StatisticsData, style::ICON_LANG,
+};
 
 enum MenuAction {
     None,
@@ -21,7 +24,7 @@ enum MenuAction {
 
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
-        let mut menu_action = MenuAction::None;        
+        let mut menu_action = MenuAction::None;
         ui.input(|i| {
             if i.modifiers.ctrl && i.key_pressed(Key::O) {
                 menu_action = MenuAction::ImportRDF;
@@ -82,15 +85,50 @@ impl RdfGlanceApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Export Edges").clicked() {
                     if let Some(path) = FileDialog::new()
-                     .add_filter("CSV table", &["csv"])
-                    .set_file_name("edges.csv")
-                    .save_file() {
-                        let store_res = self.export_edges(Path::new(path.as_path()));
-                        match store_res {
-                            Err(e) => {
-                                self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                        .add_filter("CSV table", &["csv"])
+                        .set_file_name("edges.csv")
+                        .save_file()
+                    {
+                        if let Ok(rdf_data) = self.rdf_data.read() {
+                            use crate::nobject::LabelContext;
+                            let label_context = LabelContext::new(
+                                self.ui_state.display_language,
+                                self.persistent_data.config_data.iri_display,
+                                &rdf_data.prefix_manager,
+                            );
+                            let store_res =
+                                self.export_edges(Path::new(path.as_path()), &rdf_data.node_data, &label_context);
+                            match store_res {
+                                Err(e) => {
+                                    self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                                }
+                                Ok(_) => {}
                             }
-                            Ok(_) => {
+                        }
+                    }
+                    ui.close_menu();
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui.button("Export Nodes").clicked() {
+                    if let Some(path) = FileDialog::new()
+                        .add_filter("CSV table", &["csv"])
+                        .set_file_name("nodes.csv")
+                        .save_file()
+                    {
+                        if let Ok(rdf_data) = self.rdf_data.read() {
+                            use crate::nobject::LabelContext;
+                            let label_context = LabelContext::new(
+                                self.ui_state.display_language,
+                                self.persistent_data.config_data.iri_display,
+                                &rdf_data.prefix_manager,
+                            );
+                            let store_res =
+                                self.export_nodes(Path::new(path.as_path()), &rdf_data.node_data, &label_context, &self.visualization_style);
+                            match store_res {
+                                Err(e) => {
+                                    self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                                }
+                                Ok(_) => {}
                             }
                         }
                     }
@@ -134,7 +172,7 @@ impl RdfGlanceApp {
             });
             if matches!(self.display_type, crate::DisplayType::Graph) {
                 ui.menu_button("Selection", |ui| {
-                    ui.add_enabled_ui(self.ui_state.selected_node.is_some() , |ui| {
+                    ui.add_enabled_ui(self.ui_state.selected_node.is_some(), |ui| {
                         if ui.button("Lock Position").clicked() {
                             self.ui_state.menu_action = Some(NodeContextAction::ChangeLockPosition(true));
                             ui.close_menu();
@@ -172,15 +210,22 @@ impl RdfGlanceApp {
                     let label = entry.to_string();
                     if ui.button(label).clicked() {
                         if self.visible_nodes.nodes.read().unwrap().is_empty() {
-                            self.system_message = SystemMessage::Info("No data to compute statistics. Add nodes to visual graph".to_string());
+                            self.system_message = SystemMessage::Info(
+                                "No data to compute statistics. Add nodes to visual graph".to_string(),
+                            );
                             ui.close_menu();
                             return;
                         }
                         if self.statistics_data.is_none() {
                             self.statistics_data = Some(StatisticsData::default());
                         }
-                        self.visible_nodes.run_algorithm(entry, &self.visualization_style, 
-                             self.statistics_data.as_mut().unwrap(), &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                        self.visible_nodes.run_algorithm(
+                            entry,
+                            &self.visualization_style,
+                            self.statistics_data.as_mut().unwrap(),
+                            &self.persistent_data.config_data,
+                            &self.ui_state.hidden_predicates,
+                        );
                         // TODO ask for confirmation
                         self.visualization_style.use_size_overwrite = true;
                         self.visualization_style.use_color_overwrite = true;
@@ -188,14 +233,29 @@ impl RdfGlanceApp {
                     }
                 }
                 ui.separator();
-                ui.add_enabled_ui(self.statistics_data.as_ref().is_some_and(|f| !f.results.is_empty()), |ui| {
-                    if ui.checkbox(&mut self.visualization_style.use_size_overwrite, "Node size from statistics").changed() {
-                        self.visible_nodes.update_node_shapes = true;
-                    }
-                    if ui.checkbox(&mut self.visualization_style.use_color_overwrite, "Node color from statistics").changed() {
-                        self.visible_nodes.update_node_shapes = true;
-                    }
-                });
+                ui.add_enabled_ui(
+                    self.statistics_data.as_ref().is_some_and(|f| !f.results.is_empty()),
+                    |ui| {
+                        if ui
+                            .checkbox(
+                                &mut self.visualization_style.use_size_overwrite,
+                                "Node size from statistics",
+                            )
+                            .changed()
+                        {
+                            self.visible_nodes.update_node_shapes = true;
+                        }
+                        if ui
+                            .checkbox(
+                                &mut self.visualization_style.use_color_overwrite,
+                                "Node color from statistics",
+                            )
+                            .changed()
+                        {
+                            self.visible_nodes.update_node_shapes = true;
+                        }
+                    },
+                );
                 ui.separator();
                 if ui.button("Clear Statistics").clicked() {
                     if let Some(statistics_data) = &mut self.statistics_data {
@@ -213,10 +273,13 @@ impl RdfGlanceApp {
                     self.ui_state.about_window = true;
                     ui.close_menu();
                 }
-                ui.hyperlink_to("Manual/Documentation","https://github.com/xdobry/rdfglance/blob/main/documentation/manual.md");
-                ui.hyperlink_to("Report Issue / Feedback","https://github.com/xdobry/rdfglance/issues");
+                ui.hyperlink_to(
+                    "Manual/Documentation",
+                    "https://github.com/xdobry/rdfglance/blob/main/documentation/manual.md",
+                );
+                ui.hyperlink_to("Report Issue / Feedback", "https://github.com/xdobry/rdfglance/issues");
                 consume_keys = true;
-            });   
+            });
             global_theme_preference_switch(ui);
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let selected_language = rdf_data.node_data.get_language(self.ui_state.display_language);
@@ -240,18 +303,18 @@ impl RdfGlanceApp {
                                     }
                                 }
                             });
-                        ui.label(format!("{:.4}",self.ui_state.cpu_usage));
+                        ui.label(format!("{:.4}", self.ui_state.cpu_usage));
                     });
                 }
             }
             // consume keys so they are not processed twice, I do not know why the d
             if consume_keys {
                 ui.ctx().input_mut(|i| {
-                    i.consume_key(Modifiers::NONE,Key::Enter);
-                    i.consume_key(Modifiers::NONE,Key::ArrowDown);
-                    i.consume_key(Modifiers::NONE,Key::ArrowLeft);
-                    i.consume_key(Modifiers::NONE,Key::ArrowRight);
-                    i.consume_key(Modifiers::NONE,Key::ArrowUp);
+                    i.consume_key(Modifiers::NONE, Key::Enter);
+                    i.consume_key(Modifiers::NONE, Key::ArrowDown);
+                    i.consume_key(Modifiers::NONE, Key::ArrowLeft);
+                    i.consume_key(Modifiers::NONE, Key::ArrowRight);
+                    i.consume_key(Modifiers::NONE, Key::ArrowUp);
                 });
             }
         });
@@ -307,12 +370,8 @@ impl RdfGlanceApp {
                 Some(Ok(crate::File { path, data })) => {
                     let language_filter = self.persistent_data.config_data.language_filter();
                     let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-                        let rdfttl = crate::rdfwrap::RDFWrap::load_file_data(
-                            path,
-                            data,
-                            &mut rdf_data,
-                            &language_filter,
-                        );
+                        let rdfttl =
+                            crate::rdfwrap::RDFWrap::load_file_data(path, data, &mut rdf_data, &language_filter);
                         Some(rdfttl)
                     } else {
                         None

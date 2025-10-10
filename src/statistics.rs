@@ -90,8 +90,8 @@ impl RdfGlanceApp {
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("RDF Glance project", &["rdfglance"])
-                        .set_file_name("project.rdfglance")
+                        .add_filter("CSV File", &["csv"])
+                        .set_file_name("statistics.csv")
                         .save_file()
                     {
                         use std::path::Path;
@@ -104,7 +104,7 @@ impl RdfGlanceApp {
                         );
                         match store_res {
                             Err(e) => {
-                                self.system_message = crate::SystemMessage::Error(format!("Can not save project: {}", e));
+                                self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
                             }
                             Ok(_) => {}
                         }
@@ -566,11 +566,11 @@ impl StatisticsData {
 pub fn distribute_to_zoom_layers(values: &Vec<f32>) -> Vec<u8> {
     let mut values_with_indices: Vec<_> = values.iter().enumerate().map(|(i, &v)| (v, i)).collect();
     values_with_indices.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
-    println!("Sorted values: {} {}", values_with_indices[0].0,values_with_indices[0].1);
     let mut layers = vec![0u8; values.len()];
     let data_len = values.len();
     let a = if data_len < 12 { 1 } else { 4 };
     if let Ok(q) = compute_q(values.len() as f64, a as f64, 10, 1e-10, 1000) {
+        let q = if q < 1.0 { 1.0 } else { q };
         let ranges: Vec<(usize, usize)> = {
             let mut ranges = Vec::new();
             let mut pos = 0;
@@ -681,4 +681,126 @@ fn compute_q(sum: f64, a: f64, n: usize, tol: f64, max_iter: usize) -> Result<f6
         }
     }
     Err("No solution found max_iter reached".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeMap};
+
+    use crate::statistics::*;
+    use rand::{seq::SliceRandom, Rng};
+    
+    fn gen_test_data(desc: &Vec<(u32,f32,f32)>) -> Vec<f32> {
+        let mut res = Vec::new();
+        let mut start = 1.0;
+        for (count ,d,start_diff) in desc {
+            start -= start_diff;
+            for _ in 0..*count {
+                start -= *d;
+                res.push(start);
+            }
+        }
+        res
+    }
+
+    fn prepare_dist(desc: &Vec<(u32,f32,f32)>) -> (Vec<u8>,BTreeMap<u8,u32>,u8,u8) {
+        let test_data = gen_test_data(desc);
+        prepare_dist_data(&test_data)
+    }
+
+    fn prepare_dist_data(test_data: &Vec<f32>) -> (Vec<u8>,BTreeMap<u8,u32>,u8,u8) {
+        let layers = distribute_to_zoom_layers(&test_data);
+        assert_eq!(test_data.len(), layers.len());
+        let mut max = 0;
+        let mut min = 10;
+        let mut hist: BTreeMap<u8,u32> = BTreeMap::new();
+        for (l,v) in layers.iter().zip(test_data.iter()) {
+            // println!("Layer: {} {}", l,v);
+            if *l > max {
+                max = *l;
+            }
+            if *l < min {
+                min = *l;
+            }
+            *hist.entry(*l).or_insert(0) += 1;
+        }
+        (layers, hist, min, max)
+    }
+    
+    #[test]
+    fn test_distriute_to_zoo_layers() {
+        // cargo test test_distriute_to_zoo_layers -- --nocapture
+
+        let data = vec![
+            (10, 0.0, 0.0),
+            (2, 0.01, 0.0),
+            (3, 0.01, 0.0),
+            (4, 0.01, 0.0),
+            (5, 0.01, 0.0),
+        ];
+        let (_layers, hist, min, max) = prepare_dist(&data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 6);
+        assert_eq!(5, hist.len());
+
+        let mut data = Vec::new();
+        for _ in 0..1000 {
+            data.push((1, 0.0001, 0.0));
+        }
+        let (layers, hist, min, max) = prepare_dist(&data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 1);
+        assert_eq!(hist.get(&10), Some(&4));
+        assert_eq!(10, hist.len());
+        layers.windows(2).for_each(|w| {
+            assert!(w[0] >= w[1]);
+        });
+
+        let data = vec![(5,0.0, 0.0)];
+        let (_layers, hist, min, max) = prepare_dist(&data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 10);
+        assert_eq!(1, hist.len());
+
+        let data = vec![(1,0.0, 0.0),(5,0.0, 0.1)];
+        let (layers, hist, min, max) = prepare_dist(&data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 9);
+        assert_eq!(2, hist.len());
+        assert_eq!(hist.get(&10), Some(&1));
+        assert_eq!(hist.get(&9), Some(&5));
+        layers.windows(2).for_each(|w| {
+            assert!(w[0] >= w[1]);
+        });
+
+        let data = vec![(5,0.0, 0.0),(1,0.1, 0.0)];
+        let (layers, hist, min, max) = prepare_dist(&data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 9);
+        assert_eq!(2, hist.len());
+        assert_eq!(hist.get(&10), Some(&5));
+        assert_eq!(hist.get(&9), Some(&1));
+        layers.windows(2).for_each(|w| {
+            assert!(w[0] >= w[1]);
+        });
+
+        let mut data = Vec::new();
+        let mut rng = rand::rng();
+        for _ in 0..1000 {
+            data.push((rng.random_range(1..5), 0.0001, 0.0));
+        }
+        let mut test_data = gen_test_data(&data);
+        test_data.shuffle(&mut rng);
+        let (layers, hist, min, max) = prepare_dist_data(&test_data);
+        assert_eq!(max, 10);
+        assert_eq!(min, 1);
+        assert_eq!(10, hist.len());
+        let mut test_data_with_index = test_data.iter().enumerate().map(|(i,v)| (v,i)).collect::<Vec<(&f32,usize)>>();
+        test_data_with_index.sort_by(|a,b| b.0.partial_cmp(a.0).unwrap());
+        let layers_sorted = test_data_with_index.iter().map(|(_v,i)| layers[*i]).collect::<Vec<u8>>();
+        layers_sorted.windows(2).for_each(|w| {
+            assert!(w[0] >= w[1]);
+        });
+
+    }
 }
