@@ -343,6 +343,51 @@ fn genetic_opt(
     population[best_idx].clone()
 }
 
+pub fn find_components(edges: Vec<GEdge>, nodes: Vec<usize>) -> Vec<Vec<usize>> {
+    // --- Union-Find (Disjoint Set Union) structure ---
+    fn find(parent: &mut Vec<usize>, x: usize) -> usize {
+        if parent[x] != x {
+            parent[x] = find(parent, parent[x]); // path compression
+        }
+        parent[x]
+    }
+
+    fn union(parent: &mut Vec<usize>, a: usize, b: usize) {
+        let pa = find(parent, a);
+        let pb = find(parent, b);
+        if pa != pb {
+            parent[pb] = pa;
+        }
+    }
+
+    // --- Step 1: Map node IDs (which might not be contiguous) to indices ---
+    let mut index_map: HashMap<usize, usize> = HashMap::new();
+    for (i, &node) in nodes.iter().enumerate() {
+        index_map.insert(node, i);
+    }
+
+    // --- Step 2: Initialize DSU ---
+    let n = nodes.len();
+    let mut parent: Vec<usize> = (0..n).collect();
+
+    // --- Step 3: Union all connected edges ---
+    for edge in edges {
+        if let (Some(&i_from), Some(&i_to)) = (index_map.get(&edge.from), index_map.get(&edge.to)) {
+            union(&mut parent, i_from, i_to);
+        }
+    }
+
+    // --- Step 4: Find representatives and group nodes ---
+    let mut components_map: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (i, &node) in nodes.iter().enumerate() {
+        let root = find(&mut parent, i);
+        components_map.entry(root).or_default().push(node);
+    }
+
+    // --- Step 5: Return list of components ---
+    components_map.into_values().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::layoutalg::circular::*;
@@ -366,5 +411,19 @@ mod tests {
         let seq_cost = circular_cost_crossing(&seq_order, &edges, 8);
         assert!(opt_cost < seq_cost);
         assert_eq!(8, best_order.len());
+    }
+
+    #[test]
+    fn test_find_components() {
+        let edges = vec![
+            GEdge { from: 1, to: 2 },
+            GEdge { from: 2, to: 3 },
+            GEdge { from: 4, to: 5 },
+        ];
+        let nodes = vec![1, 2, 3, 4, 5, 6];
+
+        let components = find_components(edges, nodes);
+        assert_eq!(3, components.len());
+         println!("{:?}", components);
     }
 }

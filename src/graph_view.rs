@@ -1570,17 +1570,59 @@ impl RdfGlanceApp {
         }
     }
 
-    pub fn export_edges(&self, path: &Path) -> std::io::Result<()> {
-        let mut file = BufWriter::new(File::create(path)?);
-        writeln!(file,"source,target")?;
+    pub fn export_edges(&self, path: &Path, node_data: &NodeData, label_context: &LabelContext) -> std::io::Result<()> {
+        let mut wtr = csv::Writer::from_path(path)?;
+        wtr.write_record(["source", "target","predicate"])?;
         if let Ok(edges) = self.visible_nodes.edges.read() {
             for edge in edges.iter() {
                 if !self.ui_state.hidden_predicates.contains(edge.predicate) {
-                    writeln!(file, "{},{}", edge.from, edge.to)?;
+                    let predicate_label = node_data.predicate_display(edge.predicate, label_context, &node_data.indexers);
+                    wtr.write_field(edge.from.to_string())?;
+                    wtr.write_field(edge.to.to_string())?;
+                    wtr.write_field(predicate_label.as_str())?;
+                    wtr.write_record(None::<&[u8]>)?;
                 }
             }
         }
-        let _ = file.flush();
+        wtr.flush()?;
+        Ok(())
+    }
+
+    pub fn export_nodes(&self, path: &Path, node_data: &NodeData, label_context: &LabelContext, styles: &GVisualizationStyle) -> std::io::Result<()> {
+        let mut wtr = csv::Writer::from_path(path)?;
+        wtr.write_record(["id", "iri","type","label"])?;
+        if let Ok(nodes) = self.visible_nodes.nodes.read() {
+            for (idx,node) in nodes.iter().enumerate() {
+                if let Some((iri, nobject)) = node_data.get_node_by_index(node.node_index) {
+                    wtr.write_field(idx.to_string())?;
+                    let iri_ref: &str = iri;
+                    wtr.write_field(iri_ref)?;
+                    let types = nobject.highest_priority_types(styles);
+                    if types.is_empty() {
+                        wtr.write_field("")?;
+                    } else {
+                        for type_index in types.iter() {
+                            wtr.write_field(
+                                node_data
+                                    .type_display(*type_index, &label_context, &node_data.indexers)
+                                    .as_str(),
+                            )?;
+                            break;
+                        }
+                    }
+                    let node_label = nobject.node_label(
+                        iri_ref,
+                        styles,
+                        true,
+                        label_context.language_index,
+                        &node_data.indexers,
+                    );
+                    wtr.write_field(node_label)?;
+                    wtr.write_record(None::<&[u8]>)?;
+                }
+            }
+        }
+        wtr.flush()?;
         Ok(())
     }
 }

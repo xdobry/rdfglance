@@ -6,21 +6,21 @@ import itertools
 import random
 from typing import List, Tuple, Dict, Iterable
 
-# Evaluate problem of optimal ordering for cicural layout using different methods
+# Evaluate problem of optimal ordering for circular layout using different methods
 # The optimal criteria is edge length
 # The finding of optimal order by bruce force is n! so it is possible only till 8-10 nodes
 
 # Open points
-# 1) For sparse graph - the graph could be devided into sub graphs using articulation points. Find components first and handle it seperatelly
+# 1) For sparse graph - the graph could be divided into sub graphs using articulation points. Find components first and handle it separately
 #    The problem is that connecting edge is not using im optimization
-# 2) Use genetic algrithms (also for minimizing crossing points)
+# 2) Use genetic algorithms (also for minimizing crossing points)
 #    - gain function is clear
-#    - mutation (just swaping edges)
+#    - mutation (just swapping edges)
 #    - how combine ordering, find best common suborders and preserve them
 # 3) Try sequential placement (greedy)
 #    - how start (choose start node) - should be central
 #    - choose the longest path first
-#    - can the fidler vactor be usefull to choose the branch
+#    - can the fidler vector be useful to choose the branch
 #
 # Finding
 # TSP - can not find the optima
