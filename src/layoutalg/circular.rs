@@ -17,6 +17,10 @@ struct GEdge {
     to: usize,
 }
 
+/**
+ * It does not only order the nodes in circle but uses genetic algorithms
+ * to find be order this way that the sum lenght of edges and amount of crossing are minimal
+ */
 pub fn circular_layout(
     visible_nodes: &mut SortedNodeLayout,
     selected_nodes: &BTreeSet<IriIndex>,
@@ -53,12 +57,23 @@ pub fn circular_layout(
     }
     let circle_center = rect.center();
     let circle_radius = rect.center().distance(rect.min);
-    let best_order = genetic_opt(&edges, 50, 100, 0.5, 0.01);
+    let mut order: Vec<usize> = Vec::with_capacity(node_indexes.len());
+    let components = find_components(&edges, &node_indexes);
+    for component in components.iter() {
+        if component.len()>2 {
+            let comp_edges = edges.iter().filter(|e| component.contains(&e.from) || component.contains(&e.to)).map(|e| GEdge { from: e.from, to: e.to }).collect();
+            let best_order = genetic_opt(&comp_edges, 50, 100, 0.5, 0.01);
+            order.extend(best_order);
+        } else {
+            order.extend(component);
+        }
+    }
+
     // let best_order = genetic_opt(&edges, 100, 1, 0.0, 0.0);
     if let Ok(mut positions) = visible_nodes.positions.write() {
         let circle_positions = circle_positions(circle_center, circle_radius, node_indexes.len());
         for (index, position) in circle_positions.iter().enumerate() {
-            positions[best_order[index]].pos = *position;
+            positions[order[index]].pos = *position;
         }
     }
 }
@@ -126,47 +141,9 @@ fn circular_distance_by_index(i: usize, j: usize, n: usize) -> f64 {
     d.min(n as f64 - d)
 }
 
-fn circular_cost_crossing(order: &Vec<usize>, edges: &Vec<GEdge>, n: usize) -> f64 {
-    let pos: HashMap<usize, usize> = order.iter().enumerate().map(|(i, &node)| (node, i)).collect();
-
-    let mut total = 0.0;
-
-    for edge in edges.iter() {
-        total += circular_distance_by_index(pos[&edge.from], pos[&edge.to], n);
-    }
-
-    // count crossings
-    let mut crossings = 0;
-    for i in 0..edges.len() {
-        let edge1 = &edges[i];
-        let (a, b) = { 
-            let p1 = pos[&edge1.from];
-            let p2 = pos[&edge1.to];
-            (p1.min(p2), p1.max(p2)) 
-        };
-        for j in (i + 1)..edges.len() {
-            let edge2 = &edges[j];
-            let (c, d) = { 
-                let p1 = pos[&edge2.from];
-                let p2 = pos[&edge2.to];
-                (p1.min(p2), p1.max(p2)) 
-            };
-            if (a < c && c < b && b < d) || (c < a && a < d && d < b) {
-                crossings += 1;
-            }
-        }
-    }
-
-    total + crossings as f64
-}
-
 fn circular_cost_crossing_sweepline(order: &[usize], edges: &[GEdge], n: usize) -> f64 {
     // position map
-    let pos: HashMap<usize, usize> = order
-        .iter()
-        .enumerate()
-        .map(|(i, &node)| (node, i))
-        .collect();
+    let pos: HashMap<usize, usize> = order.iter().enumerate().map(|(i, &node)| (node, i)).collect();
 
     // --- edge lengths ---
     let mut total = 0.0;
@@ -193,28 +170,25 @@ fn circular_cost_crossing_sweepline(order: &[usize], edges: &[GEdge], n: usize) 
         })
         .collect();
 
-    // --- sweep line ---
     intervals.sort_by_key(|iv| iv.start); // sort by start position
 
-    let mut active_ends = BTreeSet::new();
+    let mut active_ends: Vec<Interval> = Vec::new();
     let mut crossings = 0;
 
     for iv in intervals {
         // all active intervals with end > iv.start are crossing with iv
-        crossings += active_ends.range((iv.start + 1)..).count();
+        crossings += active_ends.iter().filter(| i | {
+            let crossing = i.start<iv.start && iv.start<i.end && iv.end>i.end;
+            /*
+            if crossing {
+                println!("crossing iv={}-{} i={}-{}",iv.start,iv.end,i.start,i.end)
+            }
+             */
+            crossing
+        }).count();
+        active_ends.push(iv);
 
-        // insert this interval's end
-        active_ends.insert(iv.end);
-
-        // remove intervals that are fully finished (optional optimization)
-        let finished: Vec<usize> = active_ends
-            .iter()
-            .copied()
-            .filter(|&e| e <= iv.start)
-            .collect();
-        for e in finished {
-            active_ends.remove(&e);
-        }
+        active_ends.retain(|i |  i.end>=iv.start);
     }
 
     total + crossings as f64
@@ -275,41 +249,22 @@ fn genetic_opt(
     let (adj_map, start_node) = gen_adj_start_node(&edges);
     let mut rng = rand::rng();
     let n = adj_map.keys().len();
+    let mutation_rate = mutation_rate * 10.0 / n as f64;
 
     let mut population: Vec<Vec<usize>> = (0..population_size)
         .map(|_| random_dfs(&adj_map, start_node, &mut rng))
         .collect();
 
     let mut best_fitness = f64::INFINITY;
+    let mut best_generation : Vec<usize> = (0..n).collect();
     let mut stagnation = 0;
-    let max_stagnation = 25;
+    let max_stagnation = 15;
 
     for generation in 0..generations {
         let fitnesses: Vec<f64> = population
             .iter()
-            .map(|ind| circular_cost_crossing(ind, &edges, n))
+            .map(|ind| circular_cost_crossing_sweepline(ind, &edges, n))
             .collect();
-
-        // TODO save the best found individual so far (because of stagnation)
-
-        let current_best = fitnesses
-            .iter()
-            .copied()
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
-        println!("Gen {}: best fitness = {:.4}", generation, current_best);
-
-        if current_best < best_fitness {
-            best_fitness = current_best;
-            stagnation = 0; // reset counter
-        } else {
-            stagnation += 1;
-        }
-
-        if stagnation >= max_stagnation {
-            println!("Stopping: no improvement in {} generations", max_stagnation);
-            break;
-        }
 
         let mut new_population = Vec::new();
         while new_population.len() < population_size {
@@ -327,23 +282,34 @@ fn genetic_opt(
         }
 
         population = new_population;
-    }
 
-    let mut best_idx = 0;
-    let mut best_fit = f64::INFINITY;
+        let mut best_idx = 0;
+        let mut current_best = f64::INFINITY;
+        for (i, fit) in fitnesses.iter().enumerate() {
+            if *fit < current_best {
+                current_best = *fit;
+                best_generation.clone_from_slice(&population[best_idx]);
+                best_idx = i;
+            }
+        }
+        // println!("Gen {}: best fitness = {:.4}", generation, current_best);
+        if current_best < best_fitness {
+            best_fitness = current_best;
+            stagnation = 0; // reset counter
 
-    for (i, ind) in population.iter().enumerate() {
-        let fit = circular_cost_crossing(ind, &edges, n);
-        if fit < best_fit {
-            best_fit = fit;
-            best_idx = i;
+        } else {
+            stagnation += 1;
+        }
+        if stagnation >= max_stagnation {
+            // println!("Stopping: no improvement in {} generations", max_stagnation);
+            break;
         }
     }
 
-    population[best_idx].clone()
+    best_generation
 }
 
-pub fn find_components(edges: Vec<GEdge>, nodes: Vec<usize>) -> Vec<Vec<usize>> {
+pub fn find_components(edges: &Vec<GEdge>, nodes: &Vec<usize>) -> Vec<Vec<usize>> {
     // --- Union-Find (Disjoint Set Union) structure ---
     fn find(parent: &mut Vec<usize>, x: usize) -> usize {
         if parent[x] != x {
@@ -390,6 +356,40 @@ pub fn find_components(edges: Vec<GEdge>, nodes: Vec<usize>) -> Vec<Vec<usize>> 
 
 #[cfg(test)]
 mod tests {
+    fn circular_cost_crossing(order: &Vec<usize>, edges: &Vec<GEdge>, n: usize) -> f64 {
+        let pos: HashMap<usize, usize> = order.iter().enumerate().map(|(i, &node)| (node, i)).collect();
+
+        let mut total = 0.0;
+
+        for edge in edges.iter() {
+            total += circular_distance_by_index(pos[&edge.from], pos[&edge.to], n);
+        }
+
+        // count crossings
+        let mut crossings = 0;
+        for i in 0..edges.len() {
+            let edge1 = &edges[i];
+            let (a, b) = {
+                let p1 = pos[&edge1.from];
+                let p2 = pos[&edge1.to];
+                (p1.min(p2), p1.max(p2))
+            };
+            for j in (i + 1)..edges.len() {
+                let edge2 = &edges[j];
+                let (c, d) = {
+                    let p1 = pos[&edge2.from];
+                    let p2 = pos[&edge2.to];
+                    (p1.min(p2), p1.max(p2))
+                };
+                if (a < c && c < b && b < d) || (c < a && a < d && d < b) {
+                    crossings += 1;
+                }
+            }
+        }
+
+        total + crossings as f64
+    }
+
     use crate::layoutalg::circular::*;
     #[test]
     fn test_circular_opt() {
@@ -404,11 +404,15 @@ mod tests {
             GEdge { from: 6, to: 2 },
             GEdge { from: 3, to: 2 },
         ];
+        let seq_order: Vec<usize> = (0..8).collect();
+        let seq_cost = circular_cost_crossing_sweepline(&seq_order, &edges, 8);
+        let seq_cost2 = circular_cost_crossing(&seq_order, &edges, 8);
+        assert_eq!(seq_cost, seq_cost2);
+
         let best_order = genetic_opt(&edges, 100, 200, 0.8, 0.1);
-        let opt_cost = circular_cost_crossing(&best_order, &edges, 8);
-        let mut seq_order = best_order.clone();
-        seq_order.sort();
-        let seq_cost = circular_cost_crossing(&seq_order, &edges, 8);
+        let opt_cost = circular_cost_crossing_sweepline(&best_order, &edges, 8);
+        let opt_cost2 = circular_cost_crossing(&best_order, &edges, 8);
+        assert_eq!(opt_cost, opt_cost2);
         assert!(opt_cost < seq_cost);
         assert_eq!(8, best_order.len());
     }
@@ -422,8 +426,8 @@ mod tests {
         ];
         let nodes = vec![1, 2, 3, 4, 5, 6];
 
-        let components = find_components(edges, nodes);
+        let components = find_components(&edges, &nodes);
         assert_eq!(3, components.len());
-         println!("{:?}", components);
+        println!("{:?}", components);
     }
 }
