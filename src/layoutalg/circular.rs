@@ -139,13 +139,81 @@ fn circular_cost_crossing(order: &Vec<usize>, edges: &Vec<GEdge>, n: usize) -> f
     let mut crossings = 0;
     for i in 0..edges.len() {
         let edge1 = &edges[i];
-        let (a, b) = { (edge1.from.min(edge1.to), edge1.from.max(edge1.to)) };
+        let (a, b) = { 
+            let p1 = pos[&edge1.from];
+            let p2 = pos[&edge1.to];
+            (p1.min(p2), p1.max(p2)) 
+        };
         for j in (i + 1)..edges.len() {
             let edge2 = &edges[j];
-            let (c, d) = { (edge2.from.min(edge2.to), edge2.from.max(edge2.to)) };
+            let (c, d) = { 
+                let p1 = pos[&edge2.from];
+                let p2 = pos[&edge2.to];
+                (p1.min(p2), p1.max(p2)) 
+            };
             if (a < c && c < b && b < d) || (c < a && a < d && d < b) {
                 crossings += 1;
             }
+        }
+    }
+
+    total + crossings as f64
+}
+
+fn circular_cost_crossing_sweepline(order: &[usize], edges: &[GEdge], n: usize) -> f64 {
+    // position map
+    let pos: HashMap<usize, usize> = order
+        .iter()
+        .enumerate()
+        .map(|(i, &node)| (node, i))
+        .collect();
+
+    // --- edge lengths ---
+    let mut total = 0.0;
+    for edge in edges.iter() {
+        total += circular_distance_by_index(pos[&edge.from], pos[&edge.to], n);
+    }
+
+    // --- prepare intervals ---
+    #[derive(Clone, Copy)]
+    struct Interval {
+        start: usize,
+        end: usize,
+    }
+
+    let mut intervals: Vec<Interval> = edges
+        .iter()
+        .map(|e| {
+            let p1 = pos[&e.from];
+            let p2 = pos[&e.to];
+            Interval {
+                start: p1.min(p2),
+                end: p1.max(p2),
+            }
+        })
+        .collect();
+
+    // --- sweep line ---
+    intervals.sort_by_key(|iv| iv.start); // sort by start position
+
+    let mut active_ends = BTreeSet::new();
+    let mut crossings = 0;
+
+    for iv in intervals {
+        // all active intervals with end > iv.start are crossing with iv
+        crossings += active_ends.range((iv.start + 1)..).count();
+
+        // insert this interval's end
+        active_ends.insert(iv.end);
+
+        // remove intervals that are fully finished (optional optimization)
+        let finished: Vec<usize> = active_ends
+            .iter()
+            .copied()
+            .filter(|&e| e <= iv.start)
+            .collect();
+        for e in finished {
+            active_ends.remove(&e);
         }
     }
 
@@ -222,7 +290,7 @@ fn genetic_opt(
             .map(|ind| circular_cost_crossing(ind, &edges, n))
             .collect();
 
-        // TODO safe the best found individual so far (because of stagnation)
+        // TODO save the best found individual so far (because of stagnation)
 
         let current_best = fitnesses
             .iter()
@@ -246,9 +314,9 @@ fn genetic_opt(
         let mut new_population = Vec::new();
         while new_population.len() < population_size {
             let parent1 = select(&population, &fitnesses, &mut rng);
-            let parent2 = select(&population, &fitnesses, &mut rng);
 
             let mut child = if rng.random::<f64>() < crossover_rate {
+                let parent2 = select(&population, &fitnesses, &mut rng);
                 crossover(&parent1, &parent2, &mut rng)
             } else {
                 parent1.clone()
