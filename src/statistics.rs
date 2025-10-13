@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cmp::min};
 
 use const_format::concatcp;
-use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, TextBuffer, Vec2};
+use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{

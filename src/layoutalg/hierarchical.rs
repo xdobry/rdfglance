@@ -1,14 +1,20 @@
 use std::collections::BTreeSet;
 
-use egui::{Pos2, Rect};
+use egui::Pos2;
 
 use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
 use rust_sugiyama::{configure::Config, from_vertices_and_edges};
+
+pub enum LayoutOrientation {
+    Horizontal,
+    Vertical
+}
 
 pub fn hierarchical_layout(
     visible_nodes: &mut SortedNodeLayout,
     selected_nodes: &BTreeSet<IriIndex>,
     hidden_predicates: &SortedVec,
+    layout_orientation: LayoutOrientation,
 ) {
     let node_indexes: Vec<(u32,(f64,f64))> = if let Ok(nodes) = visible_nodes.nodes.read() {
         if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
@@ -16,7 +22,17 @@ pub fn hierarchical_layout(
                 .iter()
                 .filter_map(|selected_node| {
                     match nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)) {
-                        Ok(idx) => Some((idx as u32,(node_shapes[idx].size.x as f64,node_shapes[idx].size.y as f64))),
+                        Ok(idx) => {
+                            let size = match layout_orientation {
+                                LayoutOrientation::Horizontal => {
+                                    (node_shapes[idx].size.x as f64,node_shapes[idx].size.y as f64)
+                                },
+                                LayoutOrientation::Vertical => {
+                                    (node_shapes[idx].size.y as f64,node_shapes[idx].size.x as f64)
+                                }
+                            };
+                            Some((idx as u32,size))
+                        },
                         Err(_) => None,
                     }
                 })
@@ -50,7 +66,15 @@ pub fn hierarchical_layout(
     for (layout, _width, _height) in layouts {
         if let Ok(mut positions) = visible_nodes.positions.write() {
             for (node_index, (x, y)) in layout {
-                positions[node_index].pos = Pos2::new(x as f32, -y as f32);
+                let position = match layout_orientation {
+                    LayoutOrientation::Horizontal => {
+                        Pos2::new(x as f32, -y as f32)
+                    },
+                    LayoutOrientation::Vertical => {
+                        Pos2::new(-y as f32, x as f32)
+                    }
+                };
+                positions[node_index].pos = position;
             }
         }
     }

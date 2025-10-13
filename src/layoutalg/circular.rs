@@ -260,7 +260,7 @@ fn genetic_opt(
     let mut stagnation = 0;
     let max_stagnation = 15;
 
-    for generation in 0..generations {
+    for _generation in 0..generations {
         let fitnesses: Vec<f64> = population
             .iter()
             .map(|ind| circular_cost_crossing_sweepline(ind, &edges, n))
@@ -309,7 +309,7 @@ fn genetic_opt(
     best_generation
 }
 
-pub fn find_components(edges: &Vec<GEdge>, nodes: &Vec<usize>) -> Vec<Vec<usize>> {
+fn find_components(edges: &Vec<GEdge>, nodes: &Vec<usize>) -> Vec<Vec<usize>> {
     // --- Union-Find (Disjoint Set Union) structure ---
     fn find(parent: &mut Vec<usize>, x: usize) -> usize {
         if parent[x] != x {
