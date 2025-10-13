@@ -3067,6 +3067,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset",
+ "hashbrown",
+ "indexmap",
+ "serde",
+]
+
+[[package]]
 name = "phf"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3474,6 +3486,7 @@ dependencies = [
  "rayon",
  "reqwest",
  "rfd",
+ "rust-sugiyama",
  "serde",
  "serde_json",
  "string-interner",
@@ -3607,6 +3620,16 @@ dependencies = [
  "bitflags 2.9.0",
  "serde",
  "serde_derive",
+]
+
+[[package]]
+name = "rust-sugiyama"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a81a3e22e7b3e9218ae4d1a3640a7e7ad142e120acd03e5e66d231d5861598b1"
+dependencies = [
+ "log",
+ "petgraph",
 ]
 
 [[package]]
