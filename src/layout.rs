@@ -786,6 +786,7 @@ impl SortedNodeLayout {
                     let nodes = nodes_clone.read().unwrap();
                     let node_shapes = node_shapes_clone.read().unwrap();
                     let edges = edges_clone.read().unwrap();
+                    println!("start layout");
                     layout_graph_nodes(
                         &nodes,
                         &node_shapes,
@@ -796,6 +797,7 @@ impl SortedNodeLayout {
                         temperature,
                     )
                 };
+                println!("layout step done");
                 if stop_layout.load(Ordering::Relaxed) {
                     // println!("Layout stoppend");
                     break;
@@ -1271,6 +1273,8 @@ pub fn layout_graph_nodes(
         })
         .collect();
 
+    println!("repulsive force built");
+
     for edge in edges.iter() {
         if edge.from != edge.to && !hidden_predicates.contains(edge.predicate) {
             let node_from = &node_shapes[edge.from];
@@ -1285,6 +1289,8 @@ pub fn layout_graph_nodes(
             forces[edge.to] += force_v;
         }
     }
+
+    println!("attractive forces added");
 
     let max_move = AtomicF32::new(0.0);
 

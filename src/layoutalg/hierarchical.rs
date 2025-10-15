@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use egui::{Pos2, Rect};
+use egui::Pos2;
 
 use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
 use rust_sugiyama::{configure::Config, from_vertices_and_edges};

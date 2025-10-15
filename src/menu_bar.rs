@@ -11,7 +11,7 @@ use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
 use crate::{
-    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::{circular::circular_layout, hierarchical::hierarchical_layout}, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
+    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::{circular::circular_layout, hierarchical::hierarchical_layout, spectral::spectral_layout}, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
 };
 
 enum MenuAction {
@@ -197,7 +197,8 @@ impl RdfGlanceApp {
                             ui.close_menu();
                         }
                     });
-                    if ui.button("Select All").clicked() {
+                    if ui.button("Select All Ctrl-A").clicked()
+                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::A)) {
                         self.visible_nodes.select_all(&mut self.ui_state);
                         ui.close_menu();
                     }
@@ -209,6 +210,10 @@ impl RdfGlanceApp {
                         }
                         if ui.button("Hierarchical Layout").clicked() {
                             hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
+                            ui.close_menu();
+                        }
+                         if ui.button("Spectral Layout").clicked() {
+                            spectral_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
                             ui.close_menu();
                         }
                     });

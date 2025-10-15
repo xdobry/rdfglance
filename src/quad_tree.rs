@@ -83,7 +83,12 @@ impl BHQuadtree {
         while n < self.nodes.len() {
             let range = self.nodes[n].items.clone();
             if range.len() > node_capacity {
-                self.subdivide(n, range);
+                if !self.subdivide(n, range) {
+                    for i in self.nodes[n].items.clone() {
+                        self.nodes[n].cm.pos += self.items[i].pos * self.items[i].mass;
+                        self.nodes[n].cm.mass += self.items[i].mass;
+                    }
+                }
             } else {
                 for i in range {
                     self.nodes[n].cm.pos += self.items[i].pos * self.items[i].mass;
@@ -92,7 +97,6 @@ impl BHQuadtree {
             }
             n += 1;
         }
-
         for &n in self.internal_nodes.iter().rev() {
             let c = self.nodes[n].children;
             for i in 0..4 {
@@ -138,7 +142,7 @@ impl BHQuadtree {
         acc
     }
 
-    fn subdivide(&mut self, n: usize, range: Range<usize>) {
+    fn subdivide(&mut self, n: usize, range: Range<usize>) -> bool {
         let c = self.nodes.len();
         self.nodes[n].children = c;
         self.internal_nodes.push(n);
@@ -154,12 +158,26 @@ impl BHQuadtree {
         split[1] = split[0] + self.items[split[0]..split[2]].partition(predicate);
         split[3] = split[2] + self.items[split[2]..split[4]].partition(predicate);
 
+        let range_len = range.end-range.start;
+        if split[2]-split[1] == range_len 
+            || split[3]-split[2] == range_len 
+            || split[4]-split[3] == range_len
+            || split[1]-split[0] == range_len {
+            // all nodes have same position, so we can not subdivide further           
+            if self.items[split[0]].pos == self.items[split[4]-1].pos {
+                self.nodes[n].children = 0;
+                println!("waste subdivision prevended");
+                return false;
+            }
+        }
+
         let bounds = quarter(&self.nodes[n].bound);
         let nexts = [c + 1, c + 2, c + 3, self.nodes[n].next];
         for i in 0..4 {
             let items = split[i]..split[i + 1];
             self.nodes.push(Node::new(bounds[i], items, nexts[i]));
         }
+        true
     }
 }
 
@@ -265,6 +283,53 @@ mod tests {
                 }
                 acc2 += force_fn(target, *item);
             }
+            assert!((acc-acc2).length()< 0.05); // Allow some tolerance for floating point errors and quad approximation
+        }
+    }
+
+    #[test]
+    fn test_quad_tree_problem() {
+        use super::*;
+        let mut tree = BHQuadtree::new(0.5);
+        let mut items = vec![
+            WeightedPoint::new(Vec2::new(1.0, 1.0), 1.0),
+            WeightedPoint::new(Vec2::new(2.0, 2.0), 1.0),
+            WeightedPoint::new(Vec2::new(-2.0, -2.0), 1.0),
+            WeightedPoint::new(Vec2::new(3.0, 3.0), 1.0),
+            WeightedPoint::new(Vec2::new(-5.0, 3.0), 1.0),
+        ];
+        for _ in 0..5 {
+            items.push(WeightedPoint::new(Vec2::new(-2.0,-2.0),1.0));
+        }
+
+        tree.build(items, 2);
+
+        let targets = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(-2.5, -2.5),
+            Vec2::new(3.5, 3.5),
+            Vec2::new(20.5, 20.5),
+            Vec2::new(1.0, 1.0),
+        ];
+
+        let force_fn = |target: Vec2, source: WeightedPoint| {
+            // compute repulsive force
+            let dir = target - source.pos;
+            let dist2 = dir.length_sq().max(1e-4);
+            let force_mag = (source.mass) / dist2;
+            dir.normalized() * force_mag
+        };
+
+        for target in targets {
+            let acc = tree.accumulate(target, force_fn);
+            let mut acc2 = Vec2::ZERO;
+            for item in &tree.items {
+                if target == item.pos {
+                    continue; // Skip self
+                }
+                acc2 += force_fn(target, *item);
+            }
+            
             assert!((acc-acc2).length()< 0.05); // Allow some tolerance for floating point errors and quad approximation
         }
     }
