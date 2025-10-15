@@ -790,7 +790,7 @@ impl RdfGlanceApp {
     }
 }
 
-enum ExpandType {
+pub enum ExpandType {
     References,
     ReverseReferences,
     Both,

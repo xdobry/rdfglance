@@ -11,7 +11,7 @@ use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
 use crate::{
-    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::{circular::circular_layout, hierarchical::hierarchical_layout, spectral::spectral_layout}, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
+    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::{circular::circular_layout, hierarchical::{hierarchical_layout, LayoutOrientation}, spectral::spectral_layout}, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
 };
 
 enum MenuAction {
@@ -208,8 +208,12 @@ impl RdfGlanceApp {
                             circular_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
                             ui.close_menu();
                         }
-                        if ui.button("Hierarchical Layout").clicked() {
-                            hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
+                        if ui.button("Hierarchical Layout Horizontal").clicked() {
+                            hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates, LayoutOrientation::Horizontal);
+                            ui.close_menu();
+                        }
+                        if ui.button("Hierarchical Layout Vertical").clicked() {
+                            hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates,LayoutOrientation::Vertical);
                             ui.close_menu();
                         }
                          if ui.button("Spectral Layout").clicked() {

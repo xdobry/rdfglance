@@ -1,4 +1,4 @@
-use std::{collections::{BTreeSet, HashMap, HashSet}, fs::File, io::{BufWriter, Write}, path::Path};
+use std::{collections::{BTreeSet, HashMap, HashSet}, path::Path};
 
 use crate::{
     config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{
