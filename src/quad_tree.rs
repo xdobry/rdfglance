@@ -163,10 +163,9 @@ impl BHQuadtree {
             || split[3]-split[2] == range_len 
             || split[4]-split[3] == range_len
             || split[1]-split[0] == range_len {
-            // all nodes have same position, so we can not subdivide further           
-            if self.items[split[0]].pos == self.items[split[4]-1].pos {
+            // all nodes have same position, so we can not subdivide further
+            if self.items[range].windows(2).all(|w| w[0].pos == w[1].pos) {
                 self.nodes[n].children = 0;
-                println!("waste subdivision prevended");
                 return false;
             }
         }

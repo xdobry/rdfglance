@@ -1,5 +1,5 @@
 use crate::{
-    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{distribute_to_zoom_layers, StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec, UIState
+    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{self, distribute_to_zoom_layers, StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec, UIState
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -969,6 +969,12 @@ impl SortedNodeLayout {
                                 statistics_data
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                                if let Some(parameters) = cluster.parameters {
+                                    statistics_data.results.push(StatisticsResult::new_for_values(
+                                        parameters,
+                                        graph_algorithm.get_statistics_values()[1],
+                                    ));
+                                }
                             } else {
                                 let values: Vec<f32> = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
@@ -985,10 +991,11 @@ impl SortedNodeLayout {
                             statistics_data.data_epoch = self.data_epoch;
                         }
                     } else {
+                        let statistic_value = graph_algorithm.get_statistics_values()[0];
                         let result = statistics_data
                             .results
                             .iter()
-                            .find(|res| res.graph_algorithm() == graph_algorithm);
+                            .find(|res| res.statistics_value() == statistic_value);
                         if let Some(result) = result {
                             // no action needed the data is already in result but we need to set the individual node styles
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
@@ -1028,6 +1035,17 @@ impl SortedNodeLayout {
                                 statistics_data
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                                if let Some(parameters) = cluster.parameters {
+                                    let values = statistics_data
+                                        .nodes
+                                        .iter()
+                                        .map(|(_iri, pos)| parameters[*pos as usize])
+                                        .collect::<Vec<f32>>();
+                                    statistics_data.results.push(StatisticsResult::new_for_values(
+                                        values,
+                                        graph_algorithm.get_statistics_values()[1],
+                                    ));
+                                }
                             } else {
                                 let values = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 // the values could be already resorted so use position index to get them in right order

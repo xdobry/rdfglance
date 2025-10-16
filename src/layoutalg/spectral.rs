@@ -79,7 +79,7 @@ pub fn rescale_layout(mut pos: DMatrix<f64>, scale: f64) -> DMatrix<f64> {
 
 /// Compute unnormalized graph Laplacian from adjacency matrix.
 /// Assumes adjacency is symmetric and has zeros on diagonal for simple graphs.
-fn laplacian_from_adjacency(adj: &DMatrix<f64>) -> DMatrix<f64> {
+pub fn laplacian_from_adjacency(adj: &DMatrix<f64>) -> DMatrix<f64> {
     assert_eq!(adj.nrows(), adj.ncols(), "adjacency must be square");
     let n = adj.nrows();
     let mut lap = DMatrix::<f64>::zeros(n, n);

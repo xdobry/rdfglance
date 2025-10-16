@@ -66,6 +66,7 @@ impl Modularity {
         ClusterResult {
             cluster_size: self.communities.len() as u32,
             node_cluster: self.origin_nodes_community.clone(),
+            parameters: None,
         }
     }
 
