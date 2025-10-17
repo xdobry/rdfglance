@@ -838,6 +838,9 @@ impl RdfGlanceApp {
                         } else if input.key_pressed(egui::Key::PageDown) {
                             zoom = Some(1.1);
                         }
+                        if input.modifiers.command && input.key_pressed(Key::A) {
+                            self.visible_nodes.select_all(&mut self.ui_state);
+                        }
                         // There is currently not defined key for opening context menu so use Shift + F10
                         if input.modifiers.shift && input.key_pressed(egui::Key::F10) {
                             if let Some(selected_index) = self.ui_state.selected_node {
@@ -1920,7 +1923,7 @@ impl NeighborPos {
     pub fn add_many(
         &mut self,
         node_layout: &mut SortedNodeLayout,
-        nodes_to_add: &[(IriIndex, IriIndex)],
+        nodes_to_add: &[(IriIndex, IriIndex)], // (parent_iri - already in layout, iri)
         config: &Config,
     ) -> bool {
         node_layout.add_many(nodes_to_add, config, |(parent_index, node_index)| {

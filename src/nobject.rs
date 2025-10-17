@@ -42,7 +42,7 @@ impl Literal {
 
 pub type ObjectType = Literal;
 pub type PredicateLiteral = (IriIndex, ObjectType);
-pub type PredicateReference = (IriIndex, IriIndex);
+pub type PredicateReference = (IriIndex, IriIndex); // (predicate_index, referenced_node_index)
 
 
 pub struct NObject {

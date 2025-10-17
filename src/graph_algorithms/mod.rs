@@ -7,6 +7,7 @@ pub mod eigenvector;
 pub mod page_rank;
 pub mod louvain;
 pub mod spectral_clustering;
+pub mod find_connections;
 
 use crate::{config::Config, graph_algorithms::utils::normalize, layout::Edge, SortedVec};
 use strum_macros::{EnumIter, Display};

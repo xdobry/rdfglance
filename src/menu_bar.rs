@@ -197,8 +197,7 @@ impl RdfGlanceApp {
                             ui.close_menu();
                         }
                     });
-                    if ui.button("Select All Ctrl-A").clicked()
-                        || ui.input(|i| i.modifiers.command && i.key_pressed(Key::A)) {
+                    if ui.button("Select All Ctrl-A").clicked() {
                         self.visible_nodes.select_all(&mut self.ui_state);
                         ui.close_menu();
                     }
@@ -221,7 +220,13 @@ impl RdfGlanceApp {
                             ui.close_menu();
                         }
                     });
-
+                    ui.separator();
+                    ui.add_enabled_ui(self.ui_state.selected_nodes.len()>=2 , |ui| {
+                        if ui.button("Find Shortest Connections").clicked() {
+                            self.find_connections();
+                            ui.close_menu();
+                        }
+                    });
                     consume_keys = true;
                 });
             }

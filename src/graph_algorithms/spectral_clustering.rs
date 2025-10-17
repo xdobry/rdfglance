@@ -20,8 +20,6 @@ pub fn cluster_spectral(nodes_len: u32, edges: &[Edge], config: &Config, hidden_
     let sigma = variance.sqrt();
     let threshold = config.community_resolution * sigma;
 
-    // Simple 2-means clustering on the Fiedler vector
-    
     let clusters = cluster_fiedler(&fiedler_vector, threshold, (nodes_len / 3) as usize);
     let mut node_cluster: Vec<u32> = vec![0; nodes_len as usize];
     for (i, cluster) in clusters.iter().enumerate() {
