@@ -3602,6 +3602,7 @@ dependencies = [
  "getrandom 0.3.2",
  "image",
  "indexmap",
+ "js-sys",
  "lanczos",
  "leb128",
  "nalgebra",

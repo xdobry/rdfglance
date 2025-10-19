@@ -763,7 +763,7 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
-                last_visited_selection: LastVisitedSelection::File(0),
+                last_visited_selection: LastVisitedSelection::None,
                 menu_action: None,
                 selection_start_rect: None,
                 translate_drag: None,       
@@ -1174,6 +1174,10 @@ impl RdfGlanceApp {
                     LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
             }
         }
+        if matches!(self.ui_state.last_visited_selection,LastVisitedSelection::None) && self.persistent_data.last_files.len()>0 {
+            self.ui_state.last_visited_selection = LastVisitedSelection::File(0);
+        }
+
         ui.input(|i| {
             if i.key_pressed(egui::Key::Enter) {
                 enter_pressed = true;

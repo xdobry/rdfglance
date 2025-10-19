@@ -45,3 +45,4 @@ getrandom_2 = { package="getrandom", version = "0.2.16", features = ["js"] }
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["UrlSearchParams", "Window", "Location"] }
 poll-promise = { version = "0.3", features = ["web"] }
+js-sys = "0.3"

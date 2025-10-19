@@ -1,4 +1,4 @@
-use std::{collections::{BTreeSet, HashMap, HashSet}, path::Path};
+use std::{collections::{BTreeSet, HashMap, HashSet}, io, path::Path};
 
 use crate::{
     config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{
@@ -1573,8 +1573,7 @@ impl RdfGlanceApp {
         }
     }
 
-    pub fn export_edges(&self, path: &Path, node_data: &NodeData, label_context: &LabelContext) -> std::io::Result<()> {
-        let mut wtr = csv::Writer::from_path(path)?;
+    pub fn export_edges<W: io::Write>(&self,  wtr: &mut csv::Writer<W>, node_data: &NodeData, label_context: &LabelContext) -> std::io::Result<()> {
         wtr.write_record(["source", "target","predicate"])?;
         if let Ok(edges) = self.visible_nodes.edges.read() {
             for edge in edges.iter() {
@@ -1591,8 +1590,7 @@ impl RdfGlanceApp {
         Ok(())
     }
 
-    pub fn export_nodes(&self, path: &Path, node_data: &NodeData, label_context: &LabelContext, styles: &GVisualizationStyle) -> std::io::Result<()> {
-        let mut wtr = csv::Writer::from_path(path)?;
+    pub fn export_nodes<W: io::Write>(&self, wtr: &mut csv::Writer<W>, node_data: &NodeData, label_context: &LabelContext, styles: &GVisualizationStyle) -> std::io::Result<()> {
         wtr.write_record(["id", "iri","type","label"])?;
         if let Ok(nodes) = self.visible_nodes.nodes.read() {
             for (idx,node) in nodes.iter().enumerate() {

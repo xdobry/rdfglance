@@ -81,8 +81,8 @@ impl RdfGlanceApp {
                     }
                     ui.close_menu();
                 }
-                #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Export Edges").clicked() {
+                    #[cfg(not(target_arch = "wasm32"))]
                     if let Some(path) = FileDialog::new()
                         .add_filter("CSV table", &["csv"])
                         .set_file_name("edges.csv")
@@ -95,8 +95,9 @@ impl RdfGlanceApp {
                                 self.persistent_data.config_data.iri_display,
                                 &rdf_data.prefix_manager,
                             );
+                            let mut wtr = csv::Writer::from_path(path).unwrap();
                             let store_res =
-                                self.export_edges(Path::new(path.as_path()), &rdf_data.node_data, &label_context);
+                                self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
                             match store_res {
                                 Err(e) => {
                                     self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
@@ -105,10 +106,34 @@ impl RdfGlanceApp {
                             }
                         }
                     }
+                    #[cfg(target_arch = "wasm32")]
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        use crate::nobject::LabelContext;
+                        let label_context = LabelContext::new(
+                            self.ui_state.display_language,
+                            self.persistent_data.config_data.iri_display,
+                            &rdf_data.prefix_manager,
+                        );
+                        let buf = Vec::new();
+                        let mut wtr = csv::Writer::from_writer(buf);
+                        let store_res =
+                            self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
+                        match store_res {
+                            Err(e) => {
+                                self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                            }
+                            Ok(_) => {
+                                use crate::uitools::web_download;
+
+                                let buf = wtr.into_inner().unwrap();
+                                let _ = web_download("edges.csv",&buf);
+                            }
+                        }
+                    }
                     ui.close_menu();
                 }
-                #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Export Nodes").clicked() {
+                    #[cfg(not(target_arch = "wasm32"))]
                     if let Some(path) = FileDialog::new()
                         .add_filter("CSV table", &["csv"])
                         .set_file_name("nodes.csv")
@@ -121,13 +146,38 @@ impl RdfGlanceApp {
                                 self.persistent_data.config_data.iri_display,
                                 &rdf_data.prefix_manager,
                             );
+                            let mut wtr = csv::Writer::from_path(path).unwrap();
                             let store_res =
-                                self.export_nodes(Path::new(path.as_path()), &rdf_data.node_data, &label_context, &self.visualization_style);
+                                self.export_nodes(&mut wtr, &rdf_data.node_data, &label_context, &self.visualization_style);
                             match store_res {
                                 Err(e) => {
                                     self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
                                 }
                                 Ok(_) => {}
+                            }
+                        }
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        use crate::nobject::LabelContext;
+                        let label_context = LabelContext::new(
+                            self.ui_state.display_language,
+                            self.persistent_data.config_data.iri_display,
+                            &rdf_data.prefix_manager,
+                        );
+                        let buf = Vec::new();
+                        let mut wtr = csv::Writer::from_writer(buf);
+                        let store_res =
+                            self.export_nodes(&mut wtr, &rdf_data.node_data, &label_context,&self.visualization_style);
+                        match store_res {
+                            Err(e) => {
+                                self.system_message = SystemMessage::Error(format!("Can not export nodes: {}", e));
+                            }
+                            Ok(_) => {
+                                use crate::uitools::web_download;
+
+                                let buf = wtr.into_inner().unwrap();
+                                let _ = web_download("nodes.csv",&buf);
                             }
                         }
                     }
