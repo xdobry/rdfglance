@@ -766,7 +766,7 @@ impl RdfGlanceApp {
                 last_visited_selection: LastVisitedSelection::None,
                 menu_action: None,
                 selection_start_rect: None,
-                translate_drag: None,       
+                translate_drag: None,
             },
             help_open: false,
             load_handle: None,
@@ -1473,22 +1473,30 @@ impl eframe::App for RdfGlanceApp {
                     DisplayType::Configuration,
                     concatcp!(ICON_CONFIG, " Settings"),
                 );
+                #[cfg(target_arch = "wasm32")]
+                ui.small("Num+Alt to Switch");
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.small("Num+Ctrl to Switch");
-                ui.input(|i| {
-                    if i.modifiers.ctrl && i.key_pressed(Key::Num1) {
+                    ui.input(|i| {
+                    #[cfg(target_arch = "wasm32")]
+                    let is_mod = i.modifiers.alt;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let is_mod = i.modifiers.ctrl;
+                    if is_mod && i.key_pressed(Key::Num1) {
                         self.display_type = DisplayType::Table;
-                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num7) {
+                    } else if is_mod && i.key_pressed(Key::Num7) {
                         self.display_type = DisplayType::Configuration;
-                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num6) {
+                    } else if is_mod && i.key_pressed(Key::Num6) {
                         self.display_type = DisplayType::Prefixes;
                     } else if !self.is_empty() {
-                        if i.modifiers.ctrl && i.key_pressed(Key::Num2) {
+                        if is_mod && i.key_pressed(Key::Num2) {
+                            self.ui_state.selection_start_rect = None;
                             self.display_type = DisplayType::Graph;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num3) {
+                        } else if is_mod && i.key_pressed(Key::Num3) {
                             self.display_type = DisplayType::Browse;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num4) {
+                        } else if is_mod && i.key_pressed(Key::Num4) {
                             self.display_type = DisplayType::MetaGraph;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num5) {
+                        } else if is_mod && i.key_pressed(Key::Num5) {
                             self.display_type = DisplayType::Statistics;
                         }
                     }
@@ -1549,6 +1557,11 @@ impl eframe::App for RdfGlanceApp {
                     if let Some(type_desc) = self.type_index.types.get_mut(&type_index) {
                         type_desc.filtered_instances = instances;
                         type_desc.instance_view.pos = 0.0;
+                        if type_desc.filtered_instances.len() > 0 {
+                            type_desc.instance_view.selected_idx = Some((type_desc.filtered_instances[0],0))
+                        } else {
+                            type_desc.instance_view.selected_idx = None;
+                        }
                     }
                 }
                 NodeAction::BrowseNode(node_index) => {
@@ -1560,6 +1573,7 @@ impl eframe::App for RdfGlanceApp {
                     self.visible_nodes.add_by_index(node_index);
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
+                    self.ui_state.selection_start_rect = None;
                 }
                 NodeAction::AddVisual(node_index) => {
                     self.visible_nodes.add_by_index(node_index);

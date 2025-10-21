@@ -1533,7 +1533,12 @@ impl TypeInstanceIndex {
                     let filter_immediately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.ctx().input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
+                        text_edit_response.request_focus();
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    if ui.ctx().input(|i| i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::F)) {
                         text_edit_response.request_focus();
                     }
                     text_has_focus = text_has_focus || text_edit_response.has_focus();
@@ -1581,7 +1586,6 @@ impl TypeInstanceIndex {
                             .set_file_name("table.csv")
                             .save_file()
                         {
-                            use std::path::Path;
                             let mut wtr = csv::Writer::from_path(path).unwrap();
                             let _ = type_data.export_csv_writer(&rdf_data, &mut wtr, iri_display, layout_data.display_language);
                         }

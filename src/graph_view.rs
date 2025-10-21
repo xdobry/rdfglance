@@ -1,11 +1,25 @@
-use std::{collections::{BTreeSet, HashMap, HashSet}, io, path::Path};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    io,
+    path::Path,
+};
 
 use crate::{
-    config::Config, distinct_colors::next_distinct_color, drawing::{self, draw_node_label}, graph_styles::{NodeShape, NodeSize, NodeStyle}, layout::{
-        update_edges_groups, Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout
-    }, nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData}, style::{
-        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL, ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH
-    }, uitools::popup_at, ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState
+    ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState,
+    config::Config,
+    distinct_colors::next_distinct_color,
+    drawing::{self, draw_node_label},
+    graph_styles::{NodeShape, NodeSize, NodeStyle},
+    layout::{
+        Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
+        update_edges_groups,
+    },
+    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
+    style::{
+        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL,
+        ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
+    },
+    uitools::popup_at,
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
@@ -352,7 +366,7 @@ impl RdfGlanceApp {
             if let Some(node_pos) = self.visible_nodes.get_pos(*iri_index) {
                 if let Ok(rdf_data) = self.rdf_data.read() {
                     let current_node = rdf_data.node_data.get_node_by_index(*iri_index);
-                    if let Some((current_node_iri, current_node)) = current_node {                       
+                    if let Some((current_node_iri, current_node)) = current_node {
                         if ui.link(current_node_iri).clicked() {
                             node_to_click = NodeAction::BrowseNode(*iri_index);
                         }
@@ -380,8 +394,11 @@ impl RdfGlanceApp {
                         let mut check_lock: Option<bool> = None;
                         if let Ok(node_positions) = self.visible_nodes.positions.read() {
                             if let Some(position) = node_positions.get(node_pos) {
-                                if ui.selectable_label(position.locked, ICON_KEY)
-                                    .on_hover_text("Lock Position for Layout").clicked() {
+                                if ui
+                                    .selectable_label(position.locked, ICON_KEY)
+                                    .on_hover_text("Lock Position for Layout")
+                                    .clicked()
+                                {
                                     check_lock = Some(!position.locked);
                                 }
                             }
@@ -748,6 +765,7 @@ impl RdfGlanceApp {
         let mut start_translate = false;
 
         let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+        let global_rect = ui.min_rect();
 
         let scene = egui::Scene::new().zoom_range(0.1..=4.0);
         let popup_id = ui.make_persistent_id("node_context_menu");
@@ -759,9 +777,7 @@ impl RdfGlanceApp {
 
         if let Ok(rdf_data) = self.rdf_data.read() {
             scene.show(ui, &mut self.graph_state.scene_rect, |ui| {
-                let available_width = ui.available_width();
-                let available_height = ui.available_height();
-                let size = Vec2::new(available_width, available_height);
+                let size = ui.available_size();
 
                 let (id, rect) = ui.allocate_space(size);
                 let painter = ui.painter();
@@ -786,7 +802,7 @@ impl RdfGlanceApp {
                     single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
                     secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
                     double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
-                    primary_down = input.pointer.button_pressed(egui::PointerButton::Primary);
+                    primary_down = input.pointer.button_pressed(egui::PointerButton::Primary) && global_rect.contains(global_mouse_pos);
                     secondary_down = input.pointer.button_pressed(egui::PointerButton::Secondary);
                     is_shift_down = input.modifiers.shift;
                     if input.pointer.button_released(egui::PointerButton::Primary) {
@@ -1019,7 +1035,7 @@ impl RdfGlanceApp {
                                 }
                             } else {
                                 NextNodeSelection::empty()
-                            };                          
+                            };
                             let mut new_node_shapes: Option<Vec<NodeShapeData>> =
                                 if self.visible_nodes.update_node_shapes {
                                     Some(Vec::with_capacity(nodes.len()))
@@ -1077,7 +1093,8 @@ impl RdfGlanceApp {
                                     }
                                     if self.ui_state.context_menu_node.is_none() || was_action {
                                         if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
-                                            if is_shift_down && self.ui_state.selected_nodes.contains(&node_layout.node_index)
+                                            if is_shift_down
+                                                && self.ui_state.selected_nodes.contains(&node_layout.node_index)
                                             {
                                                 self.ui_state.selected_nodes.remove(&node_layout.node_index);
                                                 if let Some(selected_index) = self.ui_state.selected_node {
@@ -1181,7 +1198,7 @@ impl RdfGlanceApp {
                 }
                 // let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
                 let consume_events = true;
-                if consume_events  {
+                if consume_events {
                     // ui.max_rect does not give enough
                     // so create a very big rect that capture all area in scene
                     let max_rect: Rect =
@@ -1472,11 +1489,11 @@ impl RdfGlanceApp {
                             }
                             NodeContextAction::ChangeLockPosition(lock) => {
                                 if let Ok(nodes) = self.visible_nodes.nodes.read() {
-                                    if let Ok(mut positions) =
-                                        self.visible_nodes.positions.write()
-                                    {
+                                    if let Ok(mut positions) = self.visible_nodes.positions.write() {
                                         for selected_index in self.ui_state.selected_nodes.iter() {
-                                            if let Ok(pos) = nodes.binary_search_by(|e| e.node_index.cmp(selected_index)) {
+                                            if let Ok(pos) =
+                                                nodes.binary_search_by(|e| e.node_index.cmp(selected_index))
+                                            {
                                                 positions[pos].locked = lock;
                                             }
                                         }
@@ -1494,9 +1511,9 @@ impl RdfGlanceApp {
                                     self.ui_state.selected_nodes.clear();
                                 }
                             }
-                            self.ui_state.selected_nodes.retain(|node_index| {
-                                self.visible_nodes.get_pos(*node_index).is_some()
-                            });
+                            self.ui_state
+                                .selected_nodes
+                                .retain(|node_index| self.visible_nodes.get_pos(*node_index).is_some());
                         }
                     }
                 }
@@ -1519,7 +1536,7 @@ impl RdfGlanceApp {
                     visible_nodes: &mut self.visible_nodes,
                     config: &self.persistent_data.config_data,
                 };
-                let mut nodes : BTreeSet<IriIndex> = BTreeSet::new();
+                let mut nodes: BTreeSet<IriIndex> = BTreeSet::new();
                 nodes.insert(node_to_click);
                 if rdf_data.expand_node(
                     &nodes,
@@ -1573,12 +1590,18 @@ impl RdfGlanceApp {
         }
     }
 
-    pub fn export_edges<W: io::Write>(&self,  wtr: &mut csv::Writer<W>, node_data: &NodeData, label_context: &LabelContext) -> std::io::Result<()> {
-        wtr.write_record(["source", "target","predicate"])?;
+    pub fn export_edges<W: io::Write>(
+        &self,
+        wtr: &mut csv::Writer<W>,
+        node_data: &NodeData,
+        label_context: &LabelContext,
+    ) -> std::io::Result<()> {
+        wtr.write_record(["source", "target", "predicate"])?;
         if let Ok(edges) = self.visible_nodes.edges.read() {
             for edge in edges.iter() {
                 if !self.ui_state.hidden_predicates.contains(edge.predicate) {
-                    let predicate_label = node_data.predicate_display(edge.predicate, label_context, &node_data.indexers);
+                    let predicate_label =
+                        node_data.predicate_display(edge.predicate, label_context, &node_data.indexers);
                     wtr.write_field(edge.from.to_string())?;
                     wtr.write_field(edge.to.to_string())?;
                     wtr.write_field(predicate_label.as_str())?;
@@ -1590,10 +1613,16 @@ impl RdfGlanceApp {
         Ok(())
     }
 
-    pub fn export_nodes<W: io::Write>(&self, wtr: &mut csv::Writer<W>, node_data: &NodeData, label_context: &LabelContext, styles: &GVisualizationStyle) -> std::io::Result<()> {
-        wtr.write_record(["id", "iri","type","label"])?;
+    pub fn export_nodes<W: io::Write>(
+        &self,
+        wtr: &mut csv::Writer<W>,
+        node_data: &NodeData,
+        label_context: &LabelContext,
+        styles: &GVisualizationStyle,
+    ) -> std::io::Result<()> {
+        wtr.write_record(["id", "iri", "type", "label"])?;
         if let Ok(nodes) = self.visible_nodes.nodes.read() {
-            for (idx,node) in nodes.iter().enumerate() {
+            for (idx, node) in nodes.iter().enumerate() {
                 if let Some((iri, nobject)) = node_data.get_node_by_index(node.node_index) {
                     wtr.write_field(idx.to_string())?;
                     let iri_ref: &str = iri;
@@ -1611,13 +1640,8 @@ impl RdfGlanceApp {
                             break;
                         }
                     }
-                    let node_label = nobject.node_label(
-                        iri_ref,
-                        styles,
-                        true,
-                        label_context.language_index,
-                        &node_data.indexers,
-                    );
+                    let node_label =
+                        nobject.node_label(iri_ref, styles, true, label_context.language_index, &node_data.indexers);
                     wtr.write_field(node_label)?;
                     wtr.write_record(None::<&[u8]>)?;
                 }

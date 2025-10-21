@@ -1,8 +1,9 @@
-use std::{borrow::Cow, cmp::min};
+use std::{borrow::Cow, cmp::min, io};
 
 use const_format::concatcp;
 use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
+use oxrdf::vocab::rdf;
 
 use crate::{
     config::{Config, IriDisplay}, graph_algorithms::{GraphAlgorithm, StatisticValue}, nobject::{IriIndex, LabelContext, LangIndex}, style::ICON_EXPORT, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState
@@ -89,30 +90,45 @@ impl RdfGlanceApp {
         if self.statistics_data.is_some() {
             ui.horizontal(|ui| {
                 ui.label("Statistics Data Available");
-                #[cfg(not(target_arch = "wasm32"))]
                 if ui
                     .button(concatcp!(ICON_EXPORT, " Export CSV"))
                     .on_hover_text("Export as CSV file")
                     .clicked()
                 {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("CSV File", &["csv"])
-                        .set_file_name("statistics.csv")
-                        .save_file()
-                    {
-                        use std::path::Path;
-                        let store_res = self.statistics_data.as_ref().unwrap().export_csv(
-                            &self.rdf_data.read().unwrap(),
-                            Path::new(path.as_path()),
-                            self.persistent_data.config_data.iri_display,
-                            &self.visualization_style,
-                            self.ui_state.display_language,
-                        );
-                        match store_res {
-                            Err(e) => {
-                                self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV File", &["csv"])
+                            .set_file_name("statistics.csv")
+                            .save_file()
+                        {
+                            let mut wtr = csv::Writer::from_path(path).unwrap();
+                            let store_res = self.statistics_data.as_ref().unwrap().export_csv_writer(
+                                &rdf_data,
+                                &mut wtr,
+                                self.persistent_data.config_data.iri_display,
+                                &self.visualization_style,
+                                self.ui_state.display_language,
+                            );
+                            match store_res {
+                                Err(e) => {
+                                    self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
+                                }
+                                Ok(_) => {}
                             }
-                            Ok(_) => {}
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            use crate::uitools::web_download;
+                            let buf = Vec::new();
+                            let mut wtr = csv::Writer::from_writer(buf);
+                            let _ = self.statistics_data.as_ref().unwrap().export_csv_writer(&rdf_data,
+                                &mut wtr,
+                                self.persistent_data.config_data.iri_display,
+                                &self.visualization_style,
+                                self.ui_state.display_language);
+                            let buf = wtr.into_inner().unwrap();
+                            let _ = web_download("statistics.csv",&buf);
                         }
                     }
                 }
@@ -518,12 +534,11 @@ impl StatisticsData {
         }
     }
 
-    fn export_csv(&self, rdf_data: &RdfData, path: &std::path::Path,
+    fn export_csv_writer<W: io::Write>(&self, rdf_data: &RdfData, wtr: &mut csv::Writer<W>,
         iri_display: IriDisplay,
         styles: &GVisualizationStyle,
         lang_index: LangIndex,
         ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut wtr = csv::Writer::from_path(path)?;
         for title in vec!["iri", "label", "type"] {
             wtr.write_field(title)?;
         }
