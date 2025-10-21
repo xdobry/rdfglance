@@ -8,14 +8,9 @@ use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
-    thread::{self, JoinHandle},
-    time::Duration,
+    collections::{BTreeSet, HashMap, VecDeque}, sync::{
+        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
+    }, thread::{self, JoinHandle}, time::Duration
 };
 
 #[derive(Clone, Copy)]
@@ -1227,6 +1222,17 @@ pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
     }
 }
 
+fn smooth_invert(x: f32) -> f32 {
+    if x <= 0.0 { return 1.0; }
+    if x >= 1.0 { return 0.0; }
+    let x2 = x * x;
+    let x3 = x2 * x;
+    let x4 = x3 * x;
+    let x5 = x4 * x;
+    let s = 6.0 * x5 - 15.0 * x4 + 10.0 * x3;
+    1.0 - s
+}
+
 pub struct LayoutConfig {
     pub repulsion_constant: f32,
     pub attraction_factor: f32,
@@ -1267,6 +1273,9 @@ pub fn layout_graph_nodes(
         .collect();
     tree.build(weight_points, 5);
 
+    let gravity_effect_radius = config.gravity_effect_radius;
+    let max_smoth_effect_radius = gravity_effect_radius * 1.2;
+
     let force_fn = |target: Vec2, source: WeightedPoint| {
         // compute repulsive force
         let dir = target - source.pos;
@@ -1274,11 +1283,17 @@ pub fn layout_graph_nodes(
             return Vec2::ZERO; // Avoid division by zero
         }
         let dist2 = dir.length();
-        if dist2 > config.gravity_effect_radius {
-            return Vec2::ZERO;
+        let mut scale: f32 = 1.0;
+        if dist2 > gravity_effect_radius {
+            if dist2 > max_smoth_effect_radius {
+                return Vec2::ZERO;
+            } else {
+                // use smotherstep function to turn off the gravity force in 20% area, so do not create spring effects
+                scale = smooth_invert((dist2 - gravity_effect_radius) / (gravity_effect_radius * 0.2));
+            }
         }
         let force_mag = (source.mass * repulsion_factor) / dist2;
-        (dir / dist2) * force_mag
+        scale * (dir / dist2) * force_mag
     };
 
     let mut forces: Vec<Vec2> = positions
