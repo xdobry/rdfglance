@@ -4,7 +4,7 @@
 
 - See the structure of your RDF data — even millions of triples — at one glance
 - Explore RDF Data, use advanced graph algorithm and visualization in seconds without coding.
-- Easy to install (Small Desktop App - self-contained executable is only 16 MB)
+- Easy to install (Small Desktop App - self-contained executable is only 17 MB)
 - Optionally [Serverless WASM Based Web Application](https://xdobry.github.io/rdfglance/) (limited functionality)
 - Zero runtime needed
 - No HTML, No Server, 100% React free

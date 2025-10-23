@@ -345,10 +345,10 @@ impl NodeCache {
     pub fn is_empty(&self) -> bool {
         self.cache.is_empty()
     }
-    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, NObject> {
+    pub fn iter(&self) -> indexmap::map::Iter<'_, Box<str>, NObject> {
         self.cache.iter()
     }
-    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<Box<str>, NObject> {
+    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<'_, Box<str>, NObject> {
         self.cache.iter_mut()
     }
     pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
@@ -404,10 +404,10 @@ impl NodeData {
     pub fn is_empty(&self) -> bool {
         self.node_cache.is_empty()
     }
-    pub fn iter(&self) -> indexmap::map::Iter<Box<str>, NObject> {
+    pub fn iter(&self) -> indexmap::map::Iter<'_, Box<str>, NObject> {
         self.node_cache.iter()
     }
-    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<Box<str>, NObject> {
+    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<'_, Box<str>, NObject> {
         self.node_cache.iter_mut()
     }
     pub fn put_node(&mut self, iri: &str, node: NObject) -> IriIndex {
@@ -477,7 +477,7 @@ impl NodeData {
         }
         None
     }
-    pub fn type_display<'a>(&'a self, type_index: IriIndex, label_context: &'a LabelContext, indexers: &'a Indexers) -> LabelDisplayValue {
+    pub fn type_display<'a>(&'a self, type_index: IriIndex, label_context: &'a LabelContext, indexers: &'a Indexers) -> LabelDisplayValue<'a> {
         let type_iri = self.indexers.type_indexer.index_to_str(type_index);
         if let Some(type_iri) = type_iri {
             match label_context.iri_display {
@@ -517,7 +517,7 @@ impl NodeData {
         }
     }
 
-    pub fn predicate_display<'a>(&'a self, predicate_index: IriIndex, label_context: &LabelContext, indexers: &'a Indexers) -> LabelDisplayValue {
+    pub fn predicate_display<'a>(&'a self, predicate_index: IriIndex, label_context: &LabelContext, indexers: &'a Indexers) -> LabelDisplayValue<'a> {
         let predicate_iri = self.indexers.predicate_indexer.index_to_str(predicate_index);
         if let Some(predicate_iri) = predicate_iri {
             match label_context.iri_display {

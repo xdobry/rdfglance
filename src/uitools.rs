@@ -1,8 +1,8 @@
 use eframe::egui::{Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui, vec2};
-use egui::{Rect, Response, Sense, Vec2, Widget};
+use egui::{Popup, Rect, Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    if ui.memory(|mem| mem.is_popup_open(popup_id)) {
+    if Popup::is_id_open(ui.ctx(), popup_id) {
         let inner = Area::new(popup_id)
             .order(Order::Foreground)
             .constrain(true)
@@ -23,7 +23,9 @@ pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: i
             .inner;
 
         if ui.input(|i| i.key_pressed(Key::Escape)) {
-            ui.memory_mut(|mem| mem.close_popup());
+            Popup::close_id(ui.ctx(), popup_id);
+        } else {
+            ui.ctx().memory_mut(|mem| mem.keep_popup_open(popup_id));
         }
         Some(inner)
     } else {

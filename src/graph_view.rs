@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     io,
-    path::Path,
 };
 
 use crate::{
@@ -23,7 +22,7 @@ use crate::{
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
-use egui::{Key, Painter, Rect, Slider, Stroke, StrokeKind};
+use egui::{Key, Painter, Popup, Rect, Slider, StrokeKind};
 use rand::Rng;
 
 const INITIAL_DISTANCE: f32 = 100.0;
@@ -769,7 +768,7 @@ impl RdfGlanceApp {
 
         let scene = egui::Scene::new().zoom_range(0.1..=4.0);
         let popup_id = ui.make_persistent_id("node_context_menu");
-        let is_context_menu_open = ui.memory(|mem| mem.is_popup_open(popup_id));
+        let is_context_menu_open = Popup::is_id_open(ctx, popup_id);
         let mut translation_vec: Option<Vec2> = None;
         let mut zoom: Option<f32> = None;
         let mut put_selection_rect: Option<Rect> = None;
@@ -1225,7 +1224,7 @@ impl RdfGlanceApp {
             self.graph_state.scene_rect = Rect::from_center_size(center, self.graph_state.scene_rect.size() * zoom);
         }
         if was_context_click {
-            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+            Popup::toggle_id(ctx, popup_id);
         } else {
             if !is_context_menu_open && !was_action && secondary_clicked {
                 if let Some(current_index) = self.ui_state.selected_node {
@@ -1233,7 +1232,7 @@ impl RdfGlanceApp {
                     self.ui_state.context_menu_opened_by_keyboard = false;
                     self.ui_state.context_menu_pos = global_mouse_pos;
                     self.ui_state.context_menu_node = Some(current_index);
-                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                    Popup::toggle_id(ctx, popup_id);
                 }
             }
         }
@@ -1244,7 +1243,8 @@ impl RdfGlanceApp {
                 node_action = NodeContextAction::show_menu(ui, self.ui_state.context_menu_opened_by_keyboard, has_zoom);
                 self.ui_state.context_menu_opened_by_keyboard = false;
                 if !matches!(node_action, NodeContextAction::None) {
-                    ui.memory_mut(|mem| mem.close_popup());
+                    println!("close id1");
+                    Popup::close_id(ctx, popup_id);
                 }
             } else {
                 ui.label("no node selected");
@@ -1523,9 +1523,8 @@ impl RdfGlanceApp {
         if !was_context_click && (secondary_clicked || single_clicked) {
             if is_context_menu_open {
                 self.ui_state.context_menu_node = None;
-                ui.memory_mut(|mem| {
-                    mem.close_popup();
-                });
+                println!("close id2");
+                Popup::close_id(ctx, popup_id);
             };
         }
 

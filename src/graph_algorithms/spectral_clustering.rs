@@ -10,7 +10,7 @@ pub fn cluster_spectral(nodes_len: u32, edges: &[Edge], config: &Config, hidden_
         adj[(edge.to, edge.from)] = 1.0; // undirected graph
     }
     let laplacian = laplacian_from_adjacency(&adj);
-    let eigen = laplacian.eigsh(50, Order::Smallest);
+    let eigen = laplacian.symmetric_eigen();
 
     let fiedler_vector = eigen.eigenvectors.column(1);
     let fiedler_vector: Vec<f32> = fiedler_vector.iter().map(|x| *x as f32).collect();

@@ -3,7 +3,6 @@ use std::{borrow::Cow, cmp::min, io};
 use const_format::concatcp;
 use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
-use oxrdf::vocab::rdf;
 
 use crate::{
     config::{Config, IriDisplay}, graph_algorithms::{GraphAlgorithm, StatisticValue}, nobject::{IriIndex, LabelContext, LangIndex}, style::ICON_EXPORT, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState

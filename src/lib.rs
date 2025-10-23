@@ -1319,7 +1319,7 @@ impl RdfGlanceApp {
         None
     }
 
-    pub fn node_change_context(&mut self) -> NodeChangeContext {
+    pub fn node_change_context(&mut self) -> NodeChangeContext<'_> {
         NodeChangeContext {
             rdfwrap: &mut self.rdfwrap,
             visible_nodes: &mut self.visible_nodes,

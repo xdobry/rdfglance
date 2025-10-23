@@ -6654,7 +6654,7 @@ dbr:COBOL a dbo:ProgrammingLanguage ;
 
 dbr:Educational_programming_language a <yago:Paradigm113804375> .
 
-dbr:F_Sharp_\(programming_language\) a <dbo:ProgrammingLanguage> :
+dbr:F_Sharp_\(programming_language\) a <dbo:ProgrammingLanguage> ;
     rdfs:label "F#"@en .
 
 dbr:JOSS a dbo:ProgrammingLanguage ;

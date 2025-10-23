@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use egui::{Color32, Key, Pos2, Rect, Sense, Slider, Vec2};
+use egui::{Color32, Key, Popup, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
     drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, style::{ICON_REDO, ICON_UNDO}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
@@ -288,7 +288,7 @@ impl RdfGlanceApp {
     
                     let popup_id = ui.make_persistent_id("mnode_context_menu");
                     if was_context_click {
-                        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                        Popup::toggle_id(ctx, popup_id);
                     }
     
                     popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
@@ -334,7 +334,7 @@ impl RdfGlanceApp {
                             }
                             if close_menu {
                                 self.ui_state.context_menu_node = None;
-                                ui.memory_mut(|mem| mem.close_popup());
+                                Popup::close_id(ctx, popup_id);
                             }
                         } else {
                             ui.label("no node selected");
@@ -376,7 +376,7 @@ impl RdfGlanceApp {
 
                     if !was_context_click && (secondary_clicked || single_clicked) {
                         self.ui_state.context_menu_node = None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
             });
