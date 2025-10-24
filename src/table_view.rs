@@ -783,19 +783,18 @@ impl TypeData {
                         .collect();
                     if !hidden_columns.is_empty() {
                         ui.separator();
-                        ui.menu_button("Unhide Columns", |ui| {
-                            for column_desc in hidden_columns {
-                                let predicate_label = node_data.predicate_display(
-                                    column_desc.predicate_index,
-                                    &label_context,
-                                    &node_data.indexers,
-                                );
-                                if ui.button(predicate_label.as_str()).clicked() {
-                                    *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
-                                    close_menu = true;
-                                }
+                        for column_desc in hidden_columns {
+                            let predicate_label = node_data.predicate_display(
+                                column_desc.predicate_index,
+                                &label_context,
+                                &node_data.indexers,
+                            );
+                            let menu_txt = format!("Unhide: {}", predicate_label.as_str());
+                            if ui.button(menu_txt).clicked() {
+                                *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
+                                close_menu = true;
                             }
-                        });
+                        }
                     }
 
                     if close_menu {
