@@ -331,7 +331,7 @@ impl StringIndexer {
                         let mut byte3 = [0u8; 3];
                         let read = decoder.read(&mut byte3)?;
                         if read != 3 {
-                            println!("Expect 3 addtional bytes for utf8");
+                            println!("Expect 3 additional bytes for utf8");
                             break;
                         }
                         buffer.extend_from_slice(&byte3[0..3]);

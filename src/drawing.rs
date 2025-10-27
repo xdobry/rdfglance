@@ -403,7 +403,7 @@ pub fn draw_node_label(
         }
         LabelPosition::Right => pos + Vec2::new(type_style.width / 2.0 + POS_SPACE, -text_rect.height() / 2.0),
     };
-    let node_rect = if show_labels {
+    let node_rect = {
         let stroke = if type_style.border_width > 0.0 {
             Stroke::new(type_style.border_width, fade_color(type_style.border_color,faded))
         } else {
@@ -421,14 +421,19 @@ pub fn draw_node_label(
         };
         if selected {
             let select_rec = if type_style.node_shape == NodeShape::Circle {
-                Rect::from_center_size(pos, Vec2::splat(node_rect.width() + 4.0))
+                Rect::from_center_size(pos, Vec2::splat(node_rect.width() + 8.0))
             } else {
-                node_rect.expand(4.0)
+                node_rect.expand(8.0)
+            };
+            let selection_bg = if visuals.dark_mode {
+                egui::Color32::from_rgba_premultiplied(200, 200, 0, 150)
+            } else {
+                egui::Color32::from_rgba_premultiplied(255, 157, 0, 200)
             };
             painter.rect_filled(
                 select_rec,
                 3.0,
-                egui::Color32::from_rgba_premultiplied(200, 200, 0, 150),
+                selection_bg,
             );
         }
         match type_style.node_shape {
@@ -457,32 +462,11 @@ pub fn draw_node_label(
             }
         }
         node_rect
-    } else {
-        if selected {
-            painter.circle_filled(
-                pos,
-                NODE_RADIUS + 3.0,
-                egui::Color32::from_rgba_premultiplied(255, 255, 0, 170),
-            );
-        }
-        painter.circle_filled(pos, NODE_RADIUS, fade_color(type_style.color, faded));
-        if let Some(icon_style) = &type_style.icon_style {
-            let icon_pos = pos;
-            let icon_font = FontId::proportional(icon_style.icon_size);
-            painter.text(
-                icon_pos,
-                Align2::CENTER_CENTER,
-                icon_style.icon_character.to_string(),
-                icon_font,
-                fade_color(icon_style.icon_color, faded),
-            );
-        }
-        Rect::from_center_size(pos, Vec2::new(NODE_RADIUS * 2.0, NODE_RADIUS * 2.0))
     };
     if highlighted {
         let hrec = galley.rect.translate(Vec2::new(text_pos.x, text_pos.y));
         painter.rect_filled(hrec, 3.0, visuals.extreme_bg_color);
-    }
+    } 
     if show_labels || highlighted {
         painter.galley(text_pos, galley, Color32::BLACK);
         if let Some(icon_style) = &type_style.icon_style {

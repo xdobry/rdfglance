@@ -1154,7 +1154,7 @@ impl RdfGlanceApp {
         {
             ui.add_space(20.0);
             ui.strong("0 React, 0 HTML, Full Power!");
-            ui.strong("Try Desktop version for full functionality! Especially multuthread more performant non-blocking processing.");
+            ui.strong("Try Desktop version for full functionality! Especially multithread more performant non-blocking processing.");
             let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Sample Data")).size(16.0);
             let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
             let b_resp = ui.add(nav_but);

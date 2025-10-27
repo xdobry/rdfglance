@@ -1178,7 +1178,7 @@ impl SortedNodeLayout {
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
-    // Each group has all edges that connect same nodes (dispite the direction)
+    // Each group has all edges that connect same nodes (despite the direction)
     // It is needed to set parameter for bezier curves
     let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
     for (edge_index, edge) in edges.iter().enumerate() {

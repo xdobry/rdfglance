@@ -10,6 +10,8 @@ pub fn cluster_spectral(nodes_len: u32, edges: &[Edge], config: &Config, hidden_
         adj[(edge.to, edge.from)] = 1.0; // undirected graph
     }
     let laplacian = laplacian_from_adjacency(&adj);
+    // after updating to nalgebra 0.34.1, the lanczos crate does not compile 
+    // let eigen = laplacian.eingsh(50, Order::Smallest);
     let eigen = laplacian.symmetric_eigen();
 
     let fiedler_vector = eigen.eigenvectors.column(1);

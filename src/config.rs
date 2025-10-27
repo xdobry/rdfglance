@@ -162,7 +162,7 @@ impl RdfGlanceApp {
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
                         ui.heading("RDF Glance");
                         ui.spacing();
-                        ui.label("Version 0.12 - 10/2025");
+                        ui.label("Version 0.12 - 11/2025");
                         ui.label("A lightweight RDF visualizer");
                         ui.label("GNU General Public License 3.0 Software");
                         ui.spacing();

@@ -323,7 +323,14 @@ impl RdfGlanceApp {
                     .default_pos(help_but.rect.left_bottom())
                     .open(&mut self.help_open) // Small window
                     .show(ctx, |ui| {
-                        ui.label("Use right mouse click on node to open context Menu\n\nZoom use Ctrl + mouse wheel\n\nExpand Relations - double click on node");
+                        ui.label("Use right mouse click on node to open context Menu
+
+- Zoom use Ctrl + mouse wheel
+- Right mouse button down and drag to translate
+- Left mouse down and move for rectangle select
+- Shift Down for multiple select
+
+Expand Relations - double click on node");
                     });
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -888,6 +895,8 @@ impl RdfGlanceApp {
                 );
                 edge_count += self.visible_nodes.edges.read().unwrap().len() as u32;
                 let mut selected_related_nodes_pos = Vec::new();
+                // draw all edges
+                // we draw the edges first so the nodes are on top of them
                 if let Ok(nodes) = self.visible_nodes.nodes.read() {
                     if let Ok(positions) = self.visible_nodes.positions.read() {
                         if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
@@ -1002,6 +1011,7 @@ impl RdfGlanceApp {
                         }
                     }
                 }
+                // draw all nodes
                 if let Ok(positions) = self.visible_nodes.positions.read() {
                     if let Ok(nodes) = self.visible_nodes.nodes.read() {
                         if let Ok(individual_node_style) = self.visible_nodes.individual_node_styles.read() {
@@ -1161,6 +1171,10 @@ impl RdfGlanceApp {
                     self.ui_state.selected_node = None;
                 }
                 */
+                if node_to_hover.is_none() && self.ui_state.selected_node.is_some() {
+                    node_to_hover = self.ui_state.selected_node;
+                }
+                // redraw hovered or selected node so the label is on the top
                 if let Some(node_to_hover) = node_to_hover {
                     let node_layout = self.visible_nodes.get_pos(node_to_hover);
                     if let Some(node_pos) = node_layout {
@@ -1243,7 +1257,6 @@ impl RdfGlanceApp {
                 node_action = NodeContextAction::show_menu(ui, self.ui_state.context_menu_opened_by_keyboard, has_zoom);
                 self.ui_state.context_menu_opened_by_keyboard = false;
                 if !matches!(node_action, NodeContextAction::None) {
-                    println!("close id1");
                     Popup::close_id(ctx, popup_id);
                 }
             } else {
@@ -1523,7 +1536,6 @@ impl RdfGlanceApp {
         if !was_context_click && (secondary_clicked || single_clicked) {
             if is_context_menu_open {
                 self.ui_state.context_menu_node = None;
-                println!("close id2");
                 Popup::close_id(ctx, popup_id);
             };
         }
