@@ -1,3 +1,5 @@
+use core::num;
+
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
     epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
@@ -359,6 +361,7 @@ pub fn draw_node_label(
     highlighted: bool,
     faded: bool,
     show_labels: bool,
+    num_hidden_references: i32,
     visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let mut job = LayoutJob::default();
@@ -466,7 +469,12 @@ pub fn draw_node_label(
     if highlighted {
         let hrec = galley.rect.translate(Vec2::new(text_pos.x, text_pos.y));
         painter.rect_filled(hrec, 3.0, visuals.extreme_bg_color);
-    } 
+    }
+    if num_hidden_references>0 {
+        let num_pos = node_rect.right_top() + Vec2::new(3.0,0.0);
+        let num_text = num_hidden_references.to_string();
+        painter.text(num_pos, egui::Align2::LEFT_TOP, num_text, egui::FontId::default() , visuals.text_color());
+    }
     if show_labels || highlighted {
         painter.galley(text_pos, galley, Color32::BLACK);
         if let Some(icon_style) = &type_style.icon_style {

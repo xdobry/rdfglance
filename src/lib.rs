@@ -510,6 +510,7 @@ pub struct UIState {
     show_properties: bool,
     show_labels: bool,
     fade_unselected: bool,
+    show_num_hidden_refs: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
     cpu_usage: f32,
@@ -763,6 +764,7 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
+                show_num_hidden_refs: true,
                 last_visited_selection: LastVisitedSelection::None,
                 menu_action: None,
                 selection_start_rect: None,
@@ -1571,12 +1573,20 @@ impl eframe::App for RdfGlanceApp {
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
                     self.visible_nodes.add_by_index(node_index);
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        let npos = NeighborPos::one(node_index);
+                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                    }
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                     self.ui_state.selection_start_rect = None;
                 }
                 NodeAction::AddVisual(node_index) => {
                     self.visible_nodes.add_by_index(node_index);
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        let npos = NeighborPos::one(node_index);
+                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                    }
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                 }

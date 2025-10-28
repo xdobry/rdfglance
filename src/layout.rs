@@ -1,5 +1,12 @@
 use crate::{
-    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{distribute_to_zoom_layers, StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec, UIState
+    GVisualizationStyle, SortedVec, UIState,
+    config::Config,
+    graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
+    graph_styles::NodeShape,
+    nobject::IriIndex,
+    quad_tree::{BHQuadtree, WeightedPoint},
+    statistics::{StatisticsData, StatisticsResult, distribute_to_zoom_layers},
+    style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP},
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -8,9 +15,14 @@ use fixedbitset::FixedBitSet;
 use rand::Rng;
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque}, sync::{
-        atomic::{AtomicBool, Ordering}, mpsc, Arc, RwLock
-    }, thread::{self, JoinHandle}, time::Duration
+    collections::{BTreeSet, HashMap, VecDeque},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
 };
 
 #[derive(Clone, Copy)]
@@ -92,6 +104,7 @@ pub struct IndividualNodeStyleData {
     // 0 means no overwrite
     pub color_overwrite: u16,
     pub semantic_zoom_interval: LayerInterval,
+    pub hidden_references: i32,
 }
 
 impl Default for IndividualNodeStyleData {
@@ -100,6 +113,7 @@ impl Default for IndividualNodeStyleData {
             size_overwrite: f32::NAN,
             color_overwrite: 0,
             semantic_zoom_interval: LayerInterval::default(),
+            hidden_references: 0,
         }
     }
 }
@@ -446,9 +460,20 @@ impl SortedNodeLayout {
                     })
                     .collect::<Vec<NodeMemo>>();
                 let edge_memos: Vec<EdgeMemo> = edges
-                    .par_iter()
+                    .iter()
                     .filter(|edge| {
-                        pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                        let from_match = pos_to_remove.binary_search(&edge.from).is_ok();
+                        let to_match = pos_to_remove.binary_search(&edge.to).is_ok();
+                        if from_match && !to_match {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                individual_node_style.hidden_references += 1;
+                            }
+                        } else if to_match && !from_match {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                individual_node_style.hidden_references += 1;
+                            }
+                        }
+                        from_match || to_match
                     })
                     .map(|edge| EdgeMemo {
                         from: edge.from,
@@ -527,9 +552,20 @@ impl SortedNodeLayout {
                 })
                 .collect::<Vec<NodeMemo>>();
             let edge_memos: Vec<EdgeMemo> = edges
-                .par_iter()
+                .iter()
                 .filter(|edge| {
-                    pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                    let from_match = pos_to_remove.binary_search(&edge.from).is_ok();
+                    let to_match = pos_to_remove.binary_search(&edge.to).is_ok();
+                    if from_match && !to_match {
+                        if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                            individual_node_style.hidden_references += 1;
+                        }
+                    } else if to_match && !from_match {
+                        if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                            individual_node_style.hidden_references += 1;
+                        }
+                    }
+                    from_match || to_match
                 })
                 .map(|edge| EdgeMemo {
                     from: edge.from,
@@ -971,11 +1007,14 @@ impl SortedNodeLayout {
                                     ));
                                 }
                             } else {
-                                let values: Vec<f32> = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
+                                let values: Vec<f32> =
+                                    run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
                                 for (index, (layer, value)) in values_layers.iter().zip(&values).enumerate() {
                                     individual_node_style[index].set_size_value(*value, visualization_style);
-                                    individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                    individual_node_style[index]
+                                        .semantic_zoom_interval
+                                        .set_from_layout(*layer);
                                 }
                                 statistics_data
                                     .results
@@ -1001,10 +1040,14 @@ impl SortedNodeLayout {
                                     }
                                 } else {
                                     let values_layers: Vec<u8> = distribute_to_zoom_layers(result.get_data_vec());
-                                    for (index, (value, layer)) in result.get_data_vec().iter().zip(&values_layers).enumerate() {
+                                    for (index, (value, layer)) in
+                                        result.get_data_vec().iter().zip(&values_layers).enumerate()
+                                    {
                                         let node_index = statistics_data.nodes[index].1 as usize;
                                         individual_node_style[node_index].set_size_value(*value, visualization_style);
-                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                        individual_node_style[index]
+                                            .semantic_zoom_interval
+                                            .set_from_layout(*layer);
                                     }
                                 }
                             }
@@ -1051,9 +1094,11 @@ impl SortedNodeLayout {
                                     .collect::<Vec<f32>>();
                                 let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
                                 if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                    for (index, (value,layer)) in values.iter().zip(&values_layers).enumerate() {
+                                    for (index, (value, layer)) in values.iter().zip(&values_layers).enumerate() {
                                         individual_node_style[index].set_size_value(*value, visualization_style);
-                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                        individual_node_style[index]
+                                            .semantic_zoom_interval
+                                            .set_from_layout(*layer);
                                     }
                                 }
                                 statistics_data
@@ -1150,7 +1195,8 @@ impl SortedNodeLayout {
                     if let Some(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok() {
                         let mut connected_num = 0;
                         for edge in edges.iter() {
-                            if edge.from!=edge.to && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))
+                            if edge.from != edge.to
+                                && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))
                                 || (edge.to == pos && ui_state.selected_nodes.contains(&nodes[edge.from].node_index))
                             {
                                 connected_num += 1;
@@ -1223,8 +1269,12 @@ pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
 }
 
 fn smooth_invert(x: f32) -> f32 {
-    if x <= 0.0 { return 1.0; }
-    if x >= 1.0 { return 0.0; }
+    if x <= 0.0 {
+        return 1.0;
+    }
+    if x >= 1.0 {
+        return 0.0;
+    }
     let x2 = x * x;
     let x3 = x2 * x;
     let x4 = x3 * x;

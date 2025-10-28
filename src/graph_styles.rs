@@ -358,6 +358,7 @@ impl RdfGlanceApp {
                     false,
                     false,
                     true,
+                    0,
                     ui.visuals()
                 );
             }

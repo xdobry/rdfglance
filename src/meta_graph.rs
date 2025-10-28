@@ -232,6 +232,7 @@ impl RdfGlanceApp {
                                     false,
                                     false,
                                     true,
+                                    0,
                                     ui.visuals()
                                 );
                                 if let Some(new_node_shapes) = &mut new_node_shapes {
