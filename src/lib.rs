@@ -494,7 +494,7 @@ pub struct UIState {
     context_menu_pos: Pos2,
     context_menu_opened_by_keyboard: bool,
     node_to_drag: Option<IriIndex>,
-    // used for own translattion dragging, it start mouse pos and diff to left corner of scene rect
+    // used for own translation dragging, it start mouse pos and diff to left corner of scene rect
     // need to calculate new scene rect position
     translate_drag: Option<(Pos2,Pos2)>,
     selection_start_rect: Option<Pos2>,
@@ -1577,6 +1577,7 @@ impl eframe::App for RdfGlanceApp {
                         let npos = NeighborPos::one(node_index);
                         update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                     }
+                    self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                     self.ui_state.selection_start_rect = None;
@@ -1587,6 +1588,7 @@ impl eframe::App for RdfGlanceApp {
                         let npos = NeighborPos::one(node_index);
                         update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
                     }
+                    self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                 }

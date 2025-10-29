@@ -1,5 +1,3 @@
-use core::num;
-
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
     epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
@@ -11,7 +9,6 @@ use crate::{
 };
 
 const POS_SPACE: f32 = 3.0;
-const NODE_RADIUS: f32 = 10.0;
 
 pub fn draw_edge<F>(
     painter: &Painter,

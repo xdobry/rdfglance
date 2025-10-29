@@ -199,8 +199,12 @@ You can use ready to use binaries for windows see [github releases](https://gith
 
 ## Contributing
 
-We welcome contributions from the community. If you would like to contribute to **RDFGlance**, please fork the repository and submit a pull request. Make sure to follow the contribution guidelines outlined in the repository.
-You can also create [github issue](https://github.com/xdobry/rdfglance/issues)
+I welcome contributions from the community.
+If you find something odd, please open an issue — even small notes help.
+Please report bugs only this way they can be fixed.
+You can also create [github issue](https://github.com/xdobry/rdfglance/issues) or just drop me an email <mail@xdobry.de>.
+
+I've been developing open-source software for many years, but lately I hardly get any feedback, even though it's being used.
 
 ## License
 

@@ -324,6 +324,7 @@ impl SortedNodeLayout {
             Vec::new()
         };
         if !index_to_add.is_empty() {
+            self.update_node_shapes = true;
             if let Ok(mut nodes) = self.nodes.write() {
                 if let Ok(mut node_shapes) = self.node_shapes.write() {
                     if let Ok(mut positions) = self.positions.write() {
@@ -1419,6 +1420,7 @@ impl NodeCommand {
                 });
             }
             NodeCommand::RemoveElements(removed_nodes, removed_edges) => {
+                sorted_nodes.update_node_shapes = true;
                 sorted_nodes.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                     // The implementation is similar to add_many
                     // we assume that removed_nodes are unique and sorted by node index
@@ -1481,14 +1483,14 @@ impl NodeCommand {
                     // Add also the removed edges with right indexes
                     for edge in removed_edges.iter() {
                         // We need adapt hidden references but only for nodes that are not newly added (because they have already correct count)
-                        if removed_nodes_pos.binary_search(&edge.from).is_err() {
+                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.from).reverse()).is_err() {
                             if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
                                 if individual_node_style.hidden_references > 0 {
                                     individual_node_style.hidden_references -= 1;
                                 }
                             }
                         }
-                        if removed_nodes_pos.binary_search(&edge.to).is_err() {                     
+                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.to).reverse()).is_err() {                     
                             if let Some(individual_node_style) = individual_node_styles.get_mut(edge.to) {
                                 if individual_node_style.hidden_references > 0 {
                                     individual_node_style.hidden_references -= 1;

@@ -1,5 +1,5 @@
 use nalgebra::DMatrix;
-use lanczos::{Hermitian, Order};
+// use lanczos::{Hermitian, Order};
 
 use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge, layoutalg::spectral::laplacian_from_adjacency, SortedVec};
 
