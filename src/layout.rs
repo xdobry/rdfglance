@@ -104,7 +104,7 @@ pub struct IndividualNodeStyleData {
     // 0 means no overwrite
     pub color_overwrite: u16,
     pub semantic_zoom_interval: LayerInterval,
-    pub hidden_references: i32,
+    pub hidden_references: u32,
 }
 
 impl Default for IndividualNodeStyleData {
@@ -207,6 +207,7 @@ pub enum NodeCommand {
 pub struct NodeMemo {
     pub index: IriIndex,
     pub position: Pos2,
+    pub hidden_references: u32,
 }
 
 pub struct EdgeMemo {
@@ -457,6 +458,7 @@ impl SortedNodeLayout {
                     .map(|pos| NodeMemo {
                         index: nodes[*pos].node_index,
                         position: positions[*pos].pos,
+                        hidden_references: individual_node_styles[*pos].hidden_references,
                     })
                     .collect::<Vec<NodeMemo>>();
                 let edge_memos: Vec<EdgeMemo> = edges
@@ -549,6 +551,7 @@ impl SortedNodeLayout {
                 .map(|pos| NodeMemo {
                     index: nodes[*pos].node_index,
                     position: positions[*pos].pos,
+                    hidden_references: individual_node_styles[*pos].hidden_references,
                 })
                 .collect::<Vec<NodeMemo>>();
             let edge_memos: Vec<EdgeMemo> = edges
@@ -1438,6 +1441,8 @@ impl NodeCommand {
                     let mut j = b_len as isize - 1;
                     let mut k = (orig_len + b_len) as isize - 1;
 
+                    let mut removed_nodes_pos : Vec<usize> = Vec::with_capacity(removed_nodes.len());
+
                     while j >= 0 {
                         if i >= 0 && nodes[i as usize].node_index > removed_nodes[j as usize].index {
                             let old_node = nodes[i as usize];
@@ -1448,6 +1453,7 @@ impl NodeCommand {
                             individual_node_styles[k as usize] = individual_node_styles[i as usize];
                             i -= 1;
                         } else {
+                            removed_nodes_pos.push(k as usize);
                             nodes[k as usize] = NodeLayout {
                                 node_index: removed_nodes[j as usize].index,
                             };
@@ -1457,7 +1463,11 @@ impl NodeCommand {
                                 vel: Vec2::ZERO,
                                 locked: false,
                             };
-                            individual_node_styles[k as usize] = IndividualNodeStyleData::default();
+                            let ins = IndividualNodeStyleData {
+                                hidden_references: removed_nodes[j as usize].hidden_references,
+                                ..Default::default()
+                            };
+                            individual_node_styles[k as usize] = ins;
                             j -= 1;
                         }
                         k -= 1;
@@ -1470,6 +1480,21 @@ impl NodeCommand {
                     });
                     // Add also the removed edges with right indexes
                     for edge in removed_edges.iter() {
+                        // We need adapt hidden references but only for nodes that are not newly added (because they have already correct count)
+                        if removed_nodes_pos.binary_search(&edge.from).is_err() {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                if individual_node_style.hidden_references > 0 {
+                                    individual_node_style.hidden_references -= 1;
+                                }
+                            }
+                        }
+                        if removed_nodes_pos.binary_search(&edge.to).is_err() {                     
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.to) {
+                                if individual_node_style.hidden_references > 0 {
+                                    individual_node_style.hidden_references -= 1;
+                                }
+                            }
+                        }
                         edges.push(Edge {
                             from: edge.from,
                             to: edge.to,

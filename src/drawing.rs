@@ -361,7 +361,7 @@ pub fn draw_node_label(
     highlighted: bool,
     faded: bool,
     show_labels: bool,
-    num_hidden_references: i32,
+    num_hidden_references: u32,
     visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let mut job = LayoutJob::default();
@@ -470,11 +470,6 @@ pub fn draw_node_label(
         let hrec = galley.rect.translate(Vec2::new(text_pos.x, text_pos.y));
         painter.rect_filled(hrec, 3.0, visuals.extreme_bg_color);
     }
-    if num_hidden_references>0 {
-        let num_pos = node_rect.right_top() + Vec2::new(3.0,0.0);
-        let num_text = num_hidden_references.to_string();
-        painter.text(num_pos, egui::Align2::LEFT_TOP, num_text, egui::FontId::default() , visuals.text_color());
-    }
     if show_labels || highlighted {
         painter.galley(text_pos, galley, Color32::BLACK);
         if let Some(icon_style) = &type_style.icon_style {
@@ -498,6 +493,17 @@ pub fn draw_node_label(
                 fade_color(icon_style.icon_color, faded),
             );
         }
+    }
+    if num_hidden_references>0 {
+        let (num_pos, anchor) = if matches!(type_style.label_position, LabelPosition::Right) {
+            let num_pos = node_rect.right_bottom() + Vec2::new(node_rect.width()*-0.5,3.0);
+            (num_pos, Align2::CENTER_TOP)
+        } else {
+            let num_pos = node_rect.right_top() + Vec2::new(3.0,0.0);
+            (num_pos, Align2::LEFT_TOP)
+        };
+        let num_text = num_hidden_references.to_string();
+        painter.text(num_pos, anchor, num_text, egui::FontId::default() , visuals.text_color());
     }
     if type_style.node_shape == NodeShape::Circle {
         (

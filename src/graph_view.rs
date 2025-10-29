@@ -1236,23 +1236,25 @@ Expand Relations - double click on node",
                     let node_layout = self.visible_nodes.get_pos(node_to_hover);
                     if let Some(node_pos) = node_layout {
                         if let Some((object_iri, object)) = rdf_data.node_data.get_node_by_index(node_to_hover) {
-                            if let Ok(positions) = self.visible_nodes.positions.read() {
-                                let pos = center + positions[node_pos].pos.to_vec2();
-                                draw_node(
-                                    &self.visualization_style,
-                                    None,
-                                    &rdf_data.node_data.indexers,
-                                    &self.ui_state,
-                                    &self.persistent_data.config_data,
-                                    painter,
-                                    object,
-                                    object_iri,
-                                    pos,
-                                    self.ui_state.selected_node == Some(node_to_hover),
-                                    true,
-                                    false,
-                                    ui.visuals(),
-                                );
+                            if let Ok(individual_node_style) = self.visible_nodes.individual_node_styles.read() {
+                                if let Ok(positions) = self.visible_nodes.positions.read() {
+                                    let pos = center + positions[node_pos].pos.to_vec2();
+                                    draw_node(
+                                        &self.visualization_style,
+                                        individual_node_style.get(node_pos),
+                                        &rdf_data.node_data.indexers,
+                                        &self.ui_state,
+                                        &self.persistent_data.config_data,
+                                        painter,
+                                        object,
+                                        object_iri,
+                                        pos,
+                                        self.ui_state.selected_node == Some(node_to_hover),
+                                        true,
+                                        false,
+                                        ui.visuals(),
+                                    );
+                                }
                             }
                         }
                     }
@@ -2039,9 +2041,7 @@ impl NeighborPos {
     pub fn one(iri_index: IriIndex) -> Self {
         let mut nodes = HashMap::new();
         nodes.insert(0, vec![iri_index]);
-        Self {
-            nodes: nodes
-        }
+        Self { nodes: nodes }
     }
 
     pub fn add_many(
