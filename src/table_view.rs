@@ -1,16 +1,22 @@
+use std::io;
 use std::{cmp::min, collections::HashMap, time::Instant, vec};
 
 use const_format::concatcp;
-use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Popup, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
-#[cfg(not(target_arch = "wasm32"))]
 use crate::style::ICON_EXPORT;
 use crate::{
-    browse_view::{show_references, ReferenceAction}, config::IriDisplay, nobject::{IriIndex, LabelContext, LangIndex, NodeData}, prefix_manager::PrefixManager, style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH}, uitools::{popup_at, primary_color, strong_unselectable, ScrollBar}, GVisualizationStyle, NodeAction, RdfData, RefSelection, UIState
+    GVisualizationStyle, NodeAction, RdfData, RefSelection, UIState,
+    browse_view::{ReferenceAction, show_references},
+    config::IriDisplay,
+    nobject::{IriIndex, LabelContext, LangIndex, NodeData},
+    prefix_manager::PrefixManager,
+    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
+    uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
 };
 
 pub struct TypeInstanceIndex {
@@ -187,9 +193,9 @@ impl TypeData {
         let a_height = ui.available_height();
 
         let mut instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
-        let capacity = (a_height / ROW_HIGHT) as usize - 1;
+        let capacity = ((a_height / ROW_HIGHT) as usize).max(2) - 1;
 
-        let any_popup = ui.memory(|mem| mem.any_popup_open());
+        let any_popup = Popup::is_any_open(ctx);
         if !any_popup && !text_has_focus {
             if let Some((_node_iri, idx)) = self.instance_view.selected_idx {
                 ui.input(|i| {
@@ -389,7 +395,7 @@ impl TypeData {
         );
         if secondary_clicked && iri_column_rec.contains(mouse_pos) {
             was_context_click = true;
-            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+            Popup::open_id(ctx, popup_id);
             self.instance_view.context_menu = TableContextMenu::IriColumnMenu(mouse_pos);
         }
         painter.text(
@@ -420,7 +426,7 @@ impl TypeData {
         }
         if ref_column_rec.contains(mouse_pos) && secondary_clicked {
             was_context_click = true;
-            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+            Popup::open_id(ctx, popup_id);
             self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
         }
         xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
@@ -450,7 +456,7 @@ impl TypeData {
             if column_rect.contains(mouse_pos) {
                 if secondary_clicked {
                     was_context_click = true;
-                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                    Popup::open_id(ctx, popup_id);
                     self.instance_view.context_menu =
                         TableContextMenu::ColumnMenu(mouse_pos, column_desc.predicate_index);
                 } else {
@@ -570,7 +576,7 @@ impl TypeData {
                 );
                 if primary_clicked && ref_rect.contains(mouse_pos) {
                     was_context_click = true;
-                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                    Popup::open_id(ctx, popup_id);
                     self.instance_view.context_menu = TableContextMenu::RefMenu(mouse_pos, *instance_index);
                 }
 
@@ -606,7 +612,7 @@ impl TypeData {
                         );
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
-                            ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                            Popup::open_id(ctx, popup_id);
                             self.instance_view.ref_selection = RefSelection::None;
                             self.instance_view.context_menu =
                                 TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
@@ -642,7 +648,7 @@ impl TypeData {
             if show_refs {
                 was_context_click = true;
                 self.instance_view.ref_selection = RefSelection::None;
-                ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                Popup::open_id(ctx, popup_id);
             }
         }
         // Draw vertical lines
@@ -698,9 +704,10 @@ impl TypeData {
             xpos += COLUMN_GAP;
         }
 
-        if !was_context_click && (secondary_clicked || primary_clicked) {
+        //if !was_context_click && (secondary_clicked || primary_clicked) {
+        if !was_context_click && primary_clicked {
             self.instance_view.context_menu = TableContextMenu::None;
-            ui.memory_mut(|mem| mem.close_popup());
+            Popup::close_id(ctx, popup_id);
         }
         let width = match self.instance_view.context_menu {
             TableContextMenu::CellMenu(_, _, _) => 500.0,
@@ -724,7 +731,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
                 TableContextMenu::RefColumnMenu(_pos) => {
@@ -739,7 +746,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
                 TableContextMenu::ColumnMenu(_pos, column_predicate) => {
@@ -776,24 +783,23 @@ impl TypeData {
                         .collect();
                     if !hidden_columns.is_empty() {
                         ui.separator();
-                        ui.menu_button("Unhide Columns", |ui| {
-                            for column_desc in hidden_columns {
-                                let predicate_label = node_data.predicate_display(
-                                    column_desc.predicate_index,
-                                    &label_context,
-                                    &node_data.indexers,
-                                );
-                                if ui.button(predicate_label.as_str()).clicked() {
-                                    *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
-                                    close_menu = true;
-                                }
+                        for column_desc in hidden_columns {
+                            let predicate_label = node_data.predicate_display(
+                                column_desc.predicate_index,
+                                &label_context,
+                                &node_data.indexers,
+                            );
+                            let menu_txt = format!("Unhide: {}", predicate_label.as_str());
+                            if ui.button(menu_txt).clicked() {
+                                *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
+                                close_menu = true;
                             }
-                        });
+                        }
                     }
 
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
                 TableContextMenu::CellMenu(_pos, instance_index, predicate) => {
@@ -817,7 +823,7 @@ impl TypeData {
 
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
                 TableContextMenu::RefMenu(_pos, instance_index) => {
@@ -896,7 +902,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        ui.memory_mut(|mem| mem.close_popup());
+                        Popup::close_id(ctx, popup_id);
                     }
                 }
                 TableContextMenu::None => {}
@@ -1005,19 +1011,26 @@ impl TypeData {
         }
     }
 
-    fn export_csv(&self, rdf_data: &RdfData, path: &std::path::Path,
+
+    fn export_csv_writer<W: io::Write>(
+        &self,
+        rdf_data: &RdfData,
+        wtr: &mut csv::Writer<W>,
         iri_display: IriDisplay,
-        lang_index: LangIndex
-        ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut wtr = csv::Writer::from_path(path)?;
+        lang_index: LangIndex,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         wtr.write_field("iri")?;
         let label_context = LabelContext::new(lang_index, iri_display, &rdf_data.prefix_manager);
-        for column_desc  in self.instance_view.display_properties.iter() {
+        for column_desc in self.instance_view.display_properties.iter() {
             if column_desc.visible {
-                let predicate = rdf_data.node_data.predicate_display(column_desc.predicate_index, &label_context , &rdf_data.node_data.indexers);
+                let predicate = rdf_data.node_data.predicate_display(
+                    column_desc.predicate_index,
+                    &label_context,
+                    &rdf_data.node_data.indexers,
+                );
                 wtr.write_field(predicate.as_str())?;
             }
-        };
+        }
         wtr.write_record(None::<&[u8]>)?;
 
         for instance_index in &self.filtered_instances {
@@ -1025,7 +1038,7 @@ impl TypeData {
             if let Some((node_iri, node)) = node {
                 let iri_ref: &str = &node_iri;
                 wtr.write_field(iri_ref)?;
-                for column_desc  in self.instance_view.display_properties.iter() {
+                for column_desc in self.instance_view.display_properties.iter() {
                     if column_desc.visible {
                         let property = node.get_property_count(column_desc.predicate_index, lang_index);
                         if let Some((property, _count)) = property {
@@ -1035,7 +1048,7 @@ impl TypeData {
                             wtr.write_field("")?;
                         }
                     }
-                };
+                }
                 wtr.write_record(None::<&[u8]>)?;
             }
         }
@@ -1461,7 +1474,7 @@ impl TypeInstanceIndex {
                                 let type_cell_action =
                                     type_data.display_references(ui, &label_context, &rdf_data.node_data);
                                 if let TypeCellAction::ShowRefTypes(pos, predicate_index) = type_cell_action {
-                                    ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+                                    Popup::open_id(ctx, popup_id);
                                     self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
                                 }
                             });
@@ -1501,7 +1514,7 @@ impl TypeInstanceIndex {
                                     }
                                     if close_menu {
                                         self.type_cell_action = TypeCellAction::None;
-                                        ui.memory_mut(|mem| mem.close_popup());
+                                        Popup::close_id(ctx, popup_id);
                                     }
                                 }
                                 TypeCellAction::None => {}
@@ -1519,7 +1532,12 @@ impl TypeInstanceIndex {
                     let filter_immediately = type_data.instances.len() < IMMADIATE_FILTER_COUNT;
                     let text_edit = egui::TextEdit::singleline(&mut type_data.instance_view.instance_filter);
                     let text_edit_response = ui.add(text_edit);
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.ctx().input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
+                        text_edit_response.request_focus();
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    if ui.ctx().input(|i| i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::F)) {
                         text_edit_response.request_focus();
                     }
                     text_has_focus = text_has_focus || text_edit_response.has_focus();
@@ -1556,24 +1574,29 @@ impl TypeInstanceIndex {
                             0..=visible_columns - 1,
                         ));
                     }
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui
                         .button(concatcp!(ICON_EXPORT, " Export CSV"))
                         .on_hover_text("Export as CSV file")
                         .clicked()
                     {
+                        #[cfg(not(target_arch = "wasm32"))]
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("CSV File", &["csv"])
                             .set_file_name("table.csv")
                             .save_file()
                         {
-                            use std::path::Path;
-                            let _store_res = type_data.export_csv(
-                                &rdf_data,
-                                Path::new(path.as_path()),
-                                iri_display,
-                                layout_data.display_language,
-                            );
+                            let mut wtr = csv::Writer::from_path(path).unwrap();
+                            let _ = type_data.export_csv_writer(&rdf_data, &mut wtr, iri_display, layout_data.display_language);
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            use crate::uitools::web_download;
+
+                            let buf = Vec::new();
+                            let mut wtr = csv::Writer::from_writer(buf);
+                            let _ = type_data.export_csv_writer(&rdf_data, &mut wtr, iri_display, layout_data.display_language);
+                            let buf = wtr.into_inner().unwrap();
+                            let _ = web_download("table.csv",&buf);
                         }
                     }
                 });
@@ -1850,7 +1873,6 @@ impl TypeInstanceIndex {
         }
         instance_action
     }
-
 
     fn show_types(
         &self,

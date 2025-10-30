@@ -494,7 +494,7 @@ pub struct UIState {
     context_menu_pos: Pos2,
     context_menu_opened_by_keyboard: bool,
     node_to_drag: Option<IriIndex>,
-    // used for own translattion dragging, it start mouse pos and diff to left corner of scene rect
+    // used for own translation dragging, it start mouse pos and diff to left corner of scene rect
     // need to calculate new scene rect position
     translate_drag: Option<(Pos2,Pos2)>,
     selection_start_rect: Option<Pos2>,
@@ -510,6 +510,7 @@ pub struct UIState {
     show_properties: bool,
     show_labels: bool,
     fade_unselected: bool,
+    show_num_hidden_refs: bool,
     style_edit: StyleEdit,
     icon_name_filter: String,
     cpu_usage: f32,
@@ -763,10 +764,11 @@ impl RdfGlanceApp {
                 cpu_usage: 0.0,
                 semantic_zoom_magnitude: 1,
                 about_window: false,
-                last_visited_selection: LastVisitedSelection::File(0),
+                show_num_hidden_refs: true,
+                last_visited_selection: LastVisitedSelection::None,
                 menu_action: None,
                 selection_start_rect: None,
-                translate_drag: None,       
+                translate_drag: None,
             },
             help_open: false,
             load_handle: None,
@@ -790,7 +792,7 @@ impl RdfGlanceApp {
     }
 }
 
-enum ExpandType {
+pub enum ExpandType {
     References,
     ReverseReferences,
     Both,
@@ -1154,7 +1156,7 @@ impl RdfGlanceApp {
         {
             ui.add_space(20.0);
             ui.strong("0 React, 0 HTML, Full Power!");
-            ui.strong("Try Desktop version for full functionality! Especially multuthread more performant non-blocking processing.");
+            ui.strong("Try Desktop version for full functionality! Especially multithread more performant non-blocking processing.");
             let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Sample Data")).size(16.0);
             let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
             let b_resp = ui.add(nav_but);
@@ -1174,6 +1176,10 @@ impl RdfGlanceApp {
                     LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
             }
         }
+        if matches!(self.ui_state.last_visited_selection,LastVisitedSelection::None) && self.persistent_data.last_files.len()>0 {
+            self.ui_state.last_visited_selection = LastVisitedSelection::File(0);
+        }
+
         ui.input(|i| {
             if i.key_pressed(egui::Key::Enter) {
                 enter_pressed = true;
@@ -1315,7 +1321,7 @@ impl RdfGlanceApp {
         None
     }
 
-    pub fn node_change_context(&mut self) -> NodeChangeContext {
+    pub fn node_change_context(&mut self) -> NodeChangeContext<'_> {
         NodeChangeContext {
             rdfwrap: &mut self.rdfwrap,
             visible_nodes: &mut self.visible_nodes,
@@ -1469,22 +1475,30 @@ impl eframe::App for RdfGlanceApp {
                     DisplayType::Configuration,
                     concatcp!(ICON_CONFIG, " Settings"),
                 );
+                #[cfg(target_arch = "wasm32")]
+                ui.small("Num+Alt to Switch");
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.small("Num+Ctrl to Switch");
-                ui.input(|i| {
-                    if i.modifiers.ctrl && i.key_pressed(Key::Num1) {
+                    ui.input(|i| {
+                    #[cfg(target_arch = "wasm32")]
+                    let is_mod = i.modifiers.alt;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let is_mod = i.modifiers.ctrl;
+                    if is_mod && i.key_pressed(Key::Num1) {
                         self.display_type = DisplayType::Table;
-                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num7) {
+                    } else if is_mod && i.key_pressed(Key::Num7) {
                         self.display_type = DisplayType::Configuration;
-                    } else if i.modifiers.ctrl && i.key_pressed(Key::Num6) {
+                    } else if is_mod && i.key_pressed(Key::Num6) {
                         self.display_type = DisplayType::Prefixes;
                     } else if !self.is_empty() {
-                        if i.modifiers.ctrl && i.key_pressed(Key::Num2) {
+                        if is_mod && i.key_pressed(Key::Num2) {
+                            self.ui_state.selection_start_rect = None;
                             self.display_type = DisplayType::Graph;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num3) {
+                        } else if is_mod && i.key_pressed(Key::Num3) {
                             self.display_type = DisplayType::Browse;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num4) {
+                        } else if is_mod && i.key_pressed(Key::Num4) {
                             self.display_type = DisplayType::MetaGraph;
-                        } else if i.modifiers.ctrl && i.key_pressed(Key::Num5) {
+                        } else if is_mod && i.key_pressed(Key::Num5) {
                             self.display_type = DisplayType::Statistics;
                         }
                     }
@@ -1545,6 +1559,11 @@ impl eframe::App for RdfGlanceApp {
                     if let Some(type_desc) = self.type_index.types.get_mut(&type_index) {
                         type_desc.filtered_instances = instances;
                         type_desc.instance_view.pos = 0.0;
+                        if type_desc.filtered_instances.len() > 0 {
+                            type_desc.instance_view.selected_idx = Some((type_desc.filtered_instances[0],0))
+                        } else {
+                            type_desc.instance_view.selected_idx = None;
+                        }
                     }
                 }
                 NodeAction::BrowseNode(node_index) => {
@@ -1554,11 +1573,22 @@ impl eframe::App for RdfGlanceApp {
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
                     self.visible_nodes.add_by_index(node_index);
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        let npos = NeighborPos::one(node_index);
+                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                    }
+                    self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
+                    self.ui_state.selection_start_rect = None;
                 }
                 NodeAction::AddVisual(node_index) => {
                     self.visible_nodes.add_by_index(node_index);
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        let npos = NeighborPos::one(node_index);
+                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                    }
+                    self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                 }

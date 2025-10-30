@@ -3741,7 +3741,8 @@ dbr:ARPAnet a <dbo:ProgrammingLanguage> .
 <http://dbpedia.org/resource/AT&T_Labs> a dbo:Person ;
     rdfs:label "AT&T Labs"@en .
 
-dbr:AWK_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:AWK_\(programming_language\) a <dbo:ProgrammingLanguage>;
+    rdfs:label "AWK"@en .
 
 dbr:Acadia_University a dbo:Person ;
     rdfs:label "Acadia University"@en .
@@ -3902,8 +3903,8 @@ dbr:Barry_Richmond a dbo:Person ;
 
 dbr:Befunge a dbo:ProgrammingLanguage ;
     rdfs:label "Befunge"@en ;
-    dbo:influencedBy dbr:Esoteric_programming_language,
-        dbr:Forth_\(programming_language\) .
+    dbp:paradigm dbr:Esoteric_programming_language;
+    dbo:influencedBy dbr:Forth_\(programming_language\) .
 
 dbr:Begriffsschrift a <dbo:ProgrammingLanguage> .
 
@@ -3947,8 +3948,6 @@ dbr:Brad_Cox a dbo:Person ;
 
 dbr:Brainfuck a dbo:ProgrammingLanguage ;
     rdfs:label "Brainfuck"@en ;
-    dbo:influencedBy dbr:Esoteric_programming_language,
-        <http://dbpedia.org/resource/P′′> ;
     dbp:paradigm dbr:Esoteric_programming_language,
         dbr:Imperative_programming,
         dbr:Structured_programming ;
@@ -3961,7 +3960,8 @@ dbr:Business_Basic a <dbo:ProgrammingLanguage> .
 dbr:Butler_Lampson a dbo:Person ;
     rdfs:label "Butler Lampson"@en .
 
-dbr:CAL_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:CAL_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "CAL"@en .
 
 dbr:CMS_EXEC a <dbo:ProgrammingLanguage> .
 
@@ -3981,7 +3981,8 @@ dbr:CPL_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Procedural_programming,
         dbr:Structured_programming .
 
-dbr:CS-1_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:CS-1_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "CS-1"@en .
 
 dbr:Calvin_Mooers a dbo:Person ;
     rdfs:label "Calvin Mooers"@en ;
@@ -4370,7 +4371,8 @@ dbr:Germany a dbo:Nationality .
 dbr:Gilad_Bracha a dbo:Person ;
     rdfs:label "Gilad Bracha"@en .
 
-dbr:Gofer_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:Gofer_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "Gofer"@en .
 
 dbr:Google_Native_Client a <dbo:ProgrammingLanguage> .
 
@@ -4401,7 +4403,8 @@ dbr:HP_Time-Shared_BASIC a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Dartmouth_BASIC ;
     dbp:paradigm dbr:Imperative_programming .
 
-dbr:Hack_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:Hack_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "Hack"@en .
 
 dbr:Haml a dbo:ProgrammingLanguage ;
     rdfs:label "Haml"@en ;
@@ -4447,7 +4450,8 @@ dbr:IBM_Cassette_BASIC a <dbo:ProgrammingLanguage> .
 
 dbr:IBM_Disk_BASIC a <dbo:ProgrammingLanguage> .
 
-dbr:IDL_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:IDL_\(programming_language\) a <dbo:ProgrammingLanguage>;
+    rdfs:label "IDL"@en .
 
 dbr:IEEE a dbo:Person ;
     rdfs:label "IEEE"@en .
@@ -4536,7 +4540,8 @@ dbr:JScript a dbo:ProgrammingLanguage ;
         dbr:Dynamic_typing,
         dbr:Weak_typing .
 
-dbr:J_Sharp a <dbo:ProgrammingLanguage> .
+dbr:J_Sharp a <dbo:ProgrammingLanguage> ;
+    rdfs:label "J#"@en .
 
 dbr:J_Strother_Moore a dbo:Person ;
     rdfs:label "J Strother Moore"@en .
@@ -4935,7 +4940,7 @@ dbr:Oaklisp a dbo:ProgrammingLanguage ;
     dbo:designer dbr:Kevin_J._Lang ;
     dbo:influencedBy dbr:Scheme_\(programming_language\),
         dbr:Smalltalk,
-        dbr:T_programming_language ;
+        dbr:T_\(programming_language\) ;
     dbo:latestReleaseDate "2000-01-07"^^xsd:date ;
     dbp:paradigm dbr:Functional_programming,
         dbr:Multi-paradigm_programming_language,
@@ -5234,7 +5239,8 @@ dbr:SAML a <dbo:ProgrammingLanguage> .
 dbr:SAP_SE a dbo:Person ;
     rdfs:label "SAP SE"@en .
 
-dbr:SASL_programming_language a <dbo:ProgrammingLanguage> .
+dbr:SASL_programming_language a <dbo:ProgrammingLanguage> ;
+    rdfs:label "SASL"@en .
 
 dbr:SB-Prolog a <dbo:ProgrammingLanguage> .
 
@@ -5446,8 +5452,6 @@ dbr:T_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Object-oriented_programming ;
     dbp:typing dbr:Dynamic_typing,
         dbr:Strong_typing .
-
-dbr:T_programming_language a <dbo:ProgrammingLanguage> .
 
 dbr:TeX a <dbo:ProgrammingLanguage> .
 
@@ -6252,7 +6256,8 @@ dbr:Distributed_programming a <yago:Paradigm113804375> .
 dbr:Domain-specific_language a yago:Paradigm113804375 ;
     rdfs:label "Domain-specific language"@en .
 
-dbr:E_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:E_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "E"@en .
 
 dbr:Executive_Systems_Problem_Oriented_Language a dbo:ProgrammingLanguage ;
     rdfs:label "Executive Systems Problem Oriented Language"@en ;
@@ -6275,7 +6280,8 @@ dbr:HTML a dbo:ProgrammingLanguage ;
 dbr:Hampton_Catlin a dbo:Person ;
     rdfs:label "Hampton Catlin"@en .
 
-dbr:Hope_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:Hope_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "Hope"@en .
 
 dbr:IBM a dbo:Person ;
     rdfs:label "IBM"@en .
@@ -6423,8 +6429,7 @@ dbr:Compiled_language a <yago:Paradigm113804375> .
 dbr:Dataflow a <dbo:ProgrammingLanguage>,
         <yago:Paradigm113804375> .
 
-dbr:Esoteric_programming_language a <dbo:ProgrammingLanguage>,
-        <yago:Paradigm113804375> .
+dbr:Esoteric_programming_language a <yago:Paradigm113804375> .
 
 dbr:Euclid_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Euclid"@en ;
@@ -6649,7 +6654,8 @@ dbr:COBOL a dbo:ProgrammingLanguage ;
 
 dbr:Educational_programming_language a <yago:Paradigm113804375> .
 
-dbr:F_Sharp_\(programming_language\) a <dbo:ProgrammingLanguage> .
+dbr:F_Sharp_\(programming_language\) a <dbo:ProgrammingLanguage> ;
+    rdfs:label "F#"@en .
 
 dbr:JOSS a dbo:ProgrammingLanguage ;
     rdfs:label "JOSS"@en ;

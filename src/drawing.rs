@@ -9,7 +9,6 @@ use crate::{
 };
 
 const POS_SPACE: f32 = 3.0;
-const NODE_RADIUS: f32 = 10.0;
 
 pub fn draw_edge<F>(
     painter: &Painter,
@@ -359,6 +358,7 @@ pub fn draw_node_label(
     highlighted: bool,
     faded: bool,
     show_labels: bool,
+    num_hidden_references: u32,
     visuals: &egui::Visuals,
 ) -> (Rect, NodeShape) {
     let mut job = LayoutJob::default();
@@ -403,7 +403,7 @@ pub fn draw_node_label(
         }
         LabelPosition::Right => pos + Vec2::new(type_style.width / 2.0 + POS_SPACE, -text_rect.height() / 2.0),
     };
-    let node_rect = if show_labels {
+    let node_rect = {
         let stroke = if type_style.border_width > 0.0 {
             Stroke::new(type_style.border_width, fade_color(type_style.border_color,faded))
         } else {
@@ -421,14 +421,19 @@ pub fn draw_node_label(
         };
         if selected {
             let select_rec = if type_style.node_shape == NodeShape::Circle {
-                Rect::from_center_size(pos, Vec2::splat(node_rect.width() + 4.0))
+                Rect::from_center_size(pos, Vec2::splat(node_rect.width() + 8.0))
             } else {
-                node_rect.expand(4.0)
+                node_rect.expand(8.0)
+            };
+            let selection_bg = if visuals.dark_mode {
+                egui::Color32::from_rgba_premultiplied(200, 200, 0, 150)
+            } else {
+                egui::Color32::from_rgba_premultiplied(255, 157, 0, 200)
             };
             painter.rect_filled(
                 select_rec,
                 3.0,
-                egui::Color32::from_rgba_premultiplied(200, 200, 0, 150),
+                selection_bg,
             );
         }
         match type_style.node_shape {
@@ -457,27 +462,6 @@ pub fn draw_node_label(
             }
         }
         node_rect
-    } else {
-        if selected {
-            painter.circle_filled(
-                pos,
-                NODE_RADIUS + 3.0,
-                egui::Color32::from_rgba_premultiplied(255, 255, 0, 170),
-            );
-        }
-        painter.circle_filled(pos, NODE_RADIUS, fade_color(type_style.color, faded));
-        if let Some(icon_style) = &type_style.icon_style {
-            let icon_pos = pos;
-            let icon_font = FontId::proportional(icon_style.icon_size);
-            painter.text(
-                icon_pos,
-                Align2::CENTER_CENTER,
-                icon_style.icon_character.to_string(),
-                icon_font,
-                fade_color(icon_style.icon_color, faded),
-            );
-        }
-        Rect::from_center_size(pos, Vec2::new(NODE_RADIUS * 2.0, NODE_RADIUS * 2.0))
     };
     if highlighted {
         let hrec = galley.rect.translate(Vec2::new(text_pos.x, text_pos.y));
@@ -506,6 +490,17 @@ pub fn draw_node_label(
                 fade_color(icon_style.icon_color, faded),
             );
         }
+    }
+    if num_hidden_references>0 {
+        let (num_pos, anchor) = if matches!(type_style.label_position, LabelPosition::Right) {
+            let num_pos = node_rect.right_bottom() + Vec2::new(node_rect.width()*-0.5,3.0);
+            (num_pos, Align2::CENTER_TOP)
+        } else {
+            let num_pos = node_rect.right_top() + Vec2::new(3.0,0.0);
+            (num_pos, Align2::LEFT_TOP)
+        };
+        let num_text = num_hidden_references.to_string();
+        painter.text(num_pos, anchor, num_text, egui::FontId::default() , visuals.text_color());
     }
     if type_style.node_shape == NodeShape::Circle {
         (

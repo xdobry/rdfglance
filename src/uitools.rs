@@ -1,8 +1,8 @@
 use eframe::egui::{Align, Area, Color32, Frame, Id, Key, Layout, Order, Pos2, Stroke, Style, Ui, vec2};
-use egui::{Rect, Response, Sense, Vec2, Widget};
+use egui::{Popup, Rect, Response, Sense, Vec2, Widget};
 
 pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    if ui.memory(|mem| mem.is_popup_open(popup_id)) {
+    if Popup::is_id_open(ui.ctx(), popup_id) {
         let inner = Area::new(popup_id)
             .order(Order::Foreground)
             .constrain(true)
@@ -23,7 +23,9 @@ pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: i
             .inner;
 
         if ui.input(|i| i.key_pressed(Key::Escape)) {
-            ui.memory_mut(|mem| mem.close_popup());
+            Popup::close_id(ui.ctx(), popup_id);
+        } else {
+            ui.ctx().memory_mut(|mem| mem.keep_popup_open(popup_id));
         }
         Some(inner)
     } else {
@@ -186,4 +188,33 @@ pub fn primary_color(visuals: &egui::Visuals) -> Color32 {
     } else {
         egui::Color32::LIGHT_GREEN
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn web_download(file_name: &str, data: &[u8]) -> Result<(), String> {
+    // create blob
+    use eframe::wasm_bindgen::JsCast;
+    use js_sys::Array;
+
+    let array_data = Array::new();
+    array_data.push(&js_sys::Uint8Array::from(data));
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&array_data).map_err(|_| "Cannot create image data")?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|_| "Cannot create image url data")?;
+    // create link
+    let document = web_sys::window()
+        .ok_or("Cannot get the website window")?
+        .document()
+        .ok_or("Cannot get the website document")?;
+    let a = document.create_element("a").map_err(|_| "Cannot create <a> element")?;
+    a.set_attribute("href", &url)
+        .map_err(|_| "Cannot create add href attribute")?;
+    a.set_attribute("download", file_name)
+        .map_err(|_| "Cannot create add download attribute")?;
+
+    // click link
+    a.dyn_ref::<web_sys::HtmlElement>()
+        .ok_or("Cannot simulate click")?
+        .click();
+    // revoke url
+    web_sys::Url::revoke_object_url(&url).map_err(|_| "Cannot remove object url with revoke_object_url".into())
 }

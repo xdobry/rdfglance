@@ -1,4 +1,4 @@
-use egui::{Color32, RichText, Sense, Slider, Vec2};
+use egui::{Color32, Popup, RichText, Sense, Slider, Vec2};
 
 use crate::{
     RdfGlanceApp, StyleEdit,
@@ -358,6 +358,7 @@ impl RdfGlanceApp {
                     false,
                     false,
                     true,
+                    0,
                     ui.visuals()
                 );
             }
@@ -501,11 +502,10 @@ fn display_icon_style(ui: &mut egui::Ui, icon_style: &mut Option<IconStyle>, ico
 // Code partly from egui demo
 // https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/font_book.rs
 
-fn available_characters(ui: &egui::Ui, family: egui::FontFamily) -> Vec<(char, String)> {
-    ui.fonts(|f| {
-        f.lock()
-            .fonts
-            .font(&egui::FontId::new(10.0, family)) // size is arbitrary for getting the characters
+fn available_characters(ui: &egui::Ui, family: &egui::FontFamily) -> Vec<(char, String)> {
+    ui.fonts_mut(|f| {
+        f.fonts
+            .font(family) // size is arbitrary for getting the characters
             .characters()
             .iter()
             .filter(|(chr, _fonts)| !chr.is_whitespace() && !chr.is_ascii_control())
@@ -663,10 +663,10 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
     let popup_id = ui.auto_id_with("popup");
     let button_response = ui.button(RichText::new(icon.to_string()).size(24.0));
     if button_response.clicked() {
-        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+        Popup::toggle_id(ui.ctx(), popup_id);
     }
 
-    if ui.memory(|mem| mem.is_popup_open(popup_id)) {
+    if Popup::is_id_open(ui.ctx(), popup_id) {
         let area_response = egui::Area::new(popup_id)
             .kind(egui::UiKind::Picker)
             .order(egui::Order::Foreground)
@@ -674,7 +674,7 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
             .show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.text_edit_singleline(font_filter);
-                    let available_characters = available_characters(ui, egui::FontFamily::Proportional);
+                    let available_characters = available_characters(ui, &egui::FontFamily::Proportional);
                     ui.allocate_ui(Vec2::new(ui.available_width(), 400.0), |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for chunk in available_characters
@@ -687,7 +687,7 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
                                     for (chr, _name) in chunk {
                                         if ui.button(chr.to_string()).clicked() {
                                             *icon = *chr;
-                                            ui.memory_mut(|mem| mem.close_popup());
+                                            Popup::close_id(ui.ctx(), popup_id);
                                         }
                                     }
                                 });
@@ -696,7 +696,7 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
                     });
                 });
                 if ui.button("close").clicked() {
-                    ui.memory_mut(|mem| mem.close_popup());
+                    Popup::close_id(ui.ctx(), popup_id);
                 }
             })
             .response;
@@ -704,7 +704,7 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
         if !button_response.clicked()
             && (ui.input(|i| i.key_pressed(egui::Key::Escape)) || area_response.clicked_elsewhere())
         {
-            ui.memory_mut(|mem| mem.close_popup());
+            Popup::close_id(ui.ctx(), popup_id);
         }
     }
 

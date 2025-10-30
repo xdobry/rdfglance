@@ -1,5 +1,12 @@
 use crate::{
-    config::Config, graph_algorithms::{run_algorithm, run_clustering_algorithm, GraphAlgorithm}, graph_styles::NodeShape, nobject::IriIndex, quad_tree::{BHQuadtree, WeightedPoint}, statistics::{distribute_to_zoom_layers, StatisticsData, StatisticsResult}, style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, GVisualizationStyle, SortedVec, UIState
+    GVisualizationStyle, SortedVec, UIState,
+    config::Config,
+    graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
+    graph_styles::NodeShape,
+    nobject::IriIndex,
+    quad_tree::{BHQuadtree, WeightedPoint},
+    statistics::{StatisticsData, StatisticsResult, distribute_to_zoom_layers},
+    style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP},
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;
@@ -97,6 +104,7 @@ pub struct IndividualNodeStyleData {
     // 0 means no overwrite
     pub color_overwrite: u16,
     pub semantic_zoom_interval: LayerInterval,
+    pub hidden_references: u32,
 }
 
 impl Default for IndividualNodeStyleData {
@@ -105,6 +113,7 @@ impl Default for IndividualNodeStyleData {
             size_overwrite: f32::NAN,
             color_overwrite: 0,
             semantic_zoom_interval: LayerInterval::default(),
+            hidden_references: 0,
         }
     }
 }
@@ -198,6 +207,7 @@ pub enum NodeCommand {
 pub struct NodeMemo {
     pub index: IriIndex,
     pub position: Pos2,
+    pub hidden_references: u32,
 }
 
 pub struct EdgeMemo {
@@ -314,6 +324,7 @@ impl SortedNodeLayout {
             Vec::new()
         };
         if !index_to_add.is_empty() {
+            self.update_node_shapes = true;
             if let Ok(mut nodes) = self.nodes.write() {
                 if let Ok(mut node_shapes) = self.node_shapes.write() {
                     if let Ok(mut positions) = self.positions.write() {
@@ -448,12 +459,24 @@ impl SortedNodeLayout {
                     .map(|pos| NodeMemo {
                         index: nodes[*pos].node_index,
                         position: positions[*pos].pos,
+                        hidden_references: individual_node_styles[*pos].hidden_references,
                     })
                     .collect::<Vec<NodeMemo>>();
                 let edge_memos: Vec<EdgeMemo> = edges
-                    .par_iter()
+                    .iter()
                     .filter(|edge| {
-                        pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                        let from_match = pos_to_remove.binary_search(&edge.from).is_ok();
+                        let to_match = pos_to_remove.binary_search(&edge.to).is_ok();
+                        if from_match && !to_match {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                individual_node_style.hidden_references += 1;
+                            }
+                        } else if to_match && !from_match {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                individual_node_style.hidden_references += 1;
+                            }
+                        }
+                        from_match || to_match
                     })
                     .map(|edge| EdgeMemo {
                         from: edge.from,
@@ -529,12 +552,24 @@ impl SortedNodeLayout {
                 .map(|pos| NodeMemo {
                     index: nodes[*pos].node_index,
                     position: positions[*pos].pos,
+                    hidden_references: individual_node_styles[*pos].hidden_references,
                 })
                 .collect::<Vec<NodeMemo>>();
             let edge_memos: Vec<EdgeMemo> = edges
-                .par_iter()
+                .iter()
                 .filter(|edge| {
-                    pos_to_remove.binary_search(&edge.from).is_ok() || pos_to_remove.binary_search(&edge.to).is_ok()
+                    let from_match = pos_to_remove.binary_search(&edge.from).is_ok();
+                    let to_match = pos_to_remove.binary_search(&edge.to).is_ok();
+                    if from_match && !to_match {
+                        if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                            individual_node_style.hidden_references += 1;
+                        }
+                    } else if to_match && !from_match {
+                        if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                            individual_node_style.hidden_references += 1;
+                        }
+                    }
+                    from_match || to_match
                 })
                 .map(|edge| EdgeMemo {
                     from: edge.from,
@@ -969,12 +1004,21 @@ impl SortedNodeLayout {
                                 statistics_data
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                                if let Some(parameters) = cluster.parameters {
+                                    statistics_data.results.push(StatisticsResult::new_for_values(
+                                        parameters,
+                                        graph_algorithm.get_statistics_values()[1],
+                                    ));
+                                }
                             } else {
-                                let values: Vec<f32> = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
+                                let values: Vec<f32> =
+                                    run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
                                 for (index, (layer, value)) in values_layers.iter().zip(&values).enumerate() {
                                     individual_node_style[index].set_size_value(*value, visualization_style);
-                                    individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                    individual_node_style[index]
+                                        .semantic_zoom_interval
+                                        .set_from_layout(*layer);
                                 }
                                 statistics_data
                                     .results
@@ -985,10 +1029,11 @@ impl SortedNodeLayout {
                             statistics_data.data_epoch = self.data_epoch;
                         }
                     } else {
+                        let statistic_value = graph_algorithm.get_statistics_values()[0];
                         let result = statistics_data
                             .results
                             .iter()
-                            .find(|res| res.graph_algorithm() == graph_algorithm);
+                            .find(|res| res.statistics_value() == statistic_value);
                         if let Some(result) = result {
                             // no action needed the data is already in result but we need to set the individual node styles
                             if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
@@ -999,10 +1044,14 @@ impl SortedNodeLayout {
                                     }
                                 } else {
                                     let values_layers: Vec<u8> = distribute_to_zoom_layers(result.get_data_vec());
-                                    for (index, (value, layer)) in result.get_data_vec().iter().zip(&values_layers).enumerate() {
+                                    for (index, (value, layer)) in
+                                        result.get_data_vec().iter().zip(&values_layers).enumerate()
+                                    {
                                         let node_index = statistics_data.nodes[index].1 as usize;
                                         individual_node_style[node_index].set_size_value(*value, visualization_style);
-                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                        individual_node_style[index]
+                                            .semantic_zoom_interval
+                                            .set_from_layout(*layer);
                                     }
                                 }
                             }
@@ -1028,6 +1077,17 @@ impl SortedNodeLayout {
                                 statistics_data
                                     .results
                                     .push(StatisticsResult::new_for_alg(values, graph_algorithm));
+                                if let Some(parameters) = cluster.parameters {
+                                    let values = statistics_data
+                                        .nodes
+                                        .iter()
+                                        .map(|(_iri, pos)| parameters[*pos as usize])
+                                        .collect::<Vec<f32>>();
+                                    statistics_data.results.push(StatisticsResult::new_for_values(
+                                        values,
+                                        graph_algorithm.get_statistics_values()[1],
+                                    ));
+                                }
                             } else {
                                 let values = run_algorithm(graph_algorithm, nodes_len, &edges, hidden_predicates);
                                 // the values could be already resorted so use position index to get them in right order
@@ -1038,9 +1098,11 @@ impl SortedNodeLayout {
                                     .collect::<Vec<f32>>();
                                 let values_layers: Vec<u8> = distribute_to_zoom_layers(&values);
                                 if let Ok(mut individual_node_style) = self.individual_node_styles.write() {
-                                    for (index, (value,layer)) in values.iter().zip(&values_layers).enumerate() {
+                                    for (index, (value, layer)) in values.iter().zip(&values_layers).enumerate() {
                                         individual_node_style[index].set_size_value(*value, visualization_style);
-                                        individual_node_style[index].semantic_zoom_interval.set_from_layout(*layer);
+                                        individual_node_style[index]
+                                            .semantic_zoom_interval
+                                            .set_from_layout(*layer);
                                     }
                                 }
                                 statistics_data
@@ -1137,7 +1199,8 @@ impl SortedNodeLayout {
                     if let Some(pos) = nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok() {
                         let mut connected_num = 0;
                         for edge in edges.iter() {
-                            if edge.from!=edge.to && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))
+                            if edge.from != edge.to
+                                && (edge.from == pos && ui_state.selected_nodes.contains(&nodes[edge.to].node_index))
                                 || (edge.to == pos && ui_state.selected_nodes.contains(&nodes[edge.from].node_index))
                             {
                                 connected_num += 1;
@@ -1165,7 +1228,7 @@ impl SortedNodeLayout {
 }
 
 pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
-    // Each group has all edges that connect same nodes (dispite the direction)
+    // Each group has all edges that connect same nodes (despite the direction)
     // It is needed to set parameter for bezier curves
     let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
     for (edge_index, edge) in edges.iter().enumerate() {
@@ -1209,6 +1272,21 @@ pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
     }
 }
 
+fn smooth_invert(x: f32) -> f32 {
+    if x <= 0.0 {
+        return 1.0;
+    }
+    if x >= 1.0 {
+        return 0.0;
+    }
+    let x2 = x * x;
+    let x3 = x2 * x;
+    let x4 = x3 * x;
+    let x5 = x4 * x;
+    let s = 6.0 * x5 - 15.0 * x4 + 10.0 * x3;
+    1.0 - s
+}
+
 pub struct LayoutConfig {
     pub repulsion_constant: f32,
     pub attraction_factor: f32,
@@ -1249,6 +1327,9 @@ pub fn layout_graph_nodes(
         .collect();
     tree.build(weight_points, 5);
 
+    let gravity_effect_radius = config.gravity_effect_radius;
+    let max_smoth_effect_radius = gravity_effect_radius * 1.2;
+
     let force_fn = |target: Vec2, source: WeightedPoint| {
         // compute repulsive force
         let dir = target - source.pos;
@@ -1256,11 +1337,17 @@ pub fn layout_graph_nodes(
             return Vec2::ZERO; // Avoid division by zero
         }
         let dist2 = dir.length();
-        if dist2 > config.gravity_effect_radius {
-            return Vec2::ZERO;
+        let mut scale: f32 = 1.0;
+        if dist2 > gravity_effect_radius {
+            if dist2 > max_smoth_effect_radius {
+                return Vec2::ZERO;
+            } else {
+                // use smotherstep function to turn off the gravity force in 20% area, so do not create spring effects
+                scale = smooth_invert((dist2 - gravity_effect_radius) / (gravity_effect_radius * 0.2));
+            }
         }
         let force_mag = (source.mass * repulsion_factor) / dist2;
-        (dir / dist2) * force_mag
+        scale * (dir / dist2) * force_mag
     };
 
     let mut forces: Vec<Vec2> = positions
@@ -1333,6 +1420,7 @@ impl NodeCommand {
                 });
             }
             NodeCommand::RemoveElements(removed_nodes, removed_edges) => {
+                sorted_nodes.update_node_shapes = true;
                 sorted_nodes.mut_nodes(|nodes, positions, edges, node_shapes, individual_node_styles| {
                     // The implementation is similar to add_many
                     // we assume that removed_nodes are unique and sorted by node index
@@ -1355,6 +1443,8 @@ impl NodeCommand {
                     let mut j = b_len as isize - 1;
                     let mut k = (orig_len + b_len) as isize - 1;
 
+                    let mut removed_nodes_pos : Vec<usize> = Vec::with_capacity(removed_nodes.len());
+
                     while j >= 0 {
                         if i >= 0 && nodes[i as usize].node_index > removed_nodes[j as usize].index {
                             let old_node = nodes[i as usize];
@@ -1365,6 +1455,7 @@ impl NodeCommand {
                             individual_node_styles[k as usize] = individual_node_styles[i as usize];
                             i -= 1;
                         } else {
+                            removed_nodes_pos.push(k as usize);
                             nodes[k as usize] = NodeLayout {
                                 node_index: removed_nodes[j as usize].index,
                             };
@@ -1374,7 +1465,11 @@ impl NodeCommand {
                                 vel: Vec2::ZERO,
                                 locked: false,
                             };
-                            individual_node_styles[k as usize] = IndividualNodeStyleData::default();
+                            let ins = IndividualNodeStyleData {
+                                hidden_references: removed_nodes[j as usize].hidden_references,
+                                ..Default::default()
+                            };
+                            individual_node_styles[k as usize] = ins;
                             j -= 1;
                         }
                         k -= 1;
@@ -1387,6 +1482,21 @@ impl NodeCommand {
                     });
                     // Add also the removed edges with right indexes
                     for edge in removed_edges.iter() {
+                        // We need adapt hidden references but only for nodes that are not newly added (because they have already correct count)
+                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.from).reverse()).is_err() {
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
+                                if individual_node_style.hidden_references > 0 {
+                                    individual_node_style.hidden_references -= 1;
+                                }
+                            }
+                        }
+                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.to).reverse()).is_err() {                     
+                            if let Some(individual_node_style) = individual_node_styles.get_mut(edge.to) {
+                                if individual_node_style.hidden_references > 0 {
+                                    individual_node_style.hidden_references -= 1;
+                                }
+                            }
+                        }
                         edges.push(Edge {
                             from: edge.from,
                             to: edge.to,

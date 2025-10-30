@@ -1,11 +1,11 @@
-use std::{borrow::Cow, cmp::min};
+use std::{borrow::Cow, cmp::min, io};
 
 use const_format::concatcp;
-use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, TextBuffer, Vec2};
+use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{
-    config::{Config, IriDisplay}, graph_algorithms::GraphAlgorithm, nobject::{IriIndex, LabelContext, LangIndex}, style::ICON_EXPORT, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState
+    config::{Config, IriDisplay}, graph_algorithms::{GraphAlgorithm, StatisticValue}, nobject::{IriIndex, LabelContext, LangIndex}, style::ICON_EXPORT, table_view::{text_wrapped, text_wrapped_link}, uitools::ScrollBar, GVisualizationStyle, NodeAction, RdfData, RdfGlanceApp, UIState
 };
 
 const ROW_HIGHT: f32 = 17.0;
@@ -44,7 +44,7 @@ impl Default for StatisticsData {
 }
 pub struct StatisticsResult {
     values: Vec<f32>,
-    graph_algorithm: GraphAlgorithm,
+    statistic_value: StatisticValue,
 }
 
 enum StatisticsTableAction {
@@ -56,11 +56,17 @@ impl StatisticsResult {
     pub fn new_for_alg(values: Vec<f32>, alg: GraphAlgorithm) -> Self {
         Self {
             values,
-            graph_algorithm: alg,
+            statistic_value: alg.get_statistics_values()[0],
         }
     }
-    pub fn graph_algorithm(&self) -> GraphAlgorithm {
-        self.graph_algorithm
+    pub fn new_for_values(values: Vec<f32>, statistic_value: StatisticValue) -> Self {
+        Self {
+            values,
+            statistic_value: statistic_value,
+        }
+    }
+    pub fn statistics_value(&self) -> StatisticValue {
+        self.statistic_value
     }
     pub fn get_data_vec(&self) -> &Vec<f32> {
         &self.values
@@ -83,30 +89,45 @@ impl RdfGlanceApp {
         if self.statistics_data.is_some() {
             ui.horizontal(|ui| {
                 ui.label("Statistics Data Available");
-                #[cfg(not(target_arch = "wasm32"))]
                 if ui
                     .button(concatcp!(ICON_EXPORT, " Export CSV"))
                     .on_hover_text("Export as CSV file")
                     .clicked()
                 {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("CSV File", &["csv"])
-                        .set_file_name("statistics.csv")
-                        .save_file()
-                    {
-                        use std::path::Path;
-                        let store_res = self.statistics_data.as_ref().unwrap().export_csv(
-                            &self.rdf_data.read().unwrap(),
-                            Path::new(path.as_path()),
-                            self.persistent_data.config_data.iri_display,
-                            &self.visualization_style,
-                            self.ui_state.display_language,
-                        );
-                        match store_res {
-                            Err(e) => {
-                                self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
+                    if let Ok(rdf_data) = self.rdf_data.read() {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV File", &["csv"])
+                            .set_file_name("statistics.csv")
+                            .save_file()
+                        {
+                            let mut wtr = csv::Writer::from_path(path).unwrap();
+                            let store_res = self.statistics_data.as_ref().unwrap().export_csv_writer(
+                                &rdf_data,
+                                &mut wtr,
+                                self.persistent_data.config_data.iri_display,
+                                &self.visualization_style,
+                                self.ui_state.display_language,
+                            );
+                            match store_res {
+                                Err(e) => {
+                                    self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
+                                }
+                                Ok(_) => {}
                             }
-                            Ok(_) => {}
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            use crate::uitools::web_download;
+                            let buf = Vec::new();
+                            let mut wtr = csv::Writer::from_writer(buf);
+                            let _ = self.statistics_data.as_ref().unwrap().export_csv_writer(&rdf_data,
+                                &mut wtr,
+                                self.persistent_data.config_data.iri_display,
+                                &self.visualization_style,
+                                self.ui_state.display_language);
+                            let buf = wtr.into_inner().unwrap();
+                            let _ = web_download("statistics.csv",&buf);
                         }
                     }
                 }
@@ -298,7 +319,7 @@ impl StatisticsData {
         let label_context = LabelContext::new(layout_data.display_language, iri_display, &rfd_data.prefix_manager);
         for (result_idx, statistics_result) in self.results.iter().enumerate() {
             let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
-            let result_label = statistics_result.graph_algorithm().to_string();
+            let result_label = statistics_result.statistics_value().to_string();
             let result_rect = egui::Rect::from_min_size(top_left, Vec2::new(xpos + RESULT_WIDTH, ROW_HIGHT));
             let cell_hovered = if result_rect.contains(mouse_pos) {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
@@ -512,18 +533,17 @@ impl StatisticsData {
         }
     }
 
-    fn export_csv(&self, rdf_data: &RdfData, path: &std::path::Path,
+    fn export_csv_writer<W: io::Write>(&self, rdf_data: &RdfData, wtr: &mut csv::Writer<W>,
         iri_display: IriDisplay,
         styles: &GVisualizationStyle,
         lang_index: LangIndex,
         ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut wtr = csv::Writer::from_path(path)?;
         for title in vec!["iri", "label", "type"] {
             wtr.write_field(title)?;
         }
         let label_context = LabelContext::new(lang_index, iri_display, &rdf_data.prefix_manager);
         for result in self.results.iter() {
-            wtr.write_field(result.graph_algorithm().to_string().as_str())?;
+            wtr.write_field(result.statistics_value().to_string().as_str())?;
         }
         wtr.write_record(None::<&[u8]>)?;
         for (idx, (iri_index, _pos)) in self.nodes.iter().enumerate() {

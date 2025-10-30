@@ -2,16 +2,15 @@
 
 **RDFGlance** is an open-source application designed to provide a visual representation of RDF (Resource Description Framework) data. The application is programmed using `Rust`, ensuring high performance and safety.
 
-- Easy to install
-- Small Desktop App
-- [Serverless WASM Based Web Application](https://xdobry.github.io/rdfglance/) (limited functionality)
-- 100% React free
-- Multithread Processing to use 100% of your CPU power
-- No HTML
-- No Server needed
-- Programmed by real programmer with real programming language
-- The self-contained executable is only 15MB!
+- See the structure of your RDF data — even millions of triples — at one glance
+- Explore RDF Data, use advanced graph algorithm and visualization in seconds without coding.
+- Easy to install (Small Desktop App - self-contained executable is only 17 MB)
+- Optionally [Serverless WASM Based Web Application](https://xdobry.github.io/rdfglance/) (limited functionality)
 - Zero runtime needed
+- No HTML, No Server, 100% React free
+- No tracking, No account needed, real open source
+- Engineered for real users by a real programmer, written in Rust for direct, uncompromised performance on the metal.
+- Multithread Processing to use 100% of your CPU power
 
 Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
 You can browse your RDF Data online.
@@ -57,6 +56,13 @@ RDFGlance offers the following visualization capabilities for RDF data:
   - k-core centrality
   - eigenvector centrality
   - louvain clustering (community detection) - used to color nodes
+  - spectral clustering
+- Layout Graphs Types
+  - force directed default
+  - circular
+  - hierarchical
+  - spectral
+- CSV Export for table views
 - Semantic zoom based on graph statistics
 - Can open ttl file passed as start parameter
 - Can open ttl file dropped from explorer
@@ -193,8 +199,12 @@ You can use ready to use binaries for windows see [github releases](https://gith
 
 ## Contributing
 
-We welcome contributions from the community. If you would like to contribute to **RDFGlance**, please fork the repository and submit a pull request. Make sure to follow the contribution guidelines outlined in the repository.
-You can also create [github issue](https://github.com/xdobry/rdfglance/issues)
+I welcome contributions from the community.
+If you find something odd, please open an issue — even small notes help.
+Please report bugs only this way they can be fixed.
+You can also create [github issue](https://github.com/xdobry/rdfglance/issues) or just drop me an email <mail@xdobry.de>.
+
+I've been developing open-source software for many years, but lately I hardly get any feedback, even though it's being used.
 
 ## License
 

@@ -1,6 +1,6 @@
-use oxrdf::NamedNode;
+use oxrdf::{NamedNode, NamedOrBlankNode};
 use oxrdf::vocab::xsd;
-use oxrdf::{NamedNodeRef, Subject, Term, Triple, vocab::rdf};
+use oxrdf::{NamedNodeRef, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
 use oxttl::TurtleParser;
 
@@ -667,7 +667,7 @@ impl RDFWrap {
                 }
             } else if triple.object == subject_iri.into() {
                 match &triple.subject {
-                    Subject::NamedNode(named_subject) => {
+                    NamedOrBlankNode::NamedNode(named_subject) => {
                         reverse_references.push((
                             node_data.get_predicate_index(triple.predicate.as_str()),
                             node_data.get_node_index_or_insert(named_subject.as_str(), false),
@@ -705,7 +705,7 @@ pub fn add_triple(
     prefix_manager: &PrefixManager,
 ) {
     match &triple.subject {
-        Subject::BlankNode(blank_node) => {
+        NamedOrBlankNode::BlankNode(blank_node) => {
             let iri = blank_node.as_str();
             if index_cache.iri != iri {
                 index_cache.index = cache.get_node_index_or_insert(iri, true);
@@ -724,7 +724,7 @@ pub fn add_triple(
                 prefix_manager,
             );
         }
-        Subject::NamedNode(named_subject) => {
+        NamedOrBlankNode::NamedNode(named_subject) => {
             let iri = prefix_manager.get_prefixed(named_subject.as_str());
             if index_cache.iri != iri {
                 index_cache.index = cache.get_node_index_or_insert(&iri, false);
