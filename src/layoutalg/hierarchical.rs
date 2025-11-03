@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use egui::Pos2;
 
-use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
+use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
 use rust_sugiyama::{configure::Config, from_vertices_and_edges};
 
 pub enum LayoutOrientation {

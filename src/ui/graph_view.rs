@@ -4,50 +4,33 @@ use std::{
 };
 
 use crate::{
-    ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState,
-    config::Config,
-    distinct_colors::next_distinct_color,
-    drawing::{self, draw_node_label},
-    graph_styles::{NodeShape, NodeSize, NodeStyle},
-    layout::{
-        Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
-        update_edges_groups,
-    },
-    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
-    style::{
-        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL,
-        ICON_NUNBER, ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
-    },
-    uitools::popup_at,
+    IriIndex, NodeChangeContext, RdfGlanceApp, domain::{
+        ExpandType, Indexers, LabelContext, Literal, NObject, NodeData, config::Config,
+        graph_styles::{GVisualizationStyle, NodeShape, NodeSize, NodeStyle}
+    }, support::{
+        SortedVec,
+        distinct_colors::next_distinct_color, 
+        uitools::popup_at
+    }, ui::{draw_edge, draw_node_label, draw_self_edge, 
+    }, uistate::{StyleEdit, UIState, actions::{NodeAction, NodeContextAction}, layout::{
+            Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
+            update_edges_groups,
+        }}
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
 use egui::{Key, Painter, Popup, Rect, Slider, StrokeKind};
 use rand::Rng;
+use super::style::{
+    ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL, ICON_NUNBER,
+    ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
+};
 
 const INITIAL_DISTANCE: f32 = 100.0;
 
 struct ReferencesState {
     pub count: u32,
     pub visible: u32,
-}
-
-pub enum NodeContextAction {
-    None,
-    Hide,
-    HideThisType,
-    HideOther,
-    HideOtherTypes,
-    HideUnrelated,
-    HideUnconnected,
-    HideOrphans,
-    HideRedundantEdges,
-    HideZoomInvisible,
-    Expand(ExpandType),
-    ExpandThisType,
-    HideThisTypePreserveEdges,
-    ShowAllInstanceInTable,
-    ChangeLockPosition(bool),
 }
 
 impl NodeContextAction {
@@ -112,97 +95,6 @@ impl NodeContextAction {
     }
 }
 
-enum NodeSelectionMove {
-    None,
-    Right,
-    Left,
-    Up,
-    Down,
-}
-
-struct NextNodeSelection {
-    current_selected: Option<(IriIndex, Pos2)>,
-    node_selection_move: NodeSelectionMove,
-    next_selected: Option<(IriIndex, Pos2)>,
-}
-
-impl NextNodeSelection {
-    fn new(current_index: IriIndex, current_pos: Pos2, node_selection_move: NodeSelectionMove) -> Self {
-        Self {
-            current_selected: Some((current_index, current_pos)),
-            node_selection_move,
-            next_selected: None,
-        }
-    }
-    fn empty() -> Self {
-        Self {
-            current_selected: None,
-            node_selection_move: NodeSelectionMove::None,
-            next_selected: None,
-        }
-    }
-    fn consider_node(&mut self, node_index: IriIndex, node_pos: Pos2) {
-        if let Some((current_index, current_pos)) = self.current_selected {
-            if current_index != node_index {
-                match self.node_selection_move {
-                    NodeSelectionMove::None => {}
-                    NodeSelectionMove::Right => {
-                        if node_pos.x > current_pos.x
-                            && (node_pos.x - current_pos.x) >= (node_pos.y - current_pos.y).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x < pos.x {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Left => {
-                        if node_pos.x < current_pos.x
-                            && (current_pos.x - node_pos.x) >= (node_pos.y - current_pos.y).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x > pos.x {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Up => {
-                        if node_pos.y < current_pos.y
-                            && (current_pos.y - node_pos.y) >= (node_pos.x - current_pos.x).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y > pos.y {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Down => {
-                        if node_pos.y > current_pos.y
-                            && (node_pos.y - current_pos.y) >= (node_pos.x - current_pos.x).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y < pos.y {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
@@ -1008,7 +900,7 @@ Expand Relations - double click on node",
                                             let faded = !selected_related_nodes_pos.is_empty()
                                                 && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
                                                     && selected_related_nodes_pos.binary_search(&edge.to).is_ok());
-                                            drawing::draw_edge(
+                                            draw_edge(
                                                 painter,
                                                 pos1,
                                                 node_shape_from.size,
@@ -1027,7 +919,7 @@ Expand Relations - double click on node",
                                             let faded = !selected_related_nodes_pos.is_empty()
                                                 && selected_related_nodes_pos.binary_search(&edge.from).is_err();
                                             let node_shape_from = &node_shapes[edge.from];
-                                            drawing::draw_self_edge(
+                                            draw_self_edge(
                                                 painter,
                                                 pos1,
                                                 node_shape_from.size,
@@ -2102,5 +1994,97 @@ impl NeighborPos {
         self.nodes
             .values() // -> Values<IriIndex, Vec<IriIndex>>
             .flat_map(|vec| vec.iter()) // -> Iterator over &IriIndex
+    }
+}
+
+enum NodeSelectionMove {
+    None,
+    Right,
+    Left,
+    Up,
+    Down,
+}
+
+struct NextNodeSelection {
+    current_selected: Option<(IriIndex, Pos2)>,
+    node_selection_move: NodeSelectionMove,
+    next_selected: Option<(IriIndex, Pos2)>,
+}
+
+impl NextNodeSelection {
+    fn new(current_index: IriIndex, current_pos: Pos2, node_selection_move: NodeSelectionMove) -> Self {
+        Self {
+            current_selected: Some((current_index, current_pos)),
+            node_selection_move,
+            next_selected: None,
+        }
+    }
+    fn empty() -> Self {
+        Self {
+            current_selected: None,
+            node_selection_move: NodeSelectionMove::None,
+            next_selected: None,
+        }
+    }
+    fn consider_node(&mut self, node_index: IriIndex, node_pos: Pos2) {
+        if let Some((current_index, current_pos)) = self.current_selected {
+            if current_index != node_index {
+                match self.node_selection_move {
+                    NodeSelectionMove::None => {}
+                    NodeSelectionMove::Right => {
+                        if node_pos.x > current_pos.x
+                            && (node_pos.x - current_pos.x) >= (node_pos.y - current_pos.y).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.x < pos.x {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Left => {
+                        if node_pos.x < current_pos.x
+                            && (current_pos.x - node_pos.x) >= (node_pos.y - current_pos.y).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.x > pos.x {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Up => {
+                        if node_pos.y < current_pos.y
+                            && (current_pos.y - node_pos.y) >= (node_pos.x - current_pos.x).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.y > pos.y {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Down => {
+                        if node_pos.y > current_pos.y
+                            && (node_pos.y - current_pos.y) >= (node_pos.x - current_pos.x).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.y < pos.y {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

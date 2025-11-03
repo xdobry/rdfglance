@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use crate::{layout::Edge, SortedVec};
+use crate::{uistate::layout::Edge, support::SortedVec};
 
 pub fn compute_closeness_centrality(nodes_len: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     // Precompute adjacency list

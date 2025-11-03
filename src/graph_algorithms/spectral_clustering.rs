@@ -1,7 +1,12 @@
 use nalgebra::DMatrix;
 // use lanczos::{Hermitian, Order};
 
-use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge, layoutalg::spectral::laplacian_from_adjacency, SortedVec};
+use crate::{
+    domain::config::Config, 
+    graph_algorithms::ClusterResult, 
+    uistate::layout::Edge, 
+    layoutalg::spectral::laplacian_from_adjacency, support::SortedVec
+};
 
 pub fn cluster_spectral(nodes_len: u32, edges: &[Edge], config: &Config, hidden_predicates: &SortedVec) -> ClusterResult {
     let mut adj = DMatrix::<f64>::zeros(nodes_len as usize, nodes_len as usize);

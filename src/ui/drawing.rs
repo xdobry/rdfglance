@@ -5,8 +5,9 @@ use egui::{
 
 use crate::{
     EdgeStyle, NodeStyle,
-    graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize},
 };
+
+use crate::domain::graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize};
 
 const POS_SPACE: f32 = 3.0;
 

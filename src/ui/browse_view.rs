@@ -3,18 +3,17 @@ use egui::Key;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    GVisualizationStyle, NodeAction, RdfGlanceApp, RefSelection, UIState,
-    nobject::{IriIndex, LabelContext, Literal, NObject, NodeData},
-    style::{ICON_FILTER, ICON_GRAPH},
-    uitools::primary_color,
+    IriIndex, uistate::actions::NodeAction, RdfGlanceApp, 
+    uistate::ref_selection::RefSelection, 
+    uistate::UIState, 
+    domain::{
+        LabelContext, Literal, NObject, NodeData,
+        graph_styles::GVisualizationStyle,
+    }, 
+    support::uitools::primary_color, 
+    ui::style::{ICON_FILTER, ICON_GRAPH}, 
+    uistate::actions::ReferenceAction
 };
-
-#[derive(PartialEq)]
-pub enum ReferenceAction {
-    None,
-    ShowNode(IriIndex),
-    Filter(IriIndex, Vec<IriIndex>),
-}
 
 impl RdfGlanceApp {
     pub fn show_table(&mut self, ui: &mut egui::Ui) -> NodeAction {

@@ -10,7 +10,7 @@ use rand::{
     seq::{SliceRandom, index::sample},
 };
 
-use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
+use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
 
 struct GEdge {
     from: usize,

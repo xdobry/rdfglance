@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use rayon::prelude::*;
 
-use crate::{layout::Edge, SortedVec};
+use crate::{uistate::layout::Edge, support::SortedVec};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BetweennessCentralityResult {

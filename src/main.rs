@@ -2,11 +2,11 @@
 
 use egui::ViewportBuilder;
 use rdf_glance::RdfGlanceApp;
-use rdf_glance::uitools::load_icon;
-
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<(), eframe::Error> {
+    use rdf_glance::support::uitools::load_icon;
+
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_icon(load_icon()),

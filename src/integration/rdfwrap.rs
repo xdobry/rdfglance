@@ -4,9 +4,11 @@ use oxrdf::{NamedNodeRef, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
 use oxttl::TurtleParser;
 
-use crate::nobject::{IriIndex, Literal, NObject, NodeData, PredicateReference};
-use crate::prefix_manager::PrefixManager;
-use crate::{DataLoading, ImportFormat, RdfData};
+use crate::IriIndex;
+use crate::domain::{Literal, NObject, NodeData, PredicateReference};
+use crate::domain::prefix_manager::PrefixManager;
+use crate::domain::RdfData;
+use crate::uistate::{DataLoading, ImportFormat};
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
 use std::path::Path;
@@ -697,8 +699,8 @@ impl RDFWrap {
 
 pub fn add_triple(
     triples_count: &mut u32,
-    indexer: &mut crate::nobject::Indexers,
-    cache: &mut crate::nobject::NodeCache,
+    indexer: &mut crate::domain::Indexers,
+    cache: &mut crate::domain::NodeCache,
     triple: Triple,
     index_cache: &mut IndexCache,
     language_filter: &[String],
@@ -748,8 +750,8 @@ pub fn add_triple(
 
 fn add_predicate_object(
     triples_count: &mut u32,
-    indexer: &mut crate::nobject::Indexers,
-    cache: &mut crate::nobject::NodeCache,
+    indexer: &mut crate::domain::Indexers,
+    cache: &mut crate::domain::NodeCache,
     node_index: IriIndex,
     predicate: NamedNode,
     object: Term,

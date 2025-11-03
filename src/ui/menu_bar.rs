@@ -3,15 +3,20 @@ use std::path::Path;
 use const_format::concatcp;
 use egui::{global_theme_preference_switch, Align, Key, Layout, MenuBar, Modifiers, UiKind};
 #[cfg(target_arch = "wasm32")]
-use poll_promise::Promise;
-#[cfg(target_arch = "wasm32")]
 use rfd::AsyncFileDialog;
+#[cfg(target_arch = "wasm32")]
+use crate::uistate::File;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
+
 use crate::{
-    graph_algorithms::GraphAlgorithm, graph_view::NodeContextAction, layoutalg::{circular::circular_layout, hierarchical::{hierarchical_layout, LayoutOrientation}, spectral::spectral_layout}, statistics::StatisticsData, style::ICON_LANG, ImportFormat, ImportFromUrlData, RdfGlanceApp, SystemMessage
+    RdfGlanceApp, SystemMessage, 
+    domain::statistics::StatisticsData, graph_algorithms::GraphAlgorithm, 
+    layoutalg::{circular::circular_layout, hierarchical::{LayoutOrientation, hierarchical_layout}, 
+    spectral::spectral_layout}, ui::style::ICON_LANG, 
+    uistate::{ImportFormat, ImportFromUrlData, actions::NodeContextAction}
 };
 
 enum MenuAction {
@@ -89,7 +94,7 @@ impl RdfGlanceApp {
                         .save_file()
                     {
                         if let Ok(rdf_data) = self.rdf_data.read() {
-                            use crate::nobject::LabelContext;
+                            use crate::domain::LabelContext;
                             let label_context = LabelContext::new(
                                 self.ui_state.display_language,
                                 self.persistent_data.config_data.iri_display,
@@ -108,7 +113,7 @@ impl RdfGlanceApp {
                     }
                     #[cfg(target_arch = "wasm32")]
                     if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::nobject::LabelContext;
+                        use crate::domain::nobject::LabelContext;
                         let label_context = LabelContext::new(
                             self.ui_state.display_language,
                             self.persistent_data.config_data.iri_display,
@@ -123,7 +128,7 @@ impl RdfGlanceApp {
                                 self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
                             }
                             Ok(_) => {
-                                use crate::uitools::web_download;
+                                use crate::support::uitools::web_download;
 
                                 let buf = wtr.into_inner().unwrap();
                                 let _ = web_download("edges.csv",&buf);
@@ -140,7 +145,7 @@ impl RdfGlanceApp {
                         .save_file()
                     {
                         if let Ok(rdf_data) = self.rdf_data.read() {
-                            use crate::nobject::LabelContext;
+                            use crate::domain::LabelContext;
                             let label_context = LabelContext::new(
                                 self.ui_state.display_language,
                                 self.persistent_data.config_data.iri_display,
@@ -159,7 +164,7 @@ impl RdfGlanceApp {
                     }
                     #[cfg(target_arch = "wasm32")]
                     if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::nobject::LabelContext;
+                        use crate::domain::nobject::LabelContext;
                         let label_context = LabelContext::new(
                             self.ui_state.display_language,
                             self.persistent_data.config_data.iri_display,
@@ -174,7 +179,7 @@ impl RdfGlanceApp {
                                 self.system_message = SystemMessage::Error(format!("Can not export nodes: {}", e));
                             }
                             Ok(_) => {
-                                use crate::uitools::web_download;
+                                use crate::support::uitools::web_download;
 
                                 let buf = wtr.into_inner().unwrap();
                                 let _ = web_download("nodes.csv",&buf);
@@ -421,6 +426,7 @@ impl RdfGlanceApp {
         }
         #[cfg(target_arch = "wasm32")]
         {
+            use poll_promise::Promise;
             self.file_upload = Some(Promise::spawn_local(async {
                 let file_selected = rfd::AsyncFileDialog::new()
                     .add_filter("rdf", &["ttl", "rdf", "xml", "nt", "trig", "nq"])
@@ -428,7 +434,7 @@ impl RdfGlanceApp {
                     .await;
                 if let Some(curr_file) = file_selected {
                     let buf = curr_file.read().await;
-                    return Ok(crate::File {
+                    return Ok(crate::uistate::File {
                         path: curr_file.file_name(),
                         data: buf,
                     });
@@ -440,13 +446,14 @@ impl RdfGlanceApp {
     }
     #[cfg(target_arch = "wasm32")]
     pub fn handle_files(&mut self, ctx: &egui::Context, visuals: &egui::Visuals) {
+        use crate::integration::rdfwrap::RDFWrap;
         if let Some(result) = &self.file_upload {
             match &result.ready() {
-                Some(Ok(crate::File { path, data })) => {
+                Some(Ok(File { path, data })) => {
                     let language_filter = self.persistent_data.config_data.language_filter();
                     let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
                         let rdfttl =
-                            crate::rdfwrap::RDFWrap::load_file_data(path, data, &mut rdf_data, &language_filter);
+                            RDFWrap::load_file_data(path, data, &mut rdf_data, &language_filter);
                         Some(rdfttl)
                     } else {
                         None

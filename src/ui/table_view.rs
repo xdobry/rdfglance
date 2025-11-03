@@ -8,15 +8,21 @@ use rayon::prelude::*;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
-use crate::style::ICON_EXPORT;
+use super::style::ICON_EXPORT;
 use crate::{
-    GVisualizationStyle, NodeAction, RdfData, RefSelection, UIState,
-    browse_view::{ReferenceAction, show_references},
-    config::IriDisplay,
-    nobject::{IriIndex, LabelContext, LangIndex, NodeData},
-    prefix_manager::PrefixManager,
-    style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
-    uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
+    uistate::actions::ReferenceAction,
+    uistate::ref_selection::RefSelection,
+    uistate::actions::NodeAction, 
+    domain::graph_styles::GVisualizationStyle,
+    domain::RdfData, 
+    uistate::UIState,
+    ui::browse_view::{show_references},
+    domain::config::IriDisplay,
+    IriIndex,
+    domain::{LabelContext, LangIndex, NodeData},
+    domain::prefix_manager::PrefixManager,
+    ui::style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
+    support::uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
 };
 
 pub struct TypeInstanceIndex {
@@ -1590,7 +1596,7 @@ impl TypeInstanceIndex {
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            use crate::uitools::web_download;
+                            use crate::support::uitools::web_download;
 
                             let buf = Vec::new();
                             let mut wtr = csv::Writer::from_writer(buf);

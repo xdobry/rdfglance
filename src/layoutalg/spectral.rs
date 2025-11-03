@@ -1,4 +1,8 @@
-use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
+use crate::{
+    support::SortedVec, 
+    uistate::layout::SortedNodeLayout, 
+    IriIndex
+};
 use egui::Pos2;
 use nalgebra::linalg::SymmetricEigen;
 use nalgebra::{DMatrix, DVector, RowDVector};

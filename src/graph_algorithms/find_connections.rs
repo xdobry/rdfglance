@@ -1,4 +1,5 @@
-use crate::{graph_view::{update_layout_edges, NeighborPos}, nobject::IriIndex, RdfData, RdfGlanceApp, SortedVec};
+use crate::{
+    ui::graph_view::{update_layout_edges, NeighborPos}, IriIndex, RdfData, RdfGlanceApp, support::SortedVec};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 fn bfs_distances(rdf_data: &RdfData, start: IriIndex, hidden_predicates: &SortedVec) -> HashMap<IriIndex, IriIndex> {
