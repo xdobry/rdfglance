@@ -14,8 +14,7 @@ use strum::IntoEnumIterator;
 use crate::{
     RdfGlanceApp, SystemMessage, 
     domain::statistics::StatisticsData, graph_algorithms::GraphAlgorithm, 
-    layoutalg::{circular::circular_layout, hierarchical::{LayoutOrientation, hierarchical_layout}, 
-    spectral::spectral_layout}, ui::style::ICON_LANG, 
+    layoutalg::{LayoutAlgorithm, circular::circular_layout, hierarchical::{LayoutOrientation, hierarchical_layout}, run_layout_algorithm, spectral::spectral_layout}, ui::style::ICON_LANG, 
     uistate::{ImportFormat, ImportFromUrlData, actions::NodeContextAction}
 };
 
@@ -113,7 +112,7 @@ impl RdfGlanceApp {
                     }
                     #[cfg(target_arch = "wasm32")]
                     if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::domain::nobject::LabelContext;
+                        use crate::domain::graph_model::LabelContext;
                         let label_context = LabelContext::new(
                             self.ui_state.display_language,
                             self.persistent_data.config_data.iri_display,
@@ -164,7 +163,7 @@ impl RdfGlanceApp {
                     }
                     #[cfg(target_arch = "wasm32")]
                     if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::domain::nobject::LabelContext;
+                        use crate::domain::graph_model::LabelContext;
                         let label_context = LabelContext::new(
                             self.ui_state.display_language,
                             self.persistent_data.config_data.iri_display,
@@ -258,21 +257,17 @@ impl RdfGlanceApp {
                     }
                     ui.separator();
                     ui.add_enabled_ui(self.ui_state.selected_nodes.len()>2 , |ui| {
-                        if ui.button("Circular Layout").clicked() {
-                            circular_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
-                            ui.close_kind(UiKind::Menu);
-                        }
-                        if ui.button("Hierarchical Layout Horizontal").clicked() {
-                            hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates, LayoutOrientation::Horizontal);
-                            ui.close_kind(UiKind::Menu);
-                        }
-                        if ui.button("Hierarchical Layout Vertical").clicked() {
-                            hierarchical_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates,LayoutOrientation::Vertical);
-                            ui.close_kind(UiKind::Menu);
-                        }
-                         if ui.button("Spectral Layout").clicked() {
-                            spectral_layout(&mut self.visible_nodes,&self.ui_state.selected_nodes,&self.ui_state.hidden_predicates);
-                            ui.close_kind(UiKind::Menu);
+                        for entry in LayoutAlgorithm::iter() {
+                            let label = entry.to_string();
+                            if ui.button(label).clicked() {
+                                run_layout_algorithm(
+                                    entry,
+                                    &mut self.visible_nodes,
+                                    &self.ui_state.selected_nodes,
+                                    &self.ui_state.hidden_predicates,
+                                );
+                                ui.close_kind(UiKind::Menu);
+                            }
                         }
                     });
                     ui.separator();

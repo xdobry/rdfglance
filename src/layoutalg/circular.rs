@@ -19,7 +19,7 @@ struct GEdge {
 
 /**
  * It does not only order the nodes in circle but uses genetic algorithms
- * to find be order this way that the sum lenght of edges and amount of crossing are minimal
+ * to find be order this way that the sum length of edges and amount of crossing are minimal
  */
 pub fn circular_layout(
     visible_nodes: &mut SortedNodeLayout,
