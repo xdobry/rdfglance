@@ -1,3 +1,5 @@
+// The code was AI translated and adapted from the Scala implementation found at:
+// https://github.com/WueGD/wueortho
 // layout\src\main\scala\wueortho\overlaps\Nachmanson.scala
 
 use egui::{Rect, Vec2};
@@ -207,7 +209,7 @@ fn grow(tree: &WeightedDiGraph, rects: &[Rect], random: &mut StdRng) -> Vec<Rect
         out: &mut [Option<Rect>],
         noise: &mut dyn FnMut() -> Vec2,
     ) {
-        let r = rects[u].clone();
+        let r = rects[u];
         let moved = Rect::from_center_size(r.center() + disp, r.size());
         out[u] = Some(moved);
 
@@ -323,7 +325,7 @@ fn align(rects: &[Rect], seed: u64) -> Vec<Rect> {
             return rects_cur;
         }
     }
-    // if exceeded max, return current rects (Scala threw error; here we avoid panic)
+    // if exceeded max, return current rects
     rects_cur
 }
 

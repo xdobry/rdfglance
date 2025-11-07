@@ -3,6 +3,7 @@ pub mod hierarchical;
 pub mod spectral;
 pub mod force;
 pub mod overlap;
+pub mod ortho;
 
 use std::collections::BTreeSet;
 
