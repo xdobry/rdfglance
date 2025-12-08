@@ -1,267 +1,15 @@
 use egui::{Color32, Popup, RichText, Sense, Slider, Vec2};
 
-use crate::{
-    RdfGlanceApp, StyleEdit,
-    drawing::{draw_edge, draw_node_label},
-    nobject::{IriIndex, LabelContext},
+use crate:: {
+    IriIndex, RdfGlanceApp, domain::{
+        LabelContext,
+        graph_styles::{
+            ArrowLocation, ArrowStyle, EdgeFont, IconPosition, IconStyle, LabelPosition,
+            LineStyle, NodeShape, NodeSize,
+        },
+    }, ui::{draw_edge, draw_node_label}, uistate::StyleEdit    
 };
 
-pub struct NodeStyle {
-    pub color: egui::Color32,
-    pub priority: u32,
-    pub label_index: IriIndex,
-    pub node_shape: NodeShape,
-    pub node_size: NodeSize,
-    pub width: f32,
-    pub height: f32,
-    pub border_width: f32,
-    pub border_color: egui::Color32,
-    pub corner_radius: f32,
-    pub max_lines: u16,
-    pub label_position: LabelPosition,
-    pub label_max_width: f32,
-    pub font_size: f32,
-    pub label_color: egui::Color32,
-    pub icon_style: Option<IconStyle>,
-}
-
-impl Default for NodeStyle {
-    fn default() -> Self {
-        Self {
-            color: egui::Color32::WHITE,
-            priority: 0,
-            label_index: 0,
-            node_shape: NodeShape::Circle,
-            node_size: NodeSize::Fixed,
-            width: 10.0,
-            height: 10.0,
-            border_width: 1.0,
-            border_color: egui::Color32::BLACK,
-            corner_radius: 3.0,
-            max_lines: 1,
-            label_position: LabelPosition::Above,
-            label_max_width: 0.0,
-            font_size: 16.0,
-            label_color: egui::Color32::BLACK,
-            icon_style: None,
-        }
-    }
-}
-
-pub struct IconStyle {
-    pub icon_character: char,
-    pub icon_position: IconPosition,
-    pub icon_size: f32,
-    pub icon_color: egui::Color32,
-}
-
-impl Default for IconStyle {
-    fn default() -> Self {
-        Self {
-            icon_character: '\u{2606}',
-            icon_position: IconPosition::Center,
-            icon_size: 20.0,
-            icon_color: Color32::BLACK,
-        }
-    }
-}
-
-pub struct EdgeFont {
-    pub font_size: f32,
-    pub font_color: Color32,
-}
-
-impl Default for EdgeFont {
-    fn default() -> Self {
-        Self {
-            font_size: 16.0,
-            font_color: Color32::BLACK,
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum NodeShape {
-    None = 0,
-    Rect = 1,
-    Circle = 2,
-    Elipse = 3,
-}
-
-impl TryFrom<u8> for NodeShape {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(NodeShape::None),
-            1 => Ok(NodeShape::Rect),
-            2 => Ok(NodeShape::Circle),
-            3 => Ok(NodeShape::Elipse),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum NodeSize {
-    Fixed = 1,
-    Label = 2,
-}
-
-impl TryFrom<u8> for NodeSize {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(NodeSize::Fixed),
-            2 => Ok(NodeSize::Label),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum LabelPosition {
-    Center = 1,
-    Above = 2,
-    Below = 3,
-    Right = 4,
-    Left = 5,
-}
-
-impl TryFrom<u8> for LabelPosition {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(LabelPosition::Center),
-            2 => Ok(LabelPosition::Above),
-            3 => Ok(LabelPosition::Below),
-            4 => Ok(LabelPosition::Right),
-            5 => Ok(LabelPosition::Left),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum IconPosition {
-    Center = 1,
-    Above = 2,
-    Below = 3,
-    Right = 4,
-    Left = 5,
-}
-
-impl TryFrom<u8> for IconPosition {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(IconPosition::Center),
-            2 => Ok(IconPosition::Above),
-            3 => Ok(IconPosition::Below),
-            4 => Ok(IconPosition::Right),
-            5 => Ok(IconPosition::Left),
-            _ => Err(()),
-        }
-    }
-}
-
-pub struct EdgeStyle {
-    pub color: egui::Color32,
-    pub width: f32,
-    pub line_gap: f32,
-    pub line_style: LineStyle,
-    pub target_style: ArrowStyle,
-    pub arrow_location: ArrowLocation,
-    pub arrow_size: f32,
-    pub icon_style: Option<IconStyle>,
-    pub edge_font: Option<EdgeFont>,
-}
-
-impl Default for EdgeStyle {
-    fn default() -> Self {
-        Self {
-            color: egui::Color32::BLACK,
-            width: 2.0,
-            icon_style: None,
-            edge_font: None,
-            line_style: LineStyle::Solid,
-            target_style: ArrowStyle::Arrow,
-            arrow_location: ArrowLocation::Target,
-            line_gap: 10.0,
-            arrow_size: 6.0,
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum LineStyle {
-    Solid,
-    Dashed,
-    Dotted,
-}
-
-impl TryFrom<u8> for LineStyle {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(LineStyle::Solid),
-            1 => Ok(LineStyle::Dashed),
-            2 => Ok(LineStyle::Dotted),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone)]
-#[repr(u8)]
-pub enum ArrowStyle {
-    Arrow = 0,
-    ArrorFilled = 1,
-    ArrorTriangle = 2,
-}
-
-impl TryFrom<u8> for ArrowStyle {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(ArrowStyle::Arrow),
-            1 => Ok(ArrowStyle::ArrorFilled),
-            2 => Ok(ArrowStyle::ArrorTriangle),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[repr(u8)]
-pub enum ArrowLocation {
-    Target = 0,
-    Middle = 1,
-    None = 2,
-}
-
-impl TryFrom<u8> for ArrowLocation {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(ArrowLocation::Target),
-            1 => Ok(ArrowLocation::Middle),
-            2 => Ok(ArrowLocation::None),
-            _ => Err(()),
-        }
-    }
-}
 
 impl RdfGlanceApp {
     pub fn display_node_style(&mut self, ui: &mut egui::Ui, type_style_edit: IriIndex) {
@@ -278,6 +26,7 @@ impl RdfGlanceApp {
                     .type_display(type_style_edit, &label_context, &rdf_data.node_data.indexers);
                 ui.heading(format!("Node Style for Type: {}", type_label.as_str()));
                 if ui.button("Close Style Edit").clicked() {
+                    type_style.is_default = false;
                     self.ui_state.style_edit = StyleEdit::None;
                     self.visible_nodes.update_node_shapes = true;
                 }
@@ -697,6 +446,8 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
                 });
                 if ui.button("close").clicked() {
                     Popup::close_id(ui.ctx(), popup_id);
+                } else {
+                    ui.ctx().memory_mut(|mem| mem.keep_popup_open(popup_id));
                 }
             })
             .response;

@@ -34,9 +34,12 @@ csv = "1.3.1"
 rust-sugiyama = "0.4.0"
 nalgebra = "0.34.1"
 lanczos = "0.2.0"
+delaunator = "1.0.2"
 
 [dev-dependencies]
 peak_alloc = "0.3.0"
+plotters = "0.3.7"
+plotters-svg = "0.3.7"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3.4", features = ["wasm_js"] }
@@ -46,3 +49,7 @@ wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["UrlSearchParams", "Window", "Location"] }
 poll-promise = { version = "0.3", features = ["web"] }
 js-sys = "0.3"
+
+[features]
+# default = ["debug-orth"]
+debug-orth = []

@@ -3,7 +3,18 @@ use std::sync::{Arc, RwLock};
 use egui::{Color32, Key, Popup, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    drawing::{self, draw_node_label}, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, graph_view::is_overlapping, layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout}, nobject::{IriIndex, LabelContext}, style::{ICON_REDO, ICON_UNDO}, table_view::TypeInstanceIndex, uitools::popup_at, NodeAction, RdfGlanceApp, SortedVec
+    ui::{draw_node_label, draw_edge, draw_self_edge}, 
+    domain::graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, 
+    ui::graph_view::is_overlapping, 
+    uistate::layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout}, 
+    IriIndex,
+    domain::LabelContext, 
+    ui::style::{ICON_REDO, ICON_UNDO}, 
+    ui::table_view::TypeInstanceIndex, 
+    support::uitools::popup_at, 
+    uistate::actions::NodeAction, 
+    RdfGlanceApp, 
+    support::SortedVec
 };
 
 const NODE_RMIN: f32 = 4.0;
@@ -160,7 +171,7 @@ impl RdfGlanceApp {
                                         let node_shape_from = &node_shapes[edge.from];
                                         let node_shape_to = &node_shapes[edge.to];
                                         let pos2 = center + positions[edge.to].pos.to_vec2();
-                                        drawing::draw_edge(
+                                        draw_edge(
                                             painter,
                                             pos1,
                                             node_shape_from.size,
@@ -176,7 +187,7 @@ impl RdfGlanceApp {
                                         );
                                     } else {
                                         let node_shape_from = &node_shapes[edge.from];
-                                        drawing::draw_self_edge(
+                                        draw_self_edge(
                                             painter,
                                             pos1,
                                             node_shape_from.size,
@@ -309,7 +320,7 @@ impl RdfGlanceApp {
                                         let hidden_predicates = SortedVec::new();
                                         self.meta_nodes.retain(&hidden_predicates, false,|node| {
                                             if let Some(type_data) = self.type_index.types.get(&node.node_index) {
-                                                !type_data.instances.len() <= current_node.instances.len()
+                                                type_data.instances.len() > current_node.instances.len()
                                             } else {
                                                 true
                                             }
@@ -512,8 +523,7 @@ fn create_types_layout_edges(layout_nodes: &SortedNodeLayout, type_index: &TypeI
 mod tests {
     use std::sync::RwLock;
 
-    use crate::layout::{LayoutConfig, NodePosition, layout_graph_nodes};
-
+    use crate::{layoutalg::force::layout_graph_nodes, uistate::layout::{LayoutConfig, NodePosition}};
     use super::*;
 
     #[test]

@@ -1,6 +1,6 @@
 use string_interner::{backend::StringBackend, symbol::SymbolU32, StringInterner, Symbol};
 
-use crate::nobject::IriIndex;
+use crate::IriIndex;
 
 pub struct StringIndexer {
     pub map: StringInterner<StringBackend>,

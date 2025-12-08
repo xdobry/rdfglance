@@ -5,8 +5,9 @@ use egui::{
 
 use crate::{
     EdgeStyle, NodeStyle,
-    graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize},
 };
+
+use crate::domain::graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize};
 
 const POS_SPACE: f32 = 3.0;
 
@@ -329,7 +330,7 @@ fn bezier_middle_point(pos1: Pos2, ctrl_pos1: Pos2, ctrl_pos2: Pos2, pos2: Pos2)
 }
 
 #[inline]
-fn fade_color(color: Color32, fade: bool) -> Color32 {
+pub fn fade_color(color: Color32, fade: bool) -> Color32 {
     if fade {
         color.gamma_multiply_u8(60)
     } else {

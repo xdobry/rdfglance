@@ -162,7 +162,7 @@ impl Widget for ColorBox {
     }
 }
 
-const APP_ICON: &[u8] = include_bytes!("../assets/rdfglance-icon.ico");
+const APP_ICON: &[u8] = include_bytes!("../../assets/rdfglance-icon.ico");
 
 pub fn load_icon() -> eframe::egui::IconData {
     let (icon_rgba, icon_width, icon_height) = {

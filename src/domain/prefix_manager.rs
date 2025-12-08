@@ -1,7 +1,5 @@
 use bimap::BiMap;
 
-use crate::{NodeAction, RdfGlanceApp};
-
 pub struct PrefixManager {
     // key is the full iri and value is the prefix
     pub prefixes: BiMap<Box<str>, Box<str>>,
@@ -141,32 +139,13 @@ impl PrefixManager {
     }
 }
 
-impl RdfGlanceApp {
-    pub fn show_prefixes(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("prefixes").striped(true).show(ui, |ui| {
-                ui.heading("Prefix");
-                ui.heading("Iri");
-                ui.end_row();
-                self.read_rdf_data(|rdf_data| {
-                    for (iri, prefix) in &rdf_data.prefix_manager.prefixes {
-                        ui.label(prefix);
-                        ui.label(iri);
-                        ui.end_row();
-                    }
-                });
-            });
-        });
-        NodeAction::None
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
     fn test_prefix_manager()  {
-        let mut prefix_manager = super::PrefixManager::new();
+        let mut prefix_manager = PrefixManager::new();
         assert_eq!(prefix_manager.get_prefixed("http://www.w3.org/2000/01/rdf-schema#Class"),"rdfs:Class");
         assert_eq!(prefix_manager.get_prefixed("http://not_managed#Foo"),"http://not_managed#Foo");
         assert_eq!(prefix_manager.get_prefixed_opt("http://not_managed#Foo"),None);

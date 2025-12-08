@@ -1,5 +1,7 @@
 
-use crate::{layout::Edge, SortedVec};
+use crate::{
+    uistate::layout::Edge, support::SortedVec
+};
 
 pub fn compute_k_core(n: usize, edges: &[Edge], hidden_predicates: &SortedVec) -> Vec<f32> {
     // Build adjacency

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::io::BufReader;
 
-use crate::nobject::{NObject, NodeData};
-use crate::rdfwrap::{RDFAdapter, RDFWrap};
+use crate::domain::{NObject, NodeData};
+use super::rdfwrap::{RDFAdapter, RDFWrap};
 use oxttl::TurtleParser;
 use reqwest::blocking::Client;
 

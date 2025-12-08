@@ -4,50 +4,33 @@ use std::{
 };
 
 use crate::{
-    ExpandType, GVisualizationStyle, NodeAction, NodeChangeContext, RdfGlanceApp, SortedVec, StyleEdit, UIState,
-    config::Config,
-    distinct_colors::next_distinct_color,
-    drawing::{self, draw_node_label},
-    graph_styles::{NodeShape, NodeSize, NodeStyle},
-    layout::{
-        Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
-        update_edges_groups,
-    },
-    nobject::{Indexers, IriIndex, LabelContext, Literal, NObject, NodeData},
-    style::{
-        ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL,
-        ICON_NUNBER, ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
-    },
-    uitools::popup_at,
+    IriIndex, NodeChangeContext, RdfGlanceApp, domain::{
+        ExpandType, Indexers, LabelContext, Literal, NObject, NodeData, config::Config,
+        graph_styles::{ArrowStyle, GVisualizationStyle, NodeShape, NodeSize, NodeStyle}
+    }, support::{
+        SortedVec,
+        distinct_colors::next_distinct_color, 
+        uitools::popup_at
+    }, ui::{draw_edge, draw_node_label, draw_self_edge, fade_color, 
+    }, uistate::{StyleEdit, UIState, actions::{NodeAction, NodeContextAction}, layout::{
+            Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
+            update_edges_groups,
+        }}
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
-use egui::{Key, Painter, Popup, Rect, Slider, StrokeKind};
+use egui::{Key, Painter, Popup, Rect, Shape, Slider, Stroke, StrokeKind};
 use rand::Rng;
+use super::style::{
+    ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL, ICON_NUNBER,
+    ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
+};
 
 const INITIAL_DISTANCE: f32 = 100.0;
 
 struct ReferencesState {
     pub count: u32,
     pub visible: u32,
-}
-
-pub enum NodeContextAction {
-    None,
-    Hide,
-    HideThisType,
-    HideOther,
-    HideOtherTypes,
-    HideUnrelated,
-    HideUnconnected,
-    HideOrphans,
-    HideRedundantEdges,
-    HideZoomInvisible,
-    Expand(ExpandType),
-    ExpandThisType,
-    HideThisTypePreserveEdges,
-    ShowAllInstanceInTable,
-    ChangeLockPosition(bool),
 }
 
 impl NodeContextAction {
@@ -112,97 +95,6 @@ impl NodeContextAction {
     }
 }
 
-enum NodeSelectionMove {
-    None,
-    Right,
-    Left,
-    Up,
-    Down,
-}
-
-struct NextNodeSelection {
-    current_selected: Option<(IriIndex, Pos2)>,
-    node_selection_move: NodeSelectionMove,
-    next_selected: Option<(IriIndex, Pos2)>,
-}
-
-impl NextNodeSelection {
-    fn new(current_index: IriIndex, current_pos: Pos2, node_selection_move: NodeSelectionMove) -> Self {
-        Self {
-            current_selected: Some((current_index, current_pos)),
-            node_selection_move,
-            next_selected: None,
-        }
-    }
-    fn empty() -> Self {
-        Self {
-            current_selected: None,
-            node_selection_move: NodeSelectionMove::None,
-            next_selected: None,
-        }
-    }
-    fn consider_node(&mut self, node_index: IriIndex, node_pos: Pos2) {
-        if let Some((current_index, current_pos)) = self.current_selected {
-            if current_index != node_index {
-                match self.node_selection_move {
-                    NodeSelectionMove::None => {}
-                    NodeSelectionMove::Right => {
-                        if node_pos.x > current_pos.x
-                            && (node_pos.x - current_pos.x) >= (node_pos.y - current_pos.y).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x < pos.x {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Left => {
-                        if node_pos.x < current_pos.x
-                            && (current_pos.x - node_pos.x) >= (node_pos.y - current_pos.y).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.x > pos.x {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Up => {
-                        if node_pos.y < current_pos.y
-                            && (current_pos.y - node_pos.y) >= (node_pos.x - current_pos.x).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y > pos.y {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                    NodeSelectionMove::Down => {
-                        if node_pos.y > current_pos.y
-                            && (node_pos.y - current_pos.y) >= (node_pos.x - current_pos.x).abs()
-                        {
-                            if let Some((_next_selected, pos)) = self.next_selected {
-                                if node_pos.y < pos.y {
-                                    self.next_selected = Some((node_index, node_pos));
-                                }
-                            } else {
-                                self.next_selected = Some((node_index, node_pos));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
@@ -954,91 +846,186 @@ Expand Relations - double click on node",
                 let mut selected_related_nodes_pos = Vec::new();
                 // draw all edges
                 // we draw the edges first so the nodes are on top of them
-                if let Ok(nodes) = self.visible_nodes.nodes.read() {
-                    if let Ok(positions) = self.visible_nodes.positions.read() {
-                        if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
-                            if let Ok(edges) = self.visible_nodes.edges.read() {
-                                if self.ui_state.fade_unselected {
-                                    if let Some(selected_node) = &self.ui_state.selected_node {
-                                        let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
-                                        if let Ok(selected_pos) = selected_pos {
-                                            selected_related_nodes_pos.push(selected_pos);
-                                            for edge in edges.iter() {
-                                                if edge.from == selected_pos {
-                                                    selected_related_nodes_pos.push(edge.to);
-                                                } else if edge.to == selected_pos {
-                                                    selected_related_nodes_pos.push(edge.from);
+                if self.visible_nodes.show_orthogonal && let Some(orth_edges) = &self.visible_nodes.orth_edges  {
+                    if self.ui_state.fade_unselected {
+                        if let Some(selected_node) = &self.ui_state.selected_node {
+                            if let Ok(nodes) = self.visible_nodes.nodes.read() {
+                                if let Ok(edges) = self.visible_nodes.edges.read() {
+                                    let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
+                                    if let Ok(selected_pos) = selected_pos {
+                                        selected_related_nodes_pos.push(selected_pos);
+                                        for edge in edges.iter() {
+                                            if edge.from == selected_pos {
+                                                selected_related_nodes_pos.push(edge.to);
+                                            } else if edge.to == selected_pos {
+                                                selected_related_nodes_pos.push(edge.from);
+                                            }
+                                        }
+                                    }
+                                    selected_related_nodes_pos.sort_unstable();
+                                    selected_related_nodes_pos.dedup();
+                                }
+                            }
+                        }
+                    }
+                    if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
+                    for orth_edge in orth_edges.edges.iter() {
+                        if self.visible_nodes.has_semantic_zoom {
+                            if !individual_node_styles[orth_edge.from_node]
+                                .semantic_zoom_interval
+                                .is_visible(self.ui_state.semantic_zoom_magnitude)
+                                || !individual_node_styles[orth_edge.to_node]
+                                    .semantic_zoom_interval
+                                    .is_visible(self.ui_state.semantic_zoom_magnitude)
+                            {
+                                continue;
+                            }
+                        }
+                        
+                        let points: Vec<Pos2> = orth_edge.control_points.iter().map(|p| center+p.to_vec2()).collect();
+                        let faded = !selected_related_nodes_pos.is_empty()
+                                       && !(selected_related_nodes_pos.binary_search(&orth_edge.from_node).is_ok()
+                                       && selected_related_nodes_pos.binary_search(&orth_edge.to_node).is_ok());
+
+                        let edge_style = self.visualization_style.get_edge_syle(orth_edge.predicate, ui.visuals().dark_mode);
+                        let (arrow_pos, arrow_pre) = if orth_edge.from_node < orth_edge.to_node {
+                            let len = points.len();
+                            (points[len-1], points[len-2])
+                        } else {
+                            (points[0], points[1])
+                        };
+                        let arrow_unit = (arrow_pos - arrow_pre).normalized();
+                        let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
+
+                        // Rotate vector by ±arrow_angle to get arrowhead points
+                        let cos_theta = arrow_angle.cos();
+                        let sin_theta = arrow_angle.sin();
+                        let arrow_size = edge_style.arrow_size; 
+
+                        let left = arrow_pos
+                            - arrow_size
+                                * Vec2::new(
+                                    cos_theta * arrow_unit.x - sin_theta * arrow_unit.y,
+                                    sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
+                                );
+                        let right = arrow_pos
+                            - arrow_size
+                                * Vec2::new(
+                                    cos_theta * arrow_unit.x + sin_theta * arrow_unit.y,
+                                    -sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
+                                );
+
+                        let stroke = egui::Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
+                        // Draw arrowhead lines
+                        match edge_style.target_style {
+                            ArrowStyle::Arrow => {
+                                painter.line_segment([arrow_pos, left], stroke);
+                                painter.line_segment([arrow_pos, right], stroke);
+                            }
+                            ArrowStyle::ArrorTriangle => {
+                                painter.line_segment([arrow_pos, left], stroke);
+                                painter.line_segment([arrow_pos, right], stroke);
+                                painter.line_segment([left, right], stroke);
+                            }
+                            ArrowStyle::ArrorFilled => {
+                                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], edge_style.color, Stroke::NONE);
+                                painter.add(shape);
+                            }
+                        }
+                        let line = egui::Shape::line(
+                            points,
+                            stroke,
+                        );
+                        painter.add(line);
+                    }
+                    }
+                } else {
+                    if let Ok(nodes) = self.visible_nodes.nodes.read() {
+                        if let Ok(positions) = self.visible_nodes.positions.read() {
+                            if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
+                                if let Ok(edges) = self.visible_nodes.edges.read() {
+                                    if self.ui_state.fade_unselected {
+                                        if let Some(selected_node) = &self.ui_state.selected_node {
+                                            let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
+                                            if let Ok(selected_pos) = selected_pos {
+                                                selected_related_nodes_pos.push(selected_pos);
+                                                for edge in edges.iter() {
+                                                    if edge.from == selected_pos {
+                                                        selected_related_nodes_pos.push(edge.to);
+                                                    } else if edge.to == selected_pos {
+                                                        selected_related_nodes_pos.push(edge.from);
+                                                    }
                                                 }
                                             }
+                                            selected_related_nodes_pos.sort_unstable();
+                                            selected_related_nodes_pos.dedup();
                                         }
-                                        selected_related_nodes_pos.sort_unstable();
-                                        selected_related_nodes_pos.dedup();
                                     }
-                                }
-                                if let Ok(node_shapes) = self.visible_nodes.node_shapes.read() {
-                                    for edge in edges.iter() {
-                                        if self.ui_state.hidden_predicates.contains(edge.predicate) {
-                                            continue;
-                                        }
-                                        if self.visible_nodes.has_semantic_zoom {
-                                            if !individual_node_styles[edge.from]
-                                                .semantic_zoom_interval
-                                                .is_visible(self.ui_state.semantic_zoom_magnitude)
-                                                || !individual_node_styles[edge.to]
-                                                    .semantic_zoom_interval
-                                                    .is_visible(self.ui_state.semantic_zoom_magnitude)
-                                            {
+                                    if let Ok(node_shapes) = self.visible_nodes.node_shapes.read() {
+                                        for edge in edges.iter() {
+                                            if self.ui_state.hidden_predicates.contains(edge.predicate) {
                                                 continue;
                                             }
-                                        }
+                                            if self.visible_nodes.has_semantic_zoom {
+                                                if !individual_node_styles[edge.from]
+                                                    .semantic_zoom_interval
+                                                    .is_visible(self.ui_state.semantic_zoom_magnitude)
+                                                    || !individual_node_styles[edge.to]
+                                                        .semantic_zoom_interval
+                                                        .is_visible(self.ui_state.semantic_zoom_magnitude)
+                                                {
+                                                    continue;
+                                                }
+                                            }
 
-                                        let node_label = || {
-                                            let reference_label = rdf_data.node_data.predicate_display(
-                                                edge.predicate,
-                                                &label_context,
-                                                &rdf_data.node_data.indexers,
-                                            );
-                                            reference_label.as_str().to_owned()
-                                        };
-                                        let pos1 = center + positions[edge.from].pos.to_vec2();
-                                        if edge.from != edge.to {
-                                            let node_shape_from = &node_shapes[edge.from];
-                                            let node_shape_to = &node_shapes[edge.to];
-                                            let pos2 = center + positions[edge.to].pos.to_vec2();
-                                            let faded = !selected_related_nodes_pos.is_empty()
-                                                && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
-                                                    && selected_related_nodes_pos.binary_search(&edge.to).is_ok());
-                                            drawing::draw_edge(
-                                                painter,
-                                                pos1,
-                                                node_shape_from.size,
-                                                node_shape_from.node_shape,
-                                                pos2,
-                                                node_shape_to.size,
-                                                node_shape_to.node_shape,
-                                                self.visualization_style
-                                                    .get_edge_syle(edge.predicate, ui.visuals().dark_mode),
-                                                node_label,
-                                                faded,
-                                                edge.bezier_distance,
-                                                ui.visuals(),
-                                            );
-                                        } else {
-                                            let faded = !selected_related_nodes_pos.is_empty()
-                                                && selected_related_nodes_pos.binary_search(&edge.from).is_err();
-                                            let node_shape_from = &node_shapes[edge.from];
-                                            drawing::draw_self_edge(
-                                                painter,
-                                                pos1,
-                                                node_shape_from.size,
-                                                edge.bezier_distance,
-                                                node_shape_from.node_shape,
-                                                self.visualization_style
-                                                    .get_edge_syle(edge.predicate, ui.visuals().dark_mode),
-                                                faded,
-                                                node_label,
-                                                ui.visuals(),
-                                            );
+                                            let node_label = || {
+                                                let reference_label = rdf_data.node_data.predicate_display(
+                                                    edge.predicate,
+                                                    &label_context,
+                                                    &rdf_data.node_data.indexers,
+                                                );
+                                                reference_label.as_str().to_owned()
+                                            };
+                                            let pos1 = center + positions[edge.from].pos.to_vec2();
+                                            if edge.from != edge.to {
+                                                let node_shape_from = &node_shapes[edge.from];
+                                                let node_shape_to = &node_shapes[edge.to];
+                                                let pos2 = center + positions[edge.to].pos.to_vec2();
+                                                let faded = !selected_related_nodes_pos.is_empty()
+                                                    && !(selected_related_nodes_pos.binary_search(&edge.from).is_ok()
+                                                        && selected_related_nodes_pos.binary_search(&edge.to).is_ok());
+                                                draw_edge(
+                                                    painter,
+                                                    pos1,
+                                                    node_shape_from.size,
+                                                    node_shape_from.node_shape,
+                                                    pos2,
+                                                    node_shape_to.size,
+                                                    node_shape_to.node_shape,
+                                                    self.visualization_style
+                                                        .get_edge_syle(edge.predicate, ui.visuals().dark_mode),
+                                                    node_label,
+                                                    faded,
+                                                    edge.bezier_distance,
+                                                    ui.visuals(),
+                                                );
+                                            } else {
+                                                let faded = !selected_related_nodes_pos.is_empty()
+                                                    && selected_related_nodes_pos.binary_search(&edge.from).is_err();
+                                                let node_shape_from = &node_shapes[edge.from];
+                                                draw_self_edge(
+                                                    painter,
+                                                    pos1,
+                                                    node_shape_from.size,
+                                                    edge.bezier_distance,
+                                                    node_shape_from.node_shape,
+                                                    self.visualization_style
+                                                        .get_edge_syle(edge.predicate, ui.visuals().dark_mode),
+                                                    faded,
+                                                    node_label,
+                                                    ui.visuals(),
+                                                );
+                                            }
                                         }
                                     }
                                 }
@@ -1046,6 +1033,7 @@ Expand Relations - double click on node",
                         }
                     }
                 }
+
 
                 if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
                     if let Some(node_pos) = self.visible_nodes.get_pos(*node_to_drag_index) {
@@ -1182,7 +1170,7 @@ Expand Relations - double click on node",
                                             }
                                             was_action = true;
                                         }
-                                        if primary_down && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        if primary_down &&  !self.visible_nodes.show_orthogonal && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                             self.ui_state.node_to_drag = Some(node_layout.node_index);
                                             self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
                                             self.ui_state.drag_start = mouse_pos;
@@ -1800,6 +1788,7 @@ pub fn draw_node(
             font_size: node_type_style.font_size,
             label_color: node_type_style.label_color,
             icon_style: None,
+            is_default: false,
         }
     } else {
         node_type_style
@@ -2102,5 +2091,97 @@ impl NeighborPos {
         self.nodes
             .values() // -> Values<IriIndex, Vec<IriIndex>>
             .flat_map(|vec| vec.iter()) // -> Iterator over &IriIndex
+    }
+}
+
+enum NodeSelectionMove {
+    None,
+    Right,
+    Left,
+    Up,
+    Down,
+}
+
+struct NextNodeSelection {
+    current_selected: Option<(IriIndex, Pos2)>,
+    node_selection_move: NodeSelectionMove,
+    next_selected: Option<(IriIndex, Pos2)>,
+}
+
+impl NextNodeSelection {
+    fn new(current_index: IriIndex, current_pos: Pos2, node_selection_move: NodeSelectionMove) -> Self {
+        Self {
+            current_selected: Some((current_index, current_pos)),
+            node_selection_move,
+            next_selected: None,
+        }
+    }
+    fn empty() -> Self {
+        Self {
+            current_selected: None,
+            node_selection_move: NodeSelectionMove::None,
+            next_selected: None,
+        }
+    }
+    fn consider_node(&mut self, node_index: IriIndex, node_pos: Pos2) {
+        if let Some((current_index, current_pos)) = self.current_selected {
+            if current_index != node_index {
+                match self.node_selection_move {
+                    NodeSelectionMove::None => {}
+                    NodeSelectionMove::Right => {
+                        if node_pos.x > current_pos.x
+                            && (node_pos.x - current_pos.x) >= (node_pos.y - current_pos.y).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.x < pos.x {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Left => {
+                        if node_pos.x < current_pos.x
+                            && (current_pos.x - node_pos.x) >= (node_pos.y - current_pos.y).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.x > pos.x {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Up => {
+                        if node_pos.y < current_pos.y
+                            && (current_pos.y - node_pos.y) >= (node_pos.x - current_pos.x).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.y > pos.y {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                    NodeSelectionMove::Down => {
+                        if node_pos.y > current_pos.y
+                            && (node_pos.y - current_pos.y) >= (node_pos.x - current_pos.x).abs()
+                        {
+                            if let Some((_next_selected, pos)) = self.next_selected {
+                                if node_pos.y < pos.y {
+                                    self.next_selected = Some((node_index, node_pos));
+                                }
+                            } else {
+                                self.next_selected = Some((node_index, node_pos));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

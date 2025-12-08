@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use egui::Pos2;
 
-use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
+use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
 use rust_sugiyama::{configure::Config, from_vertices_and_edges};
 
 pub enum LayoutOrientation {
@@ -17,28 +17,48 @@ pub fn hierarchical_layout(
     layout_orientation: LayoutOrientation,
 ) {
     let node_indexes: Vec<(u32,(f64,f64))> = if let Ok(nodes) = visible_nodes.nodes.read() {
-        if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
-            selected_nodes
-                .iter()
-                .filter_map(|selected_node| {
-                    match nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)) {
-                        Ok(idx) => {
-                            let size = match layout_orientation {
-                                LayoutOrientation::Horizontal => {
-                                    (node_shapes[idx].size.x as f64,node_shapes[idx].size.y as f64)
-                                },
-                                LayoutOrientation::Vertical => {
-                                    (node_shapes[idx].size.y as f64,node_shapes[idx].size.x as f64)
-                                }
-                            };
-                            Some((idx as u32,size))
-                        },
-                        Err(_) => None,
-                    }
-                })
-                .collect()
+        if selected_nodes.len() < 2 {
+            if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
+                node_shapes.iter().enumerate()
+                    .map(|(idx, node_shape)| {
+                        let size = match layout_orientation {
+                            LayoutOrientation::Horizontal => {
+                                (node_shape.size.x as f64,node_shape.size.y as f64)
+                            },
+                            LayoutOrientation::Vertical => {
+                                (node_shape.size.y as f64,node_shape.size.x as f64)
+                            }
+                        };
+                        (idx as u32,size)
+                    })
+                    .collect()
+            } else {
+                return;
+            }
         } else {
-            return;
+            if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
+                selected_nodes
+                    .iter()
+                    .filter_map(|selected_node| {
+                        match nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)) {
+                            Ok(idx) => {
+                                let size = match layout_orientation {
+                                    LayoutOrientation::Horizontal => {
+                                        (node_shapes[idx].size.x as f64,node_shapes[idx].size.y as f64)
+                                    },
+                                    LayoutOrientation::Vertical => {
+                                        (node_shapes[idx].size.y as f64,node_shapes[idx].size.x as f64)
+                                    }
+                                };
+                                Some((idx as u32,size))
+                            },
+                            Err(_) => None,
+                        }
+                    })
+                    .collect()
+            } else {
+                return;
+            }
         }
     } else {
         return;

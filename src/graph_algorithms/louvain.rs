@@ -1,4 +1,7 @@
-use crate::{config::Config, graph_algorithms::ClusterResult, layout::Edge, SortedVec};
+use crate::{
+    domain::config::Config, graph_algorithms::ClusterResult, 
+    uistate::layout::Edge, support::SortedVec
+};
 
 use rand::Rng;
 use std::{collections::{hash_map::Entry, HashMap}};
@@ -360,7 +363,11 @@ struct WEdge {
 mod tests {
     use egui::ahash::HashSet;
 
-    use crate::{config::Config, graph_algorithms::louvain::{compute_modularity, Modularity}, layout::Edge, SortedVec};
+    use crate::{
+        domain::config::Config, 
+        graph_algorithms::louvain::{compute_modularity, Modularity}, 
+        uistate::layout::Edge, support::SortedVec
+    };
 
     fn convert_edges(edges: &Vec<(u32, u32)>) -> (u32, Vec<Edge>) {
         let mut nodes_len = 0;

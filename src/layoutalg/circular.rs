@@ -10,7 +10,7 @@ use rand::{
     seq::{SliceRandom, index::sample},
 };
 
-use crate::{SortedVec, layout::SortedNodeLayout, nobject::IriIndex};
+use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
 
 struct GEdge {
     from: usize,
@@ -19,7 +19,7 @@ struct GEdge {
 
 /**
  * It does not only order the nodes in circle but uses genetic algorithms
- * to find be order this way that the sum lenght of edges and amount of crossing are minimal
+ * to find be order this way that the sum length of edges and amount of crossing are minimal
  */
 pub fn circular_layout(
     visible_nodes: &mut SortedNodeLayout,
@@ -27,10 +27,14 @@ pub fn circular_layout(
     hidden_predicates: &SortedVec,
 ) {
     let node_indexes: Vec<usize> = if let Ok(nodes) = visible_nodes.nodes.read() {
-        selected_nodes
-            .iter()
-            .filter_map(|selected_node| nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok())
-            .collect()
+        if selected_nodes.len() < 3 {
+            (0..nodes.len()).collect()
+        } else {
+            selected_nodes
+                .iter()
+                .filter_map(|selected_node| nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)).ok())
+                .collect()
+        }
     } else {
         return;
     };
