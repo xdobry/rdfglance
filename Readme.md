@@ -37,6 +37,10 @@ Individually styled visualization of nodes and edges
 
 ![screenshot](documentation/screeshots/milenium_falcon_pilot_movies.png)
 
+Orthogonal edge routing
+
+![screenshot](documentation/screeshots/orth-routing.png)
+
 [Manual](documentation/manual.md)
 
 ## Features
