@@ -14,7 +14,8 @@ use strum::IntoEnumIterator;
 use crate::{
     RdfGlanceApp, SystemMessage, 
     domain::statistics::StatisticsData, graph_algorithms::GraphAlgorithm, 
-    layoutalg::{LayoutAlgorithm, circular::circular_layout, hierarchical::{LayoutOrientation, hierarchical_layout}, run_layout_algorithm, spectral::spectral_layout}, ui::style::ICON_LANG, 
+    layoutalg::{LayoutAlgorithm, run_layout_algorithm}, 
+    ui::style::ICON_LANG, 
     uistate::{ImportFormat, ImportFromUrlData, actions::NodeContextAction}
 };
 
@@ -273,6 +274,8 @@ impl RdfGlanceApp {
                                 &mut self.visible_nodes,
                                 &self.ui_state.selected_nodes,
                                 &self.ui_state.hidden_predicates,
+                                &self.visualization_style,
+                                self.rdf_data.clone(),
                             );
                             ui.close_kind(UiKind::Menu);
                         }

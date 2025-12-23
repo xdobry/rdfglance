@@ -2,13 +2,8 @@ use std::collections::BTreeSet;
 
 use egui::Pos2;
 
-use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
+use crate::{IriIndex, layoutalg::LayoutOrientation, support::SortedVec, uistate::layout::SortedNodeLayout};
 use rust_sugiyama::{configure::Config, from_vertices_and_edges};
-
-pub enum LayoutOrientation {
-    Horizontal,
-    Vertical
-}
 
 pub fn hierarchical_layout(
     visible_nodes: &mut SortedNodeLayout,
