@@ -14,6 +14,7 @@ use std::sync::{Arc, RwLock};
 use crate::domain::graph_styles::{
     ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize, GVisualizationStyle
 };
+use crate::uistate::UIState;
 use crate::uistate::layout::{Edge, IndividualNodeStyleData, NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout, update_edges_groups};
 use crate::domain::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::domain::prefix_manager::PrefixManager;
@@ -39,6 +40,7 @@ pub enum HeaderType {
     VisualStyles = 8,
     Literals = 9,
     ShortLiterals = 10,
+    UIState = 11,
 }
 
 impl HeaderType {
@@ -54,6 +56,7 @@ impl HeaderType {
             8 => Some(HeaderType::VisualStyles),
             9 => Some(HeaderType::Literals),
             10 => Some(HeaderType::ShortLiterals),
+            11 => Some(HeaderType::UIState),
             _ => None,
         }
     }
@@ -124,6 +127,7 @@ impl RdfGlanceApp {
         }
         self.visible_nodes.store(&mut file)?;
         self.visualization_style.store(&mut file)?;
+        self.ui_state.store(&mut file)?;
 
         // Is some cases flush will take a long time, probably if os is trying to sync the file to disk 
         // and make virus check. But all data are written to file, because buffer drop make also the flush
@@ -213,6 +217,10 @@ impl RdfGlanceApp {
                             HeaderType::VisualStyles => {
                                 app.visualization_style =
                                     GVisualizationStyle::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
+                            }
+                            HeaderType::UIState => {
+                                app.ui_state =
+                                    UIState::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Literals => {
                                 app.mut_rdf_data(|rdf_data| {
@@ -972,6 +980,64 @@ impl StringCache {
         decoder.read_to_string(&mut str)?;
         let index = StringCache { cache: str };
         Ok(index)
+    }
+}
+
+impl UIState {
+    pub fn store(&self, writer: &mut BufWriter<File>) -> std::io::Result<()> {
+        with_header_len(writer, HeaderType::UIState, &|file| {
+            leb128::write::unsigned(file, self.hidden_predicates.data.len() as u64)?;
+            for predicate in self.hidden_predicates.data.iter() {
+                leb128::write::unsigned(file, *predicate as u64)?;
+            }
+            leb128::write::unsigned(file, self.selected_nodes.len() as u64)?;
+            for node_index in self.selected_nodes.iter() {
+                leb128::write::unsigned(file, *node_index as u64)?;
+            }
+            let mut num_fields = 0;
+            if self.selected_node.is_some() {
+                num_fields += 1;
+            }
+            leb128::write::unsigned(file, num_fields)?;
+
+            if let Some(selected_node) = self.selected_node {
+                write_field_index(file, FieldType::VARINT, 1)?;
+                leb128::write::unsigned(file, selected_node as u64)?;
+            }
+            Ok(())
+        })
+    }
+
+    pub fn restore(reader: &mut BufReader<&File>, _size: u32) -> Result<Self> {
+        let mut ui_state = UIState::default();
+        let hidden_len = leb128::read::unsigned(reader)?;
+        for _ in 0..hidden_len {
+            let predicate_index = leb128::read::unsigned(reader)? as IriIndex;
+            ui_state.hidden_predicates.add(predicate_index);
+        }
+        let selected_len = leb128::read::unsigned(reader)?;
+        for _ in 0..selected_len {
+            let selected_index = leb128::read::unsigned(reader)? as IriIndex;
+            ui_state.selected_nodes.insert(selected_index);
+        }
+        let field_number = leb128::read::unsigned(reader)?;
+        for _ in 0..field_number {
+            let (field_type, field_index) = read_field_index(reader)?;
+            match field_index {
+                1 => {
+                    if field_type == FieldType::VARINT {
+                        let selected_node = leb128::read::unsigned(reader)? as IriIndex;
+                        ui_state.selected_node = Some(selected_node);
+                    } else {
+                        skip_field(reader, field_type)?;
+                    }
+                }
+                _ => {
+                    skip_field(reader, field_type)?;
+                }
+            }
+        }
+        Ok(ui_state)
     }
 }
 
