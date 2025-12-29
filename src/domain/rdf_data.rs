@@ -1,14 +1,7 @@
 use fixedbitset::FixedBitSet;
-use std::{
-    collections::{BTreeSet, HashSet},
-};
+use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashSet}};
 
-use crate::{IriIndex, 
-    support::SortedVec, 
-    domain::{NodeData, config::Config, prefix_manager::PrefixManager}, 
-    integration::rdfwrap::RDFAdapter, 
-    ui::graph_view::{NeighborPos, update_layout_edges}, 
-    uistate::layout::SortedNodeLayout
+use crate::{IriIndex, domain::{NodeData, config::Config, prefix_manager::PrefixManager}, integration::rdfwrap::RDFAdapter, support::SortedVec, ui::graph_view::{NeighborPos, update_layout_edges}, uistate::layout::{NodeLayout, SortedNodeLayout}
 };
 
 pub struct RdfData {
@@ -135,6 +128,84 @@ impl RdfData {
             true
         } else {
             false
+        }
+    }
+
+    pub fn init_visual_graph(
+        &mut self,
+        node_change_context: &mut NodeChangeContext,
+        hidden_predicates: &SortedVec,
+    ) -> bool {
+        let max_node = self.node_data.iter().enumerate().max_by_key(|(_index, (_str,node)) | 
+            if node.has_subject {
+                node.references.len()+node.reverse_references.len()
+            } else {
+                0
+            }
+        );
+        let mut nodes_to_expand: Vec<IriIndex> = Vec::new();
+        if let Some((index, (_node_iri,_node))) = max_node {
+            node_change_context.visible_nodes.add_by_index(index as IriIndex);
+            nodes_to_expand.push(index as IriIndex);
+        }
+        if nodes_to_expand.is_empty() {
+            false
+        } else {
+            let mut parent_ref: Vec<(IriIndex,IriIndex)> = Vec::new();
+            // So we should have max 1 + 5 + 20 nodes at the end
+            let expand_levels : Vec<usize> = vec![5,20];
+            for n in expand_levels {
+                let mut heap = BinaryHeap::with_capacity(n);
+                for node_index in nodes_to_expand.iter() {
+                    // Search n most references nodes from the expand
+                    if let Some((_, nnode)) = self.node_data.get_node_by_index(*node_index) {
+                        for (predicate, ref_iri) in nnode.references.iter().chain(nnode.reverse_references.iter()) {
+                            if !hidden_predicates.contains(*predicate) {
+                                if let Some((_,ref_node)) = self.node_data.get_node_by_index(*ref_iri) {
+                                    let ref_count = if ref_node.has_subject {
+                                        (ref_node.references.len() + ref_node.reverse_references.len()) as u32
+                                    } else {
+                                        0
+                                    };
+                                    let rev = Reverse(ref_count);
+                                    if heap.len() < n {
+                                        heap.push((rev, *node_index, *ref_iri));
+                                    } else if let Some(&(Reverse(min_val), _, _)) = heap.peek() {
+                                        if ref_count > min_val {
+                                            heap.pop();
+                                            heap.push((rev, *node_index, *ref_iri));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                nodes_to_expand.clear();
+                while let Some((_, parent_iri, ref_iri)) = heap.pop() {
+                    parent_ref.push((parent_iri, ref_iri));
+                    nodes_to_expand.push(ref_iri)
+                }
+            }
+
+            let mut npos = NeighborPos::new();
+            let was_added = npos.add_many(
+                node_change_context.visible_nodes,
+                &parent_ref,
+                node_change_context.config,
+            );
+            if was_added {
+                update_layout_edges(
+                    &npos,
+                    node_change_context.visible_nodes,
+                    &self.node_data,
+                    hidden_predicates,
+                );
+                npos.position(node_change_context.visible_nodes);
+                true
+            } else {
+                false
+            }
         }
     }
 
