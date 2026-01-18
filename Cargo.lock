@@ -3644,11 +3644,13 @@ version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aeb6f403d7a4911efb1e33402027fc44f29b5bf6def3effcc22d7bb75f2b747"
 dependencies = [
+ "ab_glyph",
  "chrono",
  "font-kit",
  "image 0.24.9",
  "lazy_static",
  "num-traits",
+ "once_cell",
  "pathfinder_geometry",
  "plotters-backend",
  "plotters-bitmap",

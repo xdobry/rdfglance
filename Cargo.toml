@@ -39,7 +39,7 @@ quick-xml = "0.38.4"
 
 [dev-dependencies]
 peak_alloc = "0.3.0"
-plotters = "0.3.7"
+plotters = { version = "0.3.7", features = ["ab_glyph", "fontconfig-dlopen"] }
 plotters-svg = "0.3.7"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
