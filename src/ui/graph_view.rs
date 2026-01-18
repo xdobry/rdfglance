@@ -3,28 +3,39 @@ use std::{
     io,
 };
 
+use super::style::{
+    ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL, ICON_NUMBER,
+    ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
+};
 use crate::{
-    IriIndex, NodeChangeContext, RdfGlanceApp, domain::{
-        ExpandType, Indexers, LabelContext, Literal, NObject, NodeData, config::Config,
-        graph_styles::{ArrowStyle, GVisualizationStyle, NodeShape, NodeSize, NodeStyle}
-    }, support::{
+    IriIndex, NodeChangeContext, RdfGlanceApp,
+    domain::{
+        ExpandType, Indexers, LabelContext, Literal, NObject, NodeData,
+        config::Config,
+        graph_styles::{ArrowStyle, GVisualizationStyle, NodeShape, NodeSize, NodeStyle},
+    },
+    support::{
         SortedVec,
-        distinct_colors::next_distinct_color, 
-        uitools::popup_at
-    }, ui::{draw_edge, draw_node_label, draw_self_edge, fade_color, 
-    }, uistate::{StyleEdit, UIState, actions::{NodeAction, NodeContextAction}, layout::{
+        distinct_colors::next_distinct_color,
+        uitools::{popup_at, primary_color},
+    },
+    ui::{
+        draw_edge, draw_node_label, draw_self_edge, fade_color,
+        style::{ICON_EXPORT, ICON_ROCKET},
+    },
+    uistate::{
+        StyleEdit, UIState,
+        actions::{NodeAction, NodeContextAction},
+        layout::{
             Edge, IndividualNodeStyleData, LayoutConfUpdate, NodeCommand, NodeShapeData, SortedNodeLayout,
             update_edges_groups,
-        }}
+        },
+    },
 };
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
 use egui::{Key, Painter, Popup, Rect, Shape, Slider, Stroke, StrokeKind};
 use rand::Rng;
-use super::style::{
-    ICON_CENTER, ICON_CLEAN_ALL, ICON_EXPAND, ICON_GRAPH, ICON_HELP, ICON_HIGHLIGHT, ICON_KEY, ICON_LABEL, ICON_NUNBER,
-    ICON_PROPERTIES, ICON_REDO, ICON_UNDO, ICON_UNEXPAND, ICON_WRENCH,
-};
 
 const INITIAL_DISTANCE: f32 = 100.0;
 
@@ -95,7 +106,6 @@ impl NodeContextAction {
     }
 }
 
-
 impl RdfGlanceApp {
     pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
@@ -104,6 +114,21 @@ impl RdfGlanceApp {
                 "No nodes to display. Go to tables or browser and add a node to graph using button with ",
                 ICON_GRAPH
             ));
+            let button_text = egui::RichText::new(concatcp!(ICON_ROCKET, "Start visual graph from analyze")).size(16.0);
+            let s_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
+            if ui.add(s_but).clicked() {
+                if let Ok(mut rdf_data) = self.rdf_data.write() {
+                    let mut node_change_context = NodeChangeContext {
+                        rdfwrap: &mut self.rdfwrap,
+                        visible_nodes: &mut self.visible_nodes,
+                        config: &self.persistent_data.config_data,
+                    };
+                    if rdf_data.init_visual_graph(&mut node_change_context, &self.ui_state.hidden_predicates) {
+                        self.visible_nodes
+                            .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                    }
+                }
+            }
             if !self.visible_nodes.undo_stack.is_empty() || !self.visible_nodes.redo_stack.is_empty() {
                 ui.horizontal(|ui| {
                     let undo_button =
@@ -233,7 +258,7 @@ impl RdfGlanceApp {
                 self.ui_state.show_labels = !self.ui_state.show_labels;
             }
             if ui
-                .selectable_label(self.ui_state.show_num_hidden_refs, ICON_NUNBER)
+                .selectable_label(self.ui_state.show_num_hidden_refs, ICON_NUMBER)
                 .on_hover_text("Show Number of unexpanded references")
                 .clicked()
             {
@@ -252,6 +277,9 @@ impl RdfGlanceApp {
                 .clicked()
             {
                 self.visible_nodes.clean_all();
+            }
+            if ui.button(ICON_EXPORT).on_hover_text("Export as SVG file").clicked() {
+                self.export_svg_dialog();
             }
             let help_but = ui.button(ICON_HELP);
             if help_but.clicked() {
@@ -846,7 +874,9 @@ Expand Relations - double click on node",
                 let mut selected_related_nodes_pos = Vec::new();
                 // draw all edges
                 // we draw the edges first so the nodes are on top of them
-                if self.visible_nodes.show_orthogonal && let Some(orth_edges) = &self.visible_nodes.orth_edges  {
+                if self.visible_nodes.show_orthogonal
+                    && let Some(orth_edges) = &self.visible_nodes.orth_edges
+                {
                     if self.ui_state.fade_unselected {
                         if let Some(selected_node) = &self.ui_state.selected_node {
                             if let Ok(nodes) = self.visible_nodes.nodes.read() {
@@ -869,75 +899,79 @@ Expand Relations - double click on node",
                         }
                     }
                     if let Ok(individual_node_styles) = self.visible_nodes.individual_node_styles.read() {
-                    for orth_edge in orth_edges.edges.iter() {
-                        if self.visible_nodes.has_semantic_zoom {
-                            if !individual_node_styles[orth_edge.from_node]
-                                .semantic_zoom_interval
-                                .is_visible(self.ui_state.semantic_zoom_magnitude)
-                                || !individual_node_styles[orth_edge.to_node]
+                        for orth_edge in orth_edges.edges.iter() {
+                            if self.visible_nodes.has_semantic_zoom {
+                                if !individual_node_styles[orth_edge.from_node]
                                     .semantic_zoom_interval
                                     .is_visible(self.ui_state.semantic_zoom_magnitude)
-                            {
-                                continue;
+                                    || !individual_node_styles[orth_edge.to_node]
+                                        .semantic_zoom_interval
+                                        .is_visible(self.ui_state.semantic_zoom_magnitude)
+                                {
+                                    continue;
+                                }
                             }
+
+                            let points: Vec<Pos2> =
+                                orth_edge.control_points.iter().map(|p| center + p.to_vec2()).collect();
+                            let faded = !selected_related_nodes_pos.is_empty()
+                                && !(selected_related_nodes_pos.binary_search(&orth_edge.from_node).is_ok()
+                                    && selected_related_nodes_pos.binary_search(&orth_edge.to_node).is_ok());
+
+                            let edge_style = self
+                                .visualization_style
+                                .get_edge_syle(orth_edge.predicate, ui.visuals().dark_mode);
+                            let (arrow_pos, arrow_pre) = if orth_edge.from_node < orth_edge.to_node {
+                                let len = points.len();
+                                (points[len - 1], points[len - 2])
+                            } else {
+                                (points[0], points[1])
+                            };
+                            let arrow_unit = (arrow_pos - arrow_pre).normalized();
+                            let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
+
+                            // Rotate vector by ±arrow_angle to get arrowhead points
+                            let cos_theta = arrow_angle.cos();
+                            let sin_theta = arrow_angle.sin();
+                            let arrow_size = edge_style.arrow_size;
+
+                            let left = arrow_pos
+                                - arrow_size
+                                    * Vec2::new(
+                                        cos_theta * arrow_unit.x - sin_theta * arrow_unit.y,
+                                        sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
+                                    );
+                            let right = arrow_pos
+                                - arrow_size
+                                    * Vec2::new(
+                                        cos_theta * arrow_unit.x + sin_theta * arrow_unit.y,
+                                        -sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
+                                    );
+
+                            let stroke = egui::Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
+                            // Draw arrowhead lines
+                            match edge_style.target_style {
+                                ArrowStyle::Arrow => {
+                                    painter.line_segment([arrow_pos, left], stroke);
+                                    painter.line_segment([arrow_pos, right], stroke);
+                                }
+                                ArrowStyle::ArrorTriangle => {
+                                    painter.line_segment([arrow_pos, left], stroke);
+                                    painter.line_segment([arrow_pos, right], stroke);
+                                    painter.line_segment([left, right], stroke);
+                                }
+                                ArrowStyle::ArrorFilled => {
+                                    let shape = Shape::convex_polygon(
+                                        vec![arrow_pos, left, right],
+                                        edge_style.color,
+                                        Stroke::NONE,
+                                    );
+                                    painter.add(shape);
+                                }
+                            }
+                            let line = egui::Shape::line(points, stroke);
+                            painter.add(line);
                         }
-                        
-                        let points: Vec<Pos2> = orth_edge.control_points.iter().map(|p| center+p.to_vec2()).collect();
-                        let faded = !selected_related_nodes_pos.is_empty()
-                                       && !(selected_related_nodes_pos.binary_search(&orth_edge.from_node).is_ok()
-                                       && selected_related_nodes_pos.binary_search(&orth_edge.to_node).is_ok());
-
-                        let edge_style = self.visualization_style.get_edge_syle(orth_edge.predicate, ui.visuals().dark_mode);
-                        let (arrow_pos, arrow_pre) = if orth_edge.from_node < orth_edge.to_node {
-                            let len = points.len();
-                            (points[len-1], points[len-2])
-                        } else {
-                            (points[0], points[1])
-                        };
-                        let arrow_unit = (arrow_pos - arrow_pre).normalized();
-                        let arrow_angle = std::f32::consts::PI / 6.0; // 30 degrees
-
-                        // Rotate vector by ±arrow_angle to get arrowhead points
-                        let cos_theta = arrow_angle.cos();
-                        let sin_theta = arrow_angle.sin();
-                        let arrow_size = edge_style.arrow_size; 
-
-                        let left = arrow_pos
-                            - arrow_size
-                                * Vec2::new(
-                                    cos_theta * arrow_unit.x - sin_theta * arrow_unit.y,
-                                    sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
-                                );
-                        let right = arrow_pos
-                            - arrow_size
-                                * Vec2::new(
-                                    cos_theta * arrow_unit.x + sin_theta * arrow_unit.y,
-                                    -sin_theta * arrow_unit.x + cos_theta * arrow_unit.y,
-                                );
-
-                        let stroke = egui::Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
-                        // Draw arrowhead lines
-                        match edge_style.target_style {
-                            ArrowStyle::Arrow => {
-                                painter.line_segment([arrow_pos, left], stroke);
-                                painter.line_segment([arrow_pos, right], stroke);
-                            }
-                            ArrowStyle::ArrorTriangle => {
-                                painter.line_segment([arrow_pos, left], stroke);
-                                painter.line_segment([arrow_pos, right], stroke);
-                                painter.line_segment([left, right], stroke);
-                            }
-                            ArrowStyle::ArrorFilled => {
-                                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], edge_style.color, Stroke::NONE);
-                                painter.add(shape);
-                            }
-                        }
-                        let line = egui::Shape::line(
-                            points,
-                            stroke,
-                        );
-                        painter.add(line);
-                    }
                     }
                 } else {
                     if let Ok(nodes) = self.visible_nodes.nodes.read() {
@@ -946,7 +980,8 @@ Expand Relations - double click on node",
                                 if let Ok(edges) = self.visible_nodes.edges.read() {
                                     if self.ui_state.fade_unselected {
                                         if let Some(selected_node) = &self.ui_state.selected_node {
-                                            let selected_pos = nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
+                                            let selected_pos =
+                                                nodes.binary_search_by(|e| e.node_index.cmp(selected_node));
                                             if let Ok(selected_pos) = selected_pos {
                                                 selected_related_nodes_pos.push(selected_pos);
                                                 for edge in edges.iter() {
@@ -1033,7 +1068,6 @@ Expand Relations - double click on node",
                         }
                     }
                 }
-
 
                 if let Some(node_to_drag_index) = &self.ui_state.node_to_drag {
                     if let Some(node_pos) = self.visible_nodes.get_pos(*node_to_drag_index) {
@@ -1170,7 +1204,10 @@ Expand Relations - double click on node",
                                             }
                                             was_action = true;
                                         }
-                                        if primary_down &&  !self.visible_nodes.show_orthogonal && is_overlapping(&node_rect, mouse_pos, node_shape) {
+                                        if primary_down
+                                            && !self.visible_nodes.show_orthogonal
+                                            && is_overlapping(&node_rect, mouse_pos, node_shape)
+                                        {
                                             self.ui_state.node_to_drag = Some(node_layout.node_index);
                                             self.ui_state.drag_diff = (mouse_pos - node_rect.center()).to_pos2();
                                             self.ui_state.drag_start = mouse_pos;
@@ -1375,6 +1412,19 @@ Expand Relations - double click on node",
                                         &self.persistent_data.config_data,
                                         &self.ui_state.hidden_predicates,
                                     );
+                                } else {
+                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
+                                        let node = rdf_data.node_data.get_node_by_index(x.node_index);
+                                        if let Some((_, node)) = node {
+                                            !node.types.is_empty()
+                                        } else {
+                                            true
+                                        }
+                                    });
+                                    self.visible_nodes.start_layout(
+                                        &self.persistent_data.config_data,
+                                        &self.ui_state.hidden_predicates,
+                                    );
                                 }
                                 check_selection = true;
                             }
@@ -1389,7 +1439,7 @@ Expand Relations - double click on node",
                             NodeContextAction::HideOtherTypes => {
                                 let types = current_node.highest_priority_types(&self.visualization_style);
                                 if !types.is_empty() {
-                                    self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
+                                    let was_change = self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
                                         let node = rdf_data.node_data.get_node_by_index(x.node_index);
                                         if let Some((_, node)) = node {
                                             node.has_same_type(&types)
@@ -1397,10 +1447,12 @@ Expand Relations - double click on node",
                                             false
                                         }
                                     });
-                                    self.visible_nodes.start_layout(
+                                    if was_change {
+                                        self.visible_nodes.start_layout(
                                         &self.persistent_data.config_data,
                                         &self.ui_state.hidden_predicates,
-                                    );
+                                        );
+                                    }
                                 }
                                 check_selection = true;
                             }
@@ -1718,7 +1770,7 @@ pub fn is_overlapping(node_rect: &Rect, pos: Pos2, node_shape: NodeShape) -> boo
             if (pos.x - center.x).powi(2) + (pos.y - center.y).powi(2) < radius.powi(2) {
                 return true;
             }
-        } else if node_shape == NodeShape::Elipse {
+        } else if node_shape == NodeShape::Ellipse {
             let center = node_rect.center();
             let radius_x = node_rect.width() / 2.0;
             let radius_y = node_rect.height() / 2.0;

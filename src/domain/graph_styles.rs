@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use egui::Color32;
 
 use crate::{
-    IriIndex, support::distinct_colors::next_distinct_color, ui::table_view::TypeInstanceIndex
+    IriIndex, domain::StringIndexer, support::distinct_colors::next_distinct_color, ui::table_view::TypeInstanceIndex
 };
 
 pub struct NodeStyle {
@@ -88,7 +88,7 @@ pub enum NodeShape {
     None = 0,
     Rect = 1,
     Circle = 2,
-    Elipse = 3,
+    Ellipse = 3,
 }
 
 impl TryFrom<u8> for NodeShape {
@@ -99,7 +99,7 @@ impl TryFrom<u8> for NodeShape {
             0 => Ok(NodeShape::None),
             1 => Ok(NodeShape::Rect),
             2 => Ok(NodeShape::Circle),
-            3 => Ok(NodeShape::Elipse),
+            3 => Ok(NodeShape::Ellipse),
             _ => Err(()),
         }
     }
@@ -277,19 +277,37 @@ pub struct GVisualizationStyle {
 }
 
 impl GVisualizationStyle {
-    pub fn preset_styles(&mut self, type_instance_index: &TypeInstanceIndex, is_dark_mode: bool) {
-        for (type_index, _type_desc) in type_instance_index.types.iter() {
+    pub fn preset_styles(&mut self, type_instance_index: &TypeInstanceIndex, predicate_indexer: &StringIndexer, is_dark_mode: bool) {
+        for (type_index, type_desc) in type_instance_index.types.iter() {
             let type_style = self.node_styles.get(type_index);
             if type_style.is_none() {
                 let lightness = if is_dark_mode { 0.3 } else { 0.6 };
                 let new_color = next_distinct_color(self.node_styles.len(), 0.8, lightness, 200);
                 let order = type_instance_index.types_order.iter().position(|&i| i == *type_index);
                 let priority = order.map(|o| o as u32).unwrap_or(0);
+                let label_index = if type_desc.properties.contains_key(&0) {
+                    // use rdf:label if exists other wise use first property that has name or label in iri and min occurs is greater 1
+                    0
+                } else {
+                    let mut selected_label_index: Option<IriIndex> = None;
+                    for (prop_index, prop_desc) in type_desc.properties.iter() {
+                        if prop_desc.min_cardinality >= 1 {
+                            if let Some(label_str) = predicate_indexer.index_to_str(*prop_index) {
+                                if label_str.contains("label") || label_str.contains("name") || label_str.contains("Name") {
+                                    selected_label_index = Some(*prop_index);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    selected_label_index.unwrap_or(0)
+                };
                 self.node_styles.insert(
                     *type_index,
                     NodeStyle {
                         color: new_color,
                         priority,
+                        label_index,
                         ..Default::default()
                     },
                 );

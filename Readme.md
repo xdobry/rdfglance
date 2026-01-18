@@ -66,8 +66,10 @@ RDFGlance offers the following visualization capabilities for RDF data:
   - circular
   - hierarchical
   - spectral
+  - linear
   - orthogonal edge routing
 - CSV Export for table views
+- SVG Export of visual graph
 - Semantic zoom based on graph statistics
 - Can open ttl file passed as start parameter
 - Can open ttl file dropped from explorer

@@ -457,6 +457,11 @@ impl SortedNodeLayout {
         self.undo_stack.clear();
     }
 
+    /**
+     * Removes all nodes that do not satisfy the predicate f.
+     * 
+     * Returns true if any node was removed.
+     */
     pub fn retain(&mut self, hidden_predicates: &SortedVec, is_undo: bool, f: impl Fn(&NodeLayout) -> bool) -> bool {
         let pos_to_remove = if let Ok(nodes) = self.nodes.read() {
             let pos_to_remove: Vec<usize> = nodes
@@ -553,9 +558,9 @@ impl SortedNodeLayout {
                     self.redo_stack.clear();
                 }
             }
-            false
-        } else {
             true
+        } else {
+            false
         }
     }
 

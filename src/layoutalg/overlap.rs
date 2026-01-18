@@ -241,6 +241,7 @@ fn grow(tree: &WeightedDiGraph, rects: &[Rect], random: &mut StdRng) -> Vec<Rect
         } else {
             // this happen if rects exact overlap so take original position and move slightly
             let r = rects[index];
+            
             Rect::from_center_size(r.center() + Vec2::new(0.01, 0.01), r.size())
         }
     ).collect()

@@ -1,21 +1,22 @@
 use std::path::Path;
 
-use const_format::concatcp;
-use egui::{global_theme_preference_switch, Align, Key, Layout, MenuBar, Modifiers, UiKind};
-#[cfg(target_arch = "wasm32")]
-use rfd::AsyncFileDialog;
 #[cfg(target_arch = "wasm32")]
 use crate::uistate::File;
+use const_format::concatcp;
+use egui::{Align, Key, Layout, MenuBar, Modifiers, UiKind, global_theme_preference_switch};
+#[cfg(target_arch = "wasm32")]
+use rfd::AsyncFileDialog;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
-
 use crate::{
-    RdfGlanceApp, SystemMessage, 
-    domain::statistics::StatisticsData, graph_algorithms::GraphAlgorithm, 
-    layoutalg::{LayoutAlgorithm, circular::circular_layout, hierarchical::{LayoutOrientation, hierarchical_layout}, run_layout_algorithm, spectral::spectral_layout}, ui::style::ICON_LANG, 
-    uistate::{ImportFormat, ImportFromUrlData, actions::NodeContextAction}
+    RdfGlanceApp, SystemMessage,
+    domain::statistics::StatisticsData,
+    graph_algorithms::GraphAlgorithm,
+    layoutalg::{LayoutAlgorithm, run_layout_algorithm},
+    ui::style::ICON_LANG,
+    uistate::{ImportFormat, ImportFromUrlData, actions::NodeContextAction},
 };
 
 enum MenuAction {
@@ -46,7 +47,7 @@ impl RdfGlanceApp {
                         menu_action = MenuAction::LoadProject;
                         ui.close_kind(UiKind::Menu);
                     }
-                    if ui.button("Save Project\tCtrl-S").clicked() {
+                    if !self.is_empty() && ui.button("Save Project\tCtrl-S").clicked() {
                         menu_action = MenuAction::SaveProject;
                         ui.close_kind(UiKind::Menu);
                     }
@@ -85,106 +86,125 @@ impl RdfGlanceApp {
                     }
                     ui.close_kind(UiKind::Menu);
                 }
-                if ui.button("Export Edges").clicked() {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if let Some(path) = FileDialog::new()
-                        .add_filter("CSV table", &["csv"])
-                        .set_file_name("edges.csv")
-                        .save_file()
-                    {
-                        if let Ok(rdf_data) = self.rdf_data.read() {
-                            use crate::domain::LabelContext;
-                            let label_context = LabelContext::new(
-                                self.ui_state.display_language,
-                                self.persistent_data.config_data.iri_display,
-                                &rdf_data.prefix_manager,
-                            );
-                            let mut wtr = csv::Writer::from_path(path).unwrap();
-                            let store_res =
-                                self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
-                            match store_res {
-                                Err(e) => {
-                                    self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
+                if !self.is_empty() {
+                    let has_visual_graph_nodes = !self.visible_nodes.nodes.read().unwrap().is_empty();
+                    ui.add_enabled_ui(has_visual_graph_nodes, |ui| {
+                        if ui.button("Export Edges").clicked() {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if let Some(path) = FileDialog::new()
+                                .add_filter("CSV table", &["csv"])
+                                .set_file_name("edges.csv")
+                                .save_file()
+                            {
+                                if let Ok(rdf_data) = self.rdf_data.read() {
+                                    use crate::domain::LabelContext;
+                                    let label_context = LabelContext::new(
+                                        self.ui_state.display_language,
+                                        self.persistent_data.config_data.iri_display,
+                                        &rdf_data.prefix_manager,
+                                    );
+                                    let mut wtr = csv::Writer::from_path(path).unwrap();
+                                    let store_res = self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
+                                    match store_res {
+                                        Err(e) => {
+                                            self.system_message =
+                                                SystemMessage::Error(format!("Can not export edges: {}", e));
+                                        }
+                                        Ok(_) => {}
+                                    }
                                 }
-                                Ok(_) => {}
                             }
-                        }
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::domain::graph_model::LabelContext;
-                        let label_context = LabelContext::new(
-                            self.ui_state.display_language,
-                            self.persistent_data.config_data.iri_display,
-                            &rdf_data.prefix_manager,
-                        );
-                        let buf = Vec::new();
-                        let mut wtr = csv::Writer::from_writer(buf);
-                        let store_res =
-                            self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
-                        match store_res {
-                            Err(e) => {
-                                self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
-                            }
-                            Ok(_) => {
-                                use crate::support::uitools::web_download;
+                            #[cfg(target_arch = "wasm32")]
+                            if let Ok(rdf_data) = self.rdf_data.read() {
+                                use crate::domain::graph_model::LabelContext;
+                                let label_context = LabelContext::new(
+                                    self.ui_state.display_language,
+                                    self.persistent_data.config_data.iri_display,
+                                    &rdf_data.prefix_manager,
+                                );
+                                let buf = Vec::new();
+                                let mut wtr = csv::Writer::from_writer(buf);
+                                let store_res = self.export_edges(&mut wtr, &rdf_data.node_data, &label_context);
+                                match store_res {
+                                    Err(e) => {
+                                        self.system_message =
+                                            SystemMessage::Error(format!("Can not export edges: {}", e));
+                                    }
+                                    Ok(_) => {
+                                        use crate::support::uitools::web_download;
 
-                                let buf = wtr.into_inner().unwrap();
-                                let _ = web_download("edges.csv",&buf);
+                                        let buf = wtr.into_inner().unwrap();
+                                        let _ = web_download("edges.csv", &buf);
+                                    }
+                                }
                             }
+                            ui.close_kind(UiKind::Menu);
                         }
-                    }
-                    ui.close_kind(UiKind::Menu);
+                        if ui.button("Export Nodes").clicked() {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if let Some(path) = FileDialog::new()
+                                .add_filter("CSV table", &["csv"])
+                                .set_file_name("nodes.csv")
+                                .save_file()
+                            {
+                                if let Ok(rdf_data) = self.rdf_data.read() {
+                                    use crate::domain::LabelContext;
+                                    let label_context = LabelContext::new(
+                                        self.ui_state.display_language,
+                                        self.persistent_data.config_data.iri_display,
+                                        &rdf_data.prefix_manager,
+                                    );
+                                    let mut wtr = csv::Writer::from_path(path).unwrap();
+                                    let store_res = self.export_nodes(
+                                        &mut wtr,
+                                        &rdf_data.node_data,
+                                        &label_context,
+                                        &self.visualization_style,
+                                    );
+                                    match store_res {
+                                        Err(e) => {
+                                            self.system_message =
+                                                SystemMessage::Error(format!("Can not export edges: {}", e));
+                                        }
+                                        Ok(_) => {}
+                                    }
+                                }
+                            }
+                            #[cfg(target_arch = "wasm32")]
+                            if let Ok(rdf_data) = self.rdf_data.read() {
+                                use crate::domain::graph_model::LabelContext;
+                                let label_context = LabelContext::new(
+                                    self.ui_state.display_language,
+                                    self.persistent_data.config_data.iri_display,
+                                    &rdf_data.prefix_manager,
+                                );
+                                let buf = Vec::new();
+                                let mut wtr = csv::Writer::from_writer(buf);
+                                let store_res = self.export_nodes(
+                                    &mut wtr,
+                                    &rdf_data.node_data,
+                                    &label_context,
+                                    &self.visualization_style,
+                                );
+                                match store_res {
+                                    Err(e) => {
+                                        self.system_message =
+                                            SystemMessage::Error(format!("Can not export nodes: {}", e));
+                                    }
+                                    Ok(_) => {
+                                        use crate::support::uitools::web_download;
+
+                                        let buf = wtr.into_inner().unwrap();
+                                        let _ = web_download("nodes.csv", &buf);
+                                    }
+                                }
+                            }
+                            ui.close_kind(UiKind::Menu);
+                        }
+                    });
                 }
-                if ui.button("Export Nodes").clicked() {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if let Some(path) = FileDialog::new()
-                        .add_filter("CSV table", &["csv"])
-                        .set_file_name("nodes.csv")
-                        .save_file()
-                    {
-                        if let Ok(rdf_data) = self.rdf_data.read() {
-                            use crate::domain::LabelContext;
-                            let label_context = LabelContext::new(
-                                self.ui_state.display_language,
-                                self.persistent_data.config_data.iri_display,
-                                &rdf_data.prefix_manager,
-                            );
-                            let mut wtr = csv::Writer::from_path(path).unwrap();
-                            let store_res =
-                                self.export_nodes(&mut wtr, &rdf_data.node_data, &label_context, &self.visualization_style);
-                            match store_res {
-                                Err(e) => {
-                                    self.system_message = SystemMessage::Error(format!("Can not export edges: {}", e));
-                                }
-                                Ok(_) => {}
-                            }
-                        }
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    if let Ok(rdf_data) = self.rdf_data.read() {
-                        use crate::domain::graph_model::LabelContext;
-                        let label_context = LabelContext::new(
-                            self.ui_state.display_language,
-                            self.persistent_data.config_data.iri_display,
-                            &rdf_data.prefix_manager,
-                        );
-                        let buf = Vec::new();
-                        let mut wtr = csv::Writer::from_writer(buf);
-                        let store_res =
-                            self.export_nodes(&mut wtr, &rdf_data.node_data, &label_context,&self.visualization_style);
-                        match store_res {
-                            Err(e) => {
-                                self.system_message = SystemMessage::Error(format!("Can not export nodes: {}", e));
-                            }
-                            Ok(_) => {
-                                use crate::support::uitools::web_download;
-
-                                let buf = wtr.into_inner().unwrap();
-                                let _ = web_download("nodes.csv",&buf);
-                            }
-                        }
-                    }
+                if ui.button("Export SVG").clicked() {
+                    self.export_svg_dialog();
                     ui.close_kind(UiKind::Menu);
                 }
                 /*
@@ -216,10 +236,12 @@ impl RdfGlanceApp {
                         }
                     });
                 }
-                ui.separator();
-                if ui.button("Clean Data").clicked() {
-                    self.clean_data();
-                    ui.close_kind(UiKind::Menu);
+                if !self.is_empty() {
+                    ui.separator();
+                    if ui.button("Clean Data").clicked() {
+                        self.clean_data();
+                        ui.close_kind(UiKind::Menu);
+                    }
                 }
                 consume_keys = true;
             });
@@ -256,7 +278,7 @@ impl RdfGlanceApp {
                         ui.close_kind(UiKind::Menu);
                     }
                     ui.separator();
-                    ui.add_enabled_ui(self.ui_state.selected_nodes.len()>=2 , |ui| {
+                    ui.add_enabled_ui(self.ui_state.selected_nodes.len() >= 2, |ui| {
                         if ui.button("Find Shortest Connections").clicked() {
                             self.find_connections();
                             ui.close_kind(UiKind::Menu);
@@ -273,6 +295,8 @@ impl RdfGlanceApp {
                                 &mut self.visible_nodes,
                                 &self.ui_state.selected_nodes,
                                 &self.ui_state.hidden_predicates,
+                                &self.visualization_style,
+                                self.rdf_data.clone(),
                             );
                             ui.close_kind(UiKind::Menu);
                         }
@@ -290,69 +314,71 @@ impl RdfGlanceApp {
                     }
                 });
             }
-            ui.menu_button("Statistics", |ui| {
-                for entry in GraphAlgorithm::iter() {
-                    let label = entry.to_string();
-                    if ui.button(label).clicked() {
-                        if self.visible_nodes.nodes.read().unwrap().is_empty() {
-                            self.system_message = SystemMessage::Info(
-                                "No data to compute statistics. Add nodes to visual graph".to_string(),
+            if !self.is_empty() {
+                ui.menu_button("Statistics", |ui| {
+                    for entry in GraphAlgorithm::iter() {
+                        let label = entry.to_string();
+                        if ui.button(label).clicked() {
+                            if self.visible_nodes.nodes.read().unwrap().is_empty() {
+                                self.system_message = SystemMessage::Info(
+                                    "No data to compute statistics. Add nodes to visual graph".to_string(),
+                                );
+                                ui.close_kind(UiKind::Menu);
+                                return;
+                            }
+                            if self.statistics_data.is_none() {
+                                self.statistics_data = Some(StatisticsData::default());
+                            }
+                            self.visible_nodes.run_algorithm(
+                                entry,
+                                &self.visualization_style,
+                                self.statistics_data.as_mut().unwrap(),
+                                &self.persistent_data.config_data,
+                                &self.ui_state.hidden_predicates,
                             );
+                            // TODO ask for confirmation
+                            self.visualization_style.use_size_overwrite = true;
+                            self.visualization_style.use_color_overwrite = true;
                             ui.close_kind(UiKind::Menu);
-                            return;
                         }
-                        if self.statistics_data.is_none() {
-                            self.statistics_data = Some(StatisticsData::default());
+                    }
+                    ui.separator();
+                    ui.add_enabled_ui(
+                        self.statistics_data.as_ref().is_some_and(|f| !f.results.is_empty()),
+                        |ui| {
+                            if ui
+                                .checkbox(
+                                    &mut self.visualization_style.use_size_overwrite,
+                                    "Node size from statistics",
+                                )
+                                .changed()
+                            {
+                                self.visible_nodes.update_node_shapes = true;
+                            }
+                            if ui
+                                .checkbox(
+                                    &mut self.visualization_style.use_color_overwrite,
+                                    "Node color from statistics",
+                                )
+                                .changed()
+                            {
+                                self.visible_nodes.update_node_shapes = true;
+                            }
+                        },
+                    );
+                    ui.separator();
+                    if ui.button("Clear Statistics").clicked() {
+                        if let Some(statistics_data) = &mut self.statistics_data {
+                            statistics_data.results.clear();
                         }
-                        self.visible_nodes.run_algorithm(
-                            entry,
-                            &self.visualization_style,
-                            self.statistics_data.as_mut().unwrap(),
-                            &self.persistent_data.config_data,
-                            &self.ui_state.hidden_predicates,
-                        );
-                        // TODO ask for confirmation
-                        self.visualization_style.use_size_overwrite = true;
-                        self.visualization_style.use_color_overwrite = true;
+                        self.visualization_style.use_size_overwrite = false;
+                        self.visualization_style.use_color_overwrite = false;
+                        self.visible_nodes.update_node_shapes = true;
                         ui.close_kind(UiKind::Menu);
                     }
-                }
-                ui.separator();
-                ui.add_enabled_ui(
-                    self.statistics_data.as_ref().is_some_and(|f| !f.results.is_empty()),
-                    |ui| {
-                        if ui
-                            .checkbox(
-                                &mut self.visualization_style.use_size_overwrite,
-                                "Node size from statistics",
-                            )
-                            .changed()
-                        {
-                            self.visible_nodes.update_node_shapes = true;
-                        }
-                        if ui
-                            .checkbox(
-                                &mut self.visualization_style.use_color_overwrite,
-                                "Node color from statistics",
-                            )
-                            .changed()
-                        {
-                            self.visible_nodes.update_node_shapes = true;
-                        }
-                    },
-                );
-                ui.separator();
-                if ui.button("Clear Statistics").clicked() {
-                    if let Some(statistics_data) = &mut self.statistics_data {
-                        statistics_data.results.clear();
-                    }
-                    self.visualization_style.use_size_overwrite = false;
-                    self.visualization_style.use_color_overwrite = false;
-                    self.visible_nodes.update_node_shapes = true;
-                    ui.close_kind(UiKind::Menu);
-                }
-                consume_keys = true;
-            });
+                    consume_keys = true;
+                });
+            }
             ui.menu_button("Help", |ui| {
                 if ui.button("About RDF Glance").clicked() {
                     self.ui_state.about_window = true;
@@ -457,8 +483,7 @@ impl RdfGlanceApp {
                 Some(Ok(File { path, data })) => {
                     let language_filter = self.persistent_data.config_data.language_filter();
                     let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-                        let rdfttl =
-                            RDFWrap::load_file_data(path, data, &mut rdf_data, &language_filter);
+                        let rdfttl = RDFWrap::load_file_data(path, data, &mut rdf_data, &language_filter);
                         Some(rdfttl)
                     } else {
                         None

@@ -1,20 +1,24 @@
-use std::{
-    collections::HashMap, path::Path, 
-    sync::{
-        Arc, 
-        RwLock, 
-        atomic::{AtomicBool, AtomicUsize, Ordering}
-    }, 
-    thread::{self, JoinHandle}, time::Duration,
-};
 use const_format::concatcp;
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
+use crate::ui::style::*;
 use anyhow::Error;
 use eframe::Storage;
 use egui::{Key, Rangef, Rect};
 use egui_extras::StripBuilder;
+use oxrdf::vocab::rdf;
 use string_interner::Symbol;
-use crate::ui::style::*;
 
 #[cfg(target_arch = "wasm32")]
 use crate::uistate::File;
@@ -22,19 +26,29 @@ use crate::uistate::File;
 #[cfg(target_arch = "wasm32")]
 const SAMPLE_DATA: &[u8] = include_bytes!("../../sample-rdf-data/programming_languages.ttl");
 
-
 #[cfg(not(target_arch = "wasm32"))]
 use crate::ui::sparql_dialog::SparqlDialog;
-use crate::{DisplayType, IriIndex, SystemMessage, domain::{LangIndex, NodeChangeContext, NodeData, RdfData, 
-        app_persistence::AppPersistentData, config::Config, 
-        graph_styles::{GVisualizationStyle, NodeStyle}, 
-        prefix_manager::PrefixManager, 
-        statistics::StatisticsData
-    }, integration::rdfwrap::{RDFAdapter, RDFWrap}, support::uitools::primary_color, ui::{
-        graph_view::{NeighborPos, update_layout_edges}, style::{ICON_DELETE, ICON_OPEN_FOLDER}, table_view::TypeInstanceIndex
-    }, uistate::{
-        DataLoading, GraphState, ImportFormat, ImportFromUrlData, LastVisitedSelection, LoadResult, UIState, actions::NodeAction, layout::SortedNodeLayout, ref_selection::RefSelection
-    }
+use crate::{
+    DisplayType, IriIndex, SystemMessage,
+    domain::{
+        LangIndex, NodeChangeContext, NodeData, RdfData,
+        app_persistence::AppPersistentData,
+        config::Config,
+        graph_styles::{GVisualizationStyle, NodeStyle},
+        prefix_manager::PrefixManager,
+        statistics::StatisticsData,
+    },
+    integration::rdfwrap::{RDFAdapter, RDFWrap},
+    support::uitools::primary_color,
+    ui::{
+        graph_view::{NeighborPos, update_layout_edges},
+        style::{ICON_DELETE, ICON_OPEN_FOLDER},
+        table_view::TypeInstanceIndex,
+    },
+    uistate::{
+        DataLoading, GraphState, ImportFormat, ImportFromUrlData, LastVisitedSelection, LoadResult, UIState,
+        actions::NodeAction, layout::SortedNodeLayout, ref_selection::RefSelection,
+    },
 };
 
 pub struct RdfGlanceApp {
@@ -66,7 +80,6 @@ pub struct RdfGlanceApp {
     pub data_loading: Option<Arc<DataLoading>>,
     pub import_from_url: Option<ImportFromUrlData>,
 }
-
 
 // Implement default values for MyApp
 impl RdfGlanceApp {
@@ -145,7 +158,7 @@ impl RdfGlanceApp {
         app
     }
 
-        fn show_current(&mut self) -> bool {
+    fn show_current(&mut self) -> bool {
         if let Ok(mut rdf_data) = self.rdf_data.write() {
             let cached_object_index = rdf_data.node_data.get_node_index(&self.object_iri);
             if let Some(cached_object_index) = cached_object_index {
@@ -173,7 +186,7 @@ impl RdfGlanceApp {
         }
         true
     }
-    
+
     pub fn show_object_by_index(&mut self, index: IriIndex, add_history: bool) {
         if let Some(current_iri) = self.current_iri {
             if current_iri == index {
@@ -225,12 +238,7 @@ impl RdfGlanceApp {
         use crate::integration::rdfwrap::RDFWrap;
         let language_filter = self.persistent_data.config_data.language_filter();
         let rdfttl = if let Ok(mut rdf_data) = self.rdf_data.write() {
-            Some(RDFWrap::load_file(
-                file_name,
-                &mut rdf_data,
-                &language_filter,
-                None,
-            ))
+            Some(RDFWrap::load_file(file_name, &mut rdf_data, &language_filter, None))
         } else {
             None
         };
@@ -429,7 +437,7 @@ impl RdfGlanceApp {
             }
         }
     }
-    
+
     pub fn load_ttl_dir(&mut self, dir_name: &str) {
         if self.load_handle.is_some() {
             self.system_message = SystemMessage::Info("Loading in progress".to_string());
@@ -497,7 +505,11 @@ impl RdfGlanceApp {
             }
             self.type_index.update(&rdf_data.node_data);
 
-            self.visualization_style.preset_styles(&self.type_index, is_dark_mode);
+            self.visualization_style.preset_styles(
+                &self.type_index,
+                &rdf_data.node_data.indexers.predicate_indexer,
+                is_dark_mode,
+            );
             rdf_data.node_data.indexers.predicate_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.type_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.language_indexer.map.shrink_to_fit();
@@ -536,7 +548,9 @@ impl RdfGlanceApp {
                     LastVisitedSelection::File(self.persistent_data.last_files.len() - 1);
             }
         }
-        if matches!(self.ui_state.last_visited_selection,LastVisitedSelection::None) && self.persistent_data.last_files.len()>0 {
+        if matches!(self.ui_state.last_visited_selection, LastVisitedSelection::None)
+            && self.persistent_data.last_files.len() > 0
+        {
             self.ui_state.last_visited_selection = LastVisitedSelection::File(0);
         }
 
@@ -689,6 +703,56 @@ impl RdfGlanceApp {
         }
     }
 
+    pub fn export_svg_dialog(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = FileDialog::new()
+            .add_filter("SVG", &["svg"])
+            .set_file_name("graph.svg")
+            .save_file()
+        {
+            if let Ok(rdf_data) = self.rdf_data.read() {
+                use crate::domain::LabelContext;
+                use std::fs::File;
+                let label_context = LabelContext::new(
+                    self.ui_state.display_language,
+                    self.persistent_data.config_data.iri_display,
+                    &rdf_data.prefix_manager,
+                );
+                let file = File::create(path);
+                if let Ok(mut file) = file {
+                    let store_res = self.export_svg(&mut file, &rdf_data.node_data, &label_context);
+                    match store_res {
+                        Err(e) => {
+                            self.system_message = SystemMessage::Error(format!("Can not export svg: {}", e));
+                        }
+                        Ok(_) => {}
+                    }
+                } else {
+                    self.system_message = SystemMessage::Error("Can not save svg".to_string());
+                }
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Ok(rdf_data) = self.rdf_data.read() {
+            use crate::domain::graph_model::LabelContext;
+            let label_context = LabelContext::new(
+                self.ui_state.display_language,
+                self.persistent_data.config_data.iri_display,
+                &rdf_data.prefix_manager,
+            );
+            let mut buf = Vec::new();
+            let store_res = self.export_svg(&mut buf, &rdf_data.node_data, &label_context);
+            match store_res {
+                Err(e) => {
+                    self.system_message = SystemMessage::Error(format!("Can not export svg: {}", e));
+                }
+                Ok(_) => {
+                    use crate::support::uitools::web_download;
+                    let _ = web_download("graph.svg", &buf);
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for RdfGlanceApp {
@@ -840,7 +904,7 @@ impl eframe::App for RdfGlanceApp {
                 ui.small("Num+Alt to Switch");
                 #[cfg(not(target_arch = "wasm32"))]
                 ui.small("Num+Ctrl to Switch");
-                    ui.input(|i| {
+                ui.input(|i| {
                     #[cfg(target_arch = "wasm32")]
                     let is_mod = i.modifiers.alt;
                     #[cfg(not(target_arch = "wasm32"))]
@@ -900,7 +964,7 @@ impl eframe::App for RdfGlanceApp {
                                     self.build_meta_graph();
                                 }
                                 self.show_meta_graph(ctx, ui)
-                            },
+                            }
                             DisplayType::Statistics => self.show_statistics(ctx, ui),
                         };
                     });
@@ -921,7 +985,7 @@ impl eframe::App for RdfGlanceApp {
                         type_desc.filtered_instances = instances;
                         type_desc.instance_view.pos = 0.0;
                         if type_desc.filtered_instances.len() > 0 {
-                            type_desc.instance_view.selected_idx = Some((type_desc.filtered_instances[0],0))
+                            type_desc.instance_view.selected_idx = Some((type_desc.filtered_instances[0], 0))
                         } else {
                             type_desc.instance_view.selected_idx = None;
                         }
@@ -936,7 +1000,12 @@ impl eframe::App for RdfGlanceApp {
                     self.visible_nodes.add_by_index(node_index);
                     if let Ok(rdf_data) = self.rdf_data.read() {
                         let npos = NeighborPos::one(node_index);
-                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                        update_layout_edges(
+                            &npos,
+                            &mut self.visible_nodes,
+                            &rdf_data.node_data,
+                            &self.ui_state.hidden_predicates,
+                        );
                     }
                     self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
@@ -947,7 +1016,12 @@ impl eframe::App for RdfGlanceApp {
                     self.visible_nodes.add_by_index(node_index);
                     if let Ok(rdf_data) = self.rdf_data.read() {
                         let npos = NeighborPos::one(node_index);
-                        update_layout_edges(&npos, &mut self.visible_nodes, &rdf_data.node_data, &self.ui_state.hidden_predicates);
+                        update_layout_edges(
+                            &npos,
+                            &mut self.visible_nodes,
+                            &rdf_data.node_data,
+                            &self.ui_state.hidden_predicates,
+                        );
                     }
                     self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);

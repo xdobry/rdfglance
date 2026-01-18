@@ -35,6 +35,7 @@ rust-sugiyama = "0.4.0"
 nalgebra = "0.34.1"
 lanczos = "0.2.0"
 delaunator = "1.0.2"
+quick-xml = "0.38.4"
 
 [dev-dependencies]
 peak_alloc = "0.3.0"

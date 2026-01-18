@@ -4,12 +4,14 @@ pub mod spectral;
 pub mod force;
 pub mod overlap;
 pub mod ortho;
+pub mod linear;
+pub mod multipartite;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::{Arc, RwLock}};
 
 use strum_macros::{EnumIter, Display};
 
-use crate::{IriIndex, support::SortedVec, uistate::layout::SortedNodeLayout};
+use crate::{IriIndex, domain::{RdfData, graph_styles::GVisualizationStyle}, support::SortedVec, uistate::layout::SortedNodeLayout};
 
 #[derive(Debug, Clone, Copy, EnumIter, Display, PartialEq)]
 pub enum LayoutAlgorithm {
@@ -19,6 +21,12 @@ pub enum LayoutAlgorithm {
     HierarchicalHorizontal,
     #[strum(to_string = "Hierarchical Vertical")]
     HierarchicalVertical,
+    #[strum(to_string = "Linear Horizontal")]
+    LinearHorizontal,
+    #[strum(to_string = "Linear Vertical")]
+    LinearVertical,
+    #[strum(to_string = "Multipartite")]
+    Multipartite,
     #[strum(to_string = "Spectral")]
     Spectral,
     #[strum(to_string = "Node Overlap Removal")]
@@ -30,7 +38,10 @@ pub enum LayoutAlgorithm {
 pub fn run_layout_algorithm(algorithm: LayoutAlgorithm, 
     visible_nodes: &mut SortedNodeLayout,
     selected_nodes: &BTreeSet<IriIndex>,
-    hidden_predicates: &SortedVec) {
+    hidden_predicates: &SortedVec,
+    visualization_style: &GVisualizationStyle,
+    rdf_data: Arc<RwLock<RdfData>>,
+) {
     let mut remove_orth = true;
     match algorithm {
         LayoutAlgorithm::Circular => {
@@ -41,7 +52,7 @@ pub fn run_layout_algorithm(algorithm: LayoutAlgorithm,
                 visible_nodes,
                 selected_nodes,
                 hidden_predicates,
-                hierarchical::LayoutOrientation::Horizontal,
+                LayoutOrientation::Horizontal,
             );
         },
         LayoutAlgorithm::HierarchicalVertical => {
@@ -49,7 +60,32 @@ pub fn run_layout_algorithm(algorithm: LayoutAlgorithm,
                 visible_nodes,
                 selected_nodes,
                 hidden_predicates,
-                hierarchical::LayoutOrientation::Vertical,
+                LayoutOrientation::Vertical,
+            );
+        },
+        LayoutAlgorithm::LinearHorizontal => {
+            linear::linear_layout(
+                visible_nodes,
+                selected_nodes,
+                hidden_predicates,
+                LayoutOrientation::Horizontal,
+            );
+        },
+        LayoutAlgorithm::LinearVertical => {
+            linear::linear_layout(
+                visible_nodes,
+                selected_nodes,
+                hidden_predicates,
+                LayoutOrientation::Vertical,
+            );
+        },
+        LayoutAlgorithm::Multipartite => {
+            multipartite::multipartite_layout(
+                visible_nodes,
+                selected_nodes,
+                hidden_predicates,
+                visualization_style,
+                rdf_data
             );
         },
         LayoutAlgorithm::Spectral => {
@@ -67,4 +103,9 @@ pub fn run_layout_algorithm(algorithm: LayoutAlgorithm,
         visible_nodes.show_orthogonal = false;
         visible_nodes.orth_edges = None;
     }
+}
+
+pub enum LayoutOrientation {
+    Horizontal,
+    Vertical
 }

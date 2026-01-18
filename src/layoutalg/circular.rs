@@ -12,9 +12,9 @@ use rand::{
 
 use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
 
-struct GEdge {
-    from: usize,
-    to: usize,
+pub struct GEdge {
+    pub from: usize,
+    pub to: usize,
 }
 
 /**
@@ -97,7 +97,7 @@ fn circle_positions(center: Pos2, radius: f32, n: usize) -> Vec<Pos2> {
     positions
 }
 
-fn random_dfs(adj_map: &HashMap<usize, Vec<usize>>, start_node: usize, rng: &mut ThreadRng) -> Vec<usize> {
+pub fn random_dfs(adj_map: &HashMap<usize, Vec<usize>>, start_node: usize, rng: &mut ThreadRng) -> Vec<usize> {
     let mut visited = HashSet::new();
     let mut stack = vec![start_node];
     let mut order = Vec::new();
@@ -119,7 +119,7 @@ fn random_dfs(adj_map: &HashMap<usize, Vec<usize>>, start_node: usize, rng: &mut
     order
 }
 
-fn gen_adj_start_node(edges: &Vec<GEdge>) -> (HashMap<usize, Vec<usize>>, usize) {
+pub fn gen_adj_start_node(edges: &Vec<GEdge>) -> (HashMap<usize, Vec<usize>>, usize) {
     let mut adj_map: HashMap<usize, Vec<usize>> = HashMap::new();
     for edge in edges.iter() {
         adj_map.entry(edge.from).or_default().push(edge.to);
@@ -313,7 +313,7 @@ fn genetic_opt(
     best_generation
 }
 
-fn find_components(edges: &Vec<GEdge>, nodes: &Vec<usize>) -> Vec<Vec<usize>> {
+pub fn find_components(edges: &Vec<GEdge>, nodes: &Vec<usize>) -> Vec<Vec<usize>> {
     // --- Union-Find (Disjoint Set Union) structure ---
     fn find(parent: &mut Vec<usize>, x: usize) -> usize {
         if parent[x] != x {

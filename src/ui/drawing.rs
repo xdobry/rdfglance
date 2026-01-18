@@ -317,7 +317,7 @@ F: Fn() -> String,
     }
 }
 
-fn bezier_middle_point(pos1: Pos2, ctrl_pos1: Pos2, ctrl_pos2: Pos2, pos2: Pos2) -> Pos2 {
+pub fn bezier_middle_point(pos1: Pos2, ctrl_pos1: Pos2, ctrl_pos2: Pos2, pos2: Pos2) -> Pos2 {
     let t = 0.5;
     let u = 1.0 - t;
 
@@ -441,7 +441,7 @@ pub fn draw_node_label(
             NodeShape::Circle => {
                 painter.circle(pos, node_rect.width() / 2.0, fade_color(type_style.color, faded), stroke);
             }
-            NodeShape::Elipse => {
+            NodeShape::Ellipse => {
                 painter.add(egui::Shape::Ellipse(EllipseShape {
                     center: pos,
                     radius: Vec2::new(node_rect.width() / 2.0, node_rect.height() / 2.0),
