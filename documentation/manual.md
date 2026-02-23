@@ -98,7 +98,7 @@ In following example I use the [chinook.ttl](https://github.com/lerocha/chinook-
 You can display the track with album name and music genre. By linking information from tables: Track, Album und Genre.
 Because the links between instances are in rdf explicit you do not need to define foreign keys like in relation data base.
 
-![screenshot](screenshots/visual-query.gif)
+![screenshot](screeshots/visual-query.gif)
 
 Finally you can export the table to CSV.
 
