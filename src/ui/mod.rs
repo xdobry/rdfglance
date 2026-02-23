@@ -11,5 +11,6 @@ pub mod prefix_manager;
 pub mod sparql_dialog;
 pub mod statistics;
 pub mod table_view;
+pub mod visual_query;
 
 pub use self::drawing::*;

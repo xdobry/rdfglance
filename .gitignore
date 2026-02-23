@@ -1,3 +1,4 @@
 /target
 /dist
 /python/__pycache__
+*.sqlite

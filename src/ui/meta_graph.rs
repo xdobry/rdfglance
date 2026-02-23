@@ -3,18 +3,7 @@ use std::sync::{Arc, RwLock};
 use egui::{Color32, Key, Popup, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    ui::{draw_node_label, draw_edge, draw_self_edge}, 
-    domain::graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, 
-    ui::graph_view::is_overlapping, 
-    uistate::layout::{update_edges_groups, Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout}, 
-    IriIndex,
-    domain::LabelContext, 
-    ui::style::{ICON_REDO, ICON_UNDO}, 
-    ui::table_view::TypeInstanceIndex, 
-    support::uitools::popup_at, 
-    uistate::actions::NodeAction, 
-    RdfGlanceApp, 
-    support::SortedVec
+    IriIndex, RdfGlanceApp, domain::{LabelContext, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, type_index::TypeInstanceIndex}, support::{SortedVec, uitools::popup_at}, ui::{draw_edge, draw_node_label, draw_self_edge, graph_view::is_overlapping, style::{ICON_REDO, ICON_UNDO}}, uistate::{actions::NodeAction, layout::{Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout, update_edges_groups}}
 };
 
 const NODE_RMIN: f32 = 4.0;

@@ -9,7 +9,8 @@ use crate::{
     IriIndex, 
     domain::LangIndex, 
     support::SortedVec, 
-    uistate::actions::NodeContextAction
+    uistate::actions::NodeContextAction,
+    uistate::visual_query::VisualQueryUIState,
 };
 
 pub struct UIState {
@@ -42,6 +43,7 @@ pub struct UIState {
     pub about_window: bool,
     pub last_visited_selection: LastVisitedSelection,
     pub menu_action: Option<NodeContextAction>,
+    pub visual_query: VisualQueryUIState,
 }
 
 impl Default for UIState {
@@ -72,6 +74,7 @@ impl Default for UIState {
             menu_action: None,
             selection_start_rect: None,
             translate_drag: None,
+            visual_query: VisualQueryUIState::default(),
         }
     }
 }
@@ -82,6 +85,7 @@ impl UIState {
         self.context_menu_node = None;
         self.node_to_drag = None;
         self.hidden_predicates.data.clear();
+        self.visual_query.clean();
     }
 }
 
@@ -113,6 +117,7 @@ pub enum DisplayType {
     Configuration,
     MetaGraph,
     Statistics,
+    VisualQuery,
 }
 
 // Define the application structure

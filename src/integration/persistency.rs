@@ -520,6 +520,9 @@ impl Literal {
                 writer.write_u8(4)?;
                 leb128::write::unsigned(writer, *index as u64)?;
             }
+            Literal::NoValue() => {
+                
+            }
         }
         Ok(())
     }

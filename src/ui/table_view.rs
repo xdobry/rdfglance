@@ -1,14 +1,16 @@
 use std::io;
-use std::{cmp::min, collections::HashMap, time::Instant, vec};
+use std::cmp::min;
 
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Popup, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
+use serde::de::value;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use super::style::ICON_EXPORT;
+use crate::domain::type_index::{ColumnDesc, InstanceColumnResize, TableContextMenu, TypeCellAction, TypeData, TypeInstanceIndex};
 use crate::{
     uistate::actions::ReferenceAction,
     uistate::ref_selection::RefSelection,
@@ -25,92 +27,6 @@ use crate::{
     support::uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
 };
 
-pub struct TypeInstanceIndex {
-    pub nodes: usize,
-    pub unique_predicates: usize,
-    pub unique_types: usize,
-    pub properties: usize,
-    pub references: usize,
-    pub blank_nodes: usize,
-    pub max_instance_type_count: usize,
-    pub min_instance_type_count: usize,
-    pub unresolved_references: usize,
-    pub types: HashMap<IriIndex, TypeData>,
-    pub types_order: Vec<IriIndex>,
-    pub types_filtered: Vec<IriIndex>,
-    pub selected_type: Option<IriIndex>,
-    pub types_filter: String,
-    pub type_cell_action: TypeCellAction,
-}
-
-pub enum TypeCellAction {
-    None,
-    ShowRefTypes(Pos2, IriIndex),
-}
-
-impl TypeCellAction {
-    pub fn pos(&self) -> Pos2 {
-        match self {
-            TypeCellAction::ShowRefTypes(pos, _) => *pos,
-            TypeCellAction::None => Pos2::new(0.0, 0.0),
-        }
-    }
-}
-
-pub struct DataPropCharacteristics {
-    pub count: u32,
-    pub max_len: u32,
-    pub max_cardinality: u32,
-    pub min_cardinality: u32,
-}
-
-pub struct ReferenceCharacteristics {
-    pub count: u32,
-    pub max_cardinality: u32,
-    pub min_cardinality: u32,
-    pub types: Vec<IriIndex>,
-}
-
-pub struct TypeData {
-    pub instances: Vec<IriIndex>,
-    pub filtered_instances: Vec<IriIndex>,
-    pub properties: HashMap<IriIndex, DataPropCharacteristics>,
-    pub references: HashMap<IriIndex, ReferenceCharacteristics>,
-    pub rev_references: HashMap<IriIndex, u32>,
-    pub instance_view: InstanceView,
-}
-
-pub struct InstanceView {
-    // Used for Y ScrollBar
-    pub pos: f32,
-    pub drag_pos: Option<f32>,
-    pub display_properties: Vec<ColumnDesc>,
-    pub instance_filter: String,
-    context_menu: TableContextMenu,
-    pub column_pos: u32,
-    pub column_resize: InstanceColumnResize,
-    pub iri_width: f32,
-    pub ref_count_width: f32,
-    pub selected_idx: Option<(IriIndex, usize)>,
-    pub ref_selection: RefSelection,
-}
-
-pub enum InstanceColumnResize {
-    None,
-    Predicate(Pos2, IriIndex),
-    Iri(Pos2),
-    Refs(Pos2),
-}
-
-enum TableContextMenu {
-    None,
-    ColumnMenu(Pos2, IriIndex),
-    CellMenu(Pos2, IriIndex, IriIndex),
-    RefMenu(Pos2, IriIndex),
-    IriColumnMenu(Pos2),
-    RefColumnMenu(Pos2),
-}
-
 impl TableContextMenu {
     pub fn pos(&self) -> Pos2 {
         match self {
@@ -120,68 +36,17 @@ impl TableContextMenu {
             TableContextMenu::RefColumnMenu(pos) => *pos,
             TableContextMenu::IriColumnMenu(pos) => *pos,
             TableContextMenu::None => Pos2::new(0.0, 0.0),
+            TableContextMenu::QueryColumnMenu(pos,_ ,_ ) => *pos,
         }
     }
 }
 
-impl InstanceView {
-    pub fn get_column(&self, predicate_index: IriIndex) -> Option<&ColumnDesc> {
-        self.display_properties
-            .iter()
-            .find(|column_desc| column_desc.predicate_index == predicate_index)
-    }
-    pub fn visible_columns(&self) -> u32 {
-        let mut count = 0;
-        for column_desc in &self.display_properties {
-            if column_desc.visible {
-                count += 1;
-            }
-        }
-        count
-    }
-}
+pub const ROW_HIGHT: f32 = 17.0;
+pub const CHAR_WIDTH: f32 = 8.0;
+pub const COLUMN_GAP: f32 = 2.0;
 
-pub struct ColumnDesc {
-    pub predicate_index: IriIndex,
-    pub width: f32,
-    pub visible: bool,
-}
-
-const ROW_HIGHT: f32 = 17.0;
-const CHAR_WIDTH: f32 = 8.0;
-const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
-const COLUMN_GAP: f32 = 2.0;
-const IRI_WIDTH: f32 = 300.0;
-const REF_COUNT_WIDTH: f32 = 80.0;
 
 impl TypeData {
-    pub fn new(_type_index: IriIndex) -> Self {
-        Self {
-            instances: Vec::new(),
-            filtered_instances: Vec::new(),
-            properties: HashMap::new(),
-            references: HashMap::new(),
-            rev_references: HashMap::new(),
-            instance_view: InstanceView {
-                pos: 0.0,
-                drag_pos: None,
-                column_pos: 0,
-                display_properties: vec![],
-                instance_filter: String::new(),
-                context_menu: TableContextMenu::None,
-                column_resize: InstanceColumnResize::None,
-                iri_width: IRI_WIDTH,
-                ref_count_width: REF_COUNT_WIDTH,
-                selected_idx: None,
-                ref_selection: RefSelection::None,
-            },
-        }
-    }
-
-    pub fn count_rev_reference(&mut self, reference_index: IriIndex, count_number: u32) {
-        let count = self.rev_references.entry(reference_index).or_insert(0);
-        *count += count_number;
-    }
 
     pub fn instance_table(
         &mut self,
@@ -361,6 +226,9 @@ impl TypeData {
                     if width > CHAR_WIDTH * 5.0 {
                         self.instance_view.ref_count_width = width;
                     }
+                }
+                InstanceColumnResize::QueryPredicate(_, _, _) => {
+
                 }
             }
         }
@@ -724,7 +592,8 @@ impl TypeData {
             popup_id,
             self.instance_view.context_menu.pos(),
             width,
-            |ui| match self.instance_view.context_menu {
+            |ui| 
+            match self.instance_view.context_menu {
                 TableContextMenu::IriColumnMenu(_pos) => {
                     let mut close_menu: bool = false;
                     if ui.button("Sort Asc").clicked() {
@@ -779,6 +648,10 @@ impl TypeData {
                     }
                     if ui.button("Show Only Multivalue").clicked() {
                         *table_action = TableAction::HidePropNonMulti(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Value Statistics").clicked() {
+                        *table_action = TableAction::ValueStatistics(column_predicate, self.instance_view.context_menu.pos());
                         close_menu = true;
                     }
                     let hidden_columns: Vec<&ColumnDesc> = self
@@ -911,6 +784,7 @@ impl TypeData {
                         Popup::close_id(ctx, popup_id);
                     }
                 }
+                TableContextMenu::QueryColumnMenu(_,_ ,_ ) => {}
                 TableContextMenu::None => {}
             },
         );
@@ -983,10 +857,10 @@ impl TypeData {
             ui.strong("In Ref");
             ui.strong("Count");
             ui.end_row();
-            for (predicate_index, count) in &self.rev_references {
+            for (predicate_index, reference_characteristics) in &self.rev_references {
                 let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
                 ui.label(predicate_label.as_str());
-                ui.label(count.to_string());
+                ui.label(reference_characteristics.count.to_string());
                 ui.end_row();
             }
         });
@@ -1134,230 +1008,6 @@ pub fn text_wrapped_link(
 }
 
 impl TypeInstanceIndex {
-    pub fn new() -> Self {
-        Self {
-            nodes: 0,
-            unique_predicates: 0,
-            unique_types: 0,
-            properties: 0,
-            references: 0,
-            blank_nodes: 0,
-            unresolved_references: 0,
-            max_instance_type_count: 0,
-            min_instance_type_count: 0,
-            types: HashMap::new(),
-            types_order: Vec::new(),
-            types_filtered: Vec::new(),
-            selected_type: None,
-            types_filter: String::new(),
-            type_cell_action: TypeCellAction::None,
-        }
-    }
-
-    pub fn clean(&mut self) {
-        self.nodes = 0;
-        self.unique_predicates = 0;
-        self.unique_types = 0;
-        self.properties = 0;
-        self.references = 0;
-        self.blank_nodes = 0;
-        self.unresolved_references = 0;
-        self.max_instance_type_count = 0;
-        self.min_instance_type_count = 0;
-        self.types.clear();
-        self.types_order.clear();
-    }
-
-    pub fn update(&mut self, node_data: &NodeData) {
-        self.clean();
-        #[cfg(not(target_arch = "wasm32"))]
-        let start = Instant::now();
-        let node_len = node_data.len();
-        // TODO concurrent optimization
-        // 1. partition the instances in groups (count  rayon::current_num_threads()) in dependency to type
-        // 2. build hash map of each group (there are disjuct)
-        // 3. merge all hash maps
-        for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
-            if node.has_subject {
-                self.nodes += 1;
-            } else {
-                self.unresolved_references += 1;
-            }
-            if node.is_blank_node {
-                self.blank_nodes += 1;
-            }
-            for type_index in &node.types {
-                let type_data = self
-                    .types
-                    .entry(*type_index)
-                    .or_insert_with(|| TypeData::new(*type_index));
-                type_data.instances.push(node_index as IriIndex);
-                for (property_index, property_stat) in type_data.properties.iter_mut() {
-                    let mut property_card = 0;
-                    for (predicate_index, value) in &node.properties {
-                        if *property_index == *predicate_index {
-                            property_stat.count += 1;
-                            property_card += 1;
-                            property_stat.max_len = property_stat
-                                .max_len
-                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
-                        }
-                    }
-                    property_stat.max_cardinality = property_stat.max_cardinality.max(property_card);
-                    property_stat.min_cardinality = property_stat.min_cardinality.min(property_card);
-                }
-                let mut unknown_properties = vec![];
-                for (predicate_index, _value) in &node.properties {
-                    if !type_data.properties.contains_key(predicate_index) {
-                        unknown_properties.push(*predicate_index);
-                    }
-                }
-                for predicate_index in unknown_properties {
-                    let mut property_card = 0;
-                    let mut property_stat = DataPropCharacteristics {
-                        count: 0,
-                        max_len: 0,
-                        min_cardinality: u32::MAX,
-                        max_cardinality: 0,
-                    };
-                    for (property_index, value) in &node.properties {
-                        if *property_index == predicate_index {
-                            property_stat.count += 1;
-                            property_card += 1;
-                            property_stat.max_len = property_stat
-                                .max_len
-                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
-                        }
-                    }
-                    property_stat.max_cardinality = property_card;
-                    property_stat.min_cardinality = property_card;
-                    type_data.properties.insert(predicate_index, property_stat);
-                }
-                let mut ref_counts: Vec<(IriIndex, u32, Vec<IriIndex>)> = Vec::new();
-                for (predicate_index, ref_index) in &node.references {
-                    let ref_node = node_data.get_node_by_index(*ref_index);
-                    if let Some((_str, ref_node)) = ref_node {
-                        let mut found = false;
-                        for (predicate_count_index, predicate_count, types) in ref_counts.iter_mut() {
-                            if *predicate_count_index == *predicate_index {
-                                *predicate_count += 1;
-                                found = true;
-                                for type_index in &ref_node.types {
-                                    if !types.contains(type_index) {
-                                        types.push(*type_index);
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                        if !found {
-                            ref_counts.push((*predicate_index, 1, ref_node.types.clone()));
-                        }
-                    }
-                }
-                // Search unknown references (set count to 0)
-                for predicate_index in type_data.references.keys() {
-                    if !ref_counts.iter().any(|(index, _, _)| *index == *predicate_index) {
-                        ref_counts.push((*predicate_index, 0, vec![]));
-                    }
-                }
-                for (predicate_index, count, types) in ref_counts {
-                    let reference_characteristics = type_data.references.get_mut(&predicate_index);
-                    if let Some(reference_characteristics) = reference_characteristics {
-                        reference_characteristics.count += count;
-                        reference_characteristics.max_cardinality =
-                            reference_characteristics.max_cardinality.max(count);
-                        reference_characteristics.min_cardinality =
-                            reference_characteristics.min_cardinality.min(count);
-                    } else {
-                        type_data.references.insert(
-                            predicate_index,
-                            ReferenceCharacteristics {
-                                count,
-                                min_cardinality: count,
-                                max_cardinality: count,
-                                types,
-                            },
-                        );
-                    }
-                }
-                for (predicate_index, _) in &node.reverse_references {
-                    type_data.count_rev_reference(*predicate_index, 1);
-                }
-            }
-            self.references += node.references.len();
-            self.properties += node.properties.len();
-        }
-        self.unique_predicates = node_data.unique_predicates();
-        self.unique_types = node_data.unique_types();
-        for (type_index, type_data) in self.types.iter_mut() {
-            self.types_order.push(*type_index);
-            if self.min_instance_type_count == 0 && self.max_instance_type_count == 0 {
-                self.min_instance_type_count = type_data.instances.len();
-                self.max_instance_type_count = type_data.instances.len();
-            } else {
-                self.min_instance_type_count = self.min_instance_type_count.min(type_data.instances.len());
-                self.max_instance_type_count = self.max_instance_type_count.max(type_data.instances.len());
-            }
-            for (predicate_index, data_characteristics) in type_data.properties.iter() {
-                if type_data.instance_view.get_column(*predicate_index).is_none() {
-                    let predicate_str = node_data.get_predicate(*predicate_index);
-                    let column_desc = ColumnDesc {
-                        predicate_index: *predicate_index,
-                        width: (((data_characteristics.max_len + 1).max(3) as f32) * CHAR_WIDTH)
-                            .min(DEFAULT_COLUMN_WIDTH),
-                        visible: true,
-                    };
-                    if let Some(predicate_str) = predicate_str {
-                        if predicate_str.contains("label") {
-                            type_data.instance_view.display_properties.insert(0, column_desc);
-                            continue;
-                        }
-                    }
-                    type_data.instance_view.display_properties.push(column_desc);
-                }
-            }
-            type_data.filtered_instances = type_data.instances.clone();
-            if !type_data.instances.is_empty() {
-                type_data.instance_view.selected_idx = Some((type_data.instances[0], 0));
-            }
-        }
-        self.types_order.sort_by(|a, b| {
-            let a_data = self.types.get(a).unwrap();
-            let b_data = self.types.get(b).unwrap();
-            b_data.instances.len().cmp(&a_data.instances.len())
-        });
-        if self.types_order.is_empty() {
-            self.selected_type = None;
-        } else {
-            self.selected_type = Some(self.types_order[0]);
-        }
-        self.types_filter.clear();
-        self.types_filtered = self.types_order.clone();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let duration = start.elapsed();
-            println!("Time taken to index {} nodes: {:?}", node_len, duration);
-            println!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
-        }
-    }
-
-    pub fn apply_filter(&mut self, node_data: &mut NodeData, label_context: &LabelContext) {
-        if self.types_filter.is_empty() {
-            self.types_filtered = self.types_order.clone();
-        } else {
-            let filter = self.types_filter.to_lowercase();
-            self.types_filtered = self
-                .types_order
-                .par_iter()
-                .filter(|type_index| {
-                    let label = node_data.type_display(**type_index, label_context, &node_data.indexers);
-                    label.as_str().to_lowercase().contains(&filter)
-                })
-                .cloned()
-                .collect();
-        }
-    }
 
     pub fn display(
         &mut self,
@@ -1370,6 +1020,7 @@ impl TypeInstanceIndex {
     ) -> NodeAction {
         let mut instance_action = NodeAction::None;
         let mut text_has_focus = false;
+        let popup_id = ui.make_persistent_id("column_type_popup");
         egui::ScrollArea::horizontal().id_salt("h").show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
                 ui.vertical(|ui| {
@@ -1464,7 +1115,6 @@ impl TypeInstanceIndex {
                     });
                 });
                 if let Some(selected_type) = self.selected_type {
-                    let popup_id = ui.make_persistent_id("column_type_popup");
                     if let Some(type_data) = self.types.get_mut(&selected_type) {
                         let label_context =
                             LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
@@ -1521,6 +1171,14 @@ impl TypeInstanceIndex {
                                     if close_menu {
                                         self.type_cell_action = TypeCellAction::None;
                                         Popup::close_id(ctx, popup_id);
+                                    }
+                                }
+                                TypeCellAction::ShowValueStatistics(_pos) => {
+                                    if let Some(value_statistics) = &self.value_statistics {
+                                        if value_statistics.show_ui(ui, &rdf_data) {
+                                            self.value_statistics = None;
+                                            Popup::close_id(ctx, popup_id);
+                                        }
                                     }
                                 }
                                 TypeCellAction::None => {}
@@ -1658,69 +1316,13 @@ impl TypeInstanceIndex {
                     }
                     TableAction::SortColumnAsc(predicate_to_sort) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = rdf_data.node_data.get_node_by_index(*a);
-                                let node_b = rdf_data.node_data.get_node_by_index(*b);
-                                if let Some((_, node_a)) = node_a {
-                                    if let Some((_, node_b)) = node_b {
-                                        let a_value =
-                                            &node_a.get_property(predicate_to_sort, layout_data.display_language);
-                                        let b_value =
-                                            &node_b.get_property(predicate_to_sort, layout_data.display_language);
-                                        if let Some(a_value) = a_value {
-                                            if let Some(b_value) = b_value {
-                                                let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                a_value.cmp(b_value)
-                                            } else {
-                                                std::cmp::Ordering::Less
-                                            }
-                                        } else if let Some(_b_value) = b_value {
-                                            std::cmp::Ordering::Greater
-                                        } else {
-                                            std::cmp::Ordering::Equal
-                                        }
-                                    } else {
-                                        std::cmp::Ordering::Less
-                                    }
-                                } else {
-                                    std::cmp::Ordering::Greater
-                                }
-                            });
+                            type_data.sort_instances(predicate_to_sort, true, rdf_data, layout_data.display_language);
                             type_data.update_selected_index();
                         }
                     }
                     TableAction::SortColumnDesc(predicate_to_sort) => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            type_data.filtered_instances.sort_by(|a, b| {
-                                let node_a = rdf_data.node_data.get_node_by_index(*a);
-                                let node_b = rdf_data.node_data.get_node_by_index(*b);
-                                if let Some((_, node_a)) = node_a {
-                                    if let Some((_, node_b)) = node_b {
-                                        let a_value =
-                                            &node_a.get_property(predicate_to_sort, layout_data.display_language);
-                                        let b_value =
-                                            node_b.get_property(predicate_to_sort, layout_data.display_language);
-                                        if let Some(a_value) = a_value {
-                                            if let Some(b_value) = b_value {
-                                                let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                let b_value = b_value.as_str_ref(&rdf_data.node_data.indexers);
-                                                b_value.cmp(a_value)
-                                            } else {
-                                                std::cmp::Ordering::Less
-                                            }
-                                        } else if let Some(_b_value) = b_value {
-                                            std::cmp::Ordering::Greater
-                                        } else {
-                                            std::cmp::Ordering::Equal
-                                        }
-                                    } else {
-                                        std::cmp::Ordering::Greater
-                                    }
-                                } else {
-                                    std::cmp::Ordering::Less
-                                }
-                            });
+                            type_data.sort_instances(predicate_to_sort, false, rdf_data, layout_data.display_language);
                             type_data.update_selected_index();
                         }
                     }
@@ -1871,6 +1473,11 @@ impl TypeInstanceIndex {
                         }
                         type_data.update_selected_index();
                     }
+                    TableAction::ValueStatistics(predicate, mouse_pos) => {
+                       self.value_statistics = Some(type_data.calculate_value_statistics(predicate, &rdf_data.node_data));
+                       self.type_cell_action = TypeCellAction::ShowValueStatistics(mouse_pos);
+                       Popup::open_id(ctx, popup_id);
+                    }
                     TableAction::None => {}
                 }
             }
@@ -2008,11 +1615,7 @@ impl TypeInstanceIndex {
     }
 }
 
-impl Default for TypeInstanceIndex {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 pub enum TableAction {
     None,
@@ -2027,6 +1630,7 @@ pub enum TableAction {
     HidePropNotExists(IriIndex),
     HidePropExists(IriIndex),
     HidePropNonMulti(IriIndex),
+    ValueStatistics(IriIndex, Pos2),
     Filter,
 }
 

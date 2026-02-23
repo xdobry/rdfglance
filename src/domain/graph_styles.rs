@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use egui::Color32;
 
 use crate::{
-    IriIndex, domain::StringIndexer, support::distinct_colors::next_distinct_color, ui::table_view::TypeInstanceIndex
+    IriIndex, domain::{StringIndexer, type_index::TypeInstanceIndex}, support::distinct_colors::next_distinct_color,
 };
 
 pub struct NodeStyle {

@@ -41,7 +41,13 @@ Orthogonal edge routing
 
 ![screenshot](documentation/screeshots/orth-routing.png)
 
+Visual Query Builder
+
+![screenshot](documentation/screeshots/visual-query.png)
+
+
 [Manual](documentation/manual.md)
+
 
 ## Features
 
@@ -68,6 +74,7 @@ RDFGlance offers the following visualization capabilities for RDF data:
   - spectral
   - linear
   - orthogonal edge routing
+- Visual Query Editor, join class relations to one table view, filtering and sorting
 - CSV Export for table views
 - SVG Export of visual graph
 - Semantic zoom based on graph statistics

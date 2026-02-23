@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use oxrdf::vocab::rdf;
 
-use crate::domain::{config::IriDisplay, graph_styles::GVisualizationStyle, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}};
+use crate::domain::{config::IriDisplay, graph_styles::GVisualizationStyle, prefix_manager::PrefixManager, string_indexer::{IndexSpan, StringCache, StringIndexer}, type_index::ValueTypes};
 
 pub type IriIndex = u32;
 pub type LangIndex = u16;
@@ -13,6 +13,7 @@ pub enum Literal {
     String(IndexSpan),
     LangString(LangIndex, IndexSpan),
     TypedString(DataTypeIndex, IndexSpan),
+    NoValue(),
 }
 
 impl Literal {
@@ -33,6 +34,28 @@ impl Literal {
             Literal::TypedString(_type, str) => {
                 let str = indexers.literal_cache.get_str(*str);
                 str
+            }
+            Literal::NoValue() => {
+                ""
+            }
+        }
+    }
+    pub fn value_type(&self, indexers: &Indexers) -> ValueTypes {
+        match self {
+            Literal::StringShort(_index) => {
+                ValueTypes::SHORT_STRING
+            }
+            Literal::String(_str) => {
+                ValueTypes::STRING
+            }
+            Literal::LangString(_index, _str) => {
+                ValueTypes::LANG_STRING
+            }
+            Literal::TypedString(type_idx, _str) => {
+                indexers.get_value_type(*type_idx)
+            }
+            Literal::NoValue() => {
+                ValueTypes::UNKNOWN
             }
         }
     }
@@ -67,6 +90,7 @@ pub struct Indexers {
     pub datatype_indexer: StringIndexer,
     pub short_literal_indexer: StringIndexer,
     pub literal_cache: StringCache,
+    pub value_type_idx: Vec<ValueTypes>,
 }
 
 pub enum LabelDisplayValue<'a> {
@@ -164,6 +188,9 @@ impl NObject {
                     ObjectType::String(_) | ObjectType::TypedString(_, _) | ObjectType::StringShort(_) => {
                         no_lang = Some(value);
                     }
+                    ObjectType::NoValue() => {
+
+                    }
                 }
             }
         }
@@ -201,6 +228,9 @@ impl NObject {
                         if no_lang.is_none() {
                             no_lang = Some(value);
                         }
+                    }
+                    ObjectType::NoValue() => {
+
                     }
                 }
             }
@@ -280,6 +310,7 @@ impl Indexers {
             datatype_indexer: StringIndexer::new(),
             short_literal_indexer: StringIndexer::new(),
             literal_cache: StringCache::default(),
+            value_type_idx: Vec::new(),
         };
         indexer.language_indexer.get_index("en");
         indexer.predicate_indexer.get_index("rdfs:label");
@@ -296,7 +327,14 @@ impl Indexers {
         self.language_indexer.get_index(language) as LangIndex
     }
     pub fn get_data_type_index(&mut self, data_type: &str) -> DataTypeIndex {
-        self.datatype_indexer.get_index(data_type) as DataTypeIndex
+        let idx = self.datatype_indexer.get_index(data_type);
+        if idx as usize >= self.value_type_idx.len() {
+            self.value_type_idx.push(rdf_type_to_value_type(data_type));
+        }
+        idx as DataTypeIndex
+    }
+    pub fn get_value_type(&self, data_type_index: DataTypeIndex) -> ValueTypes {
+        self.value_type_idx[data_type_index as usize]
     }
     pub fn clean(&mut self) {
         self.predicate_indexer = StringIndexer::new();
@@ -305,6 +343,39 @@ impl Indexers {
         self.datatype_indexer = StringIndexer::new();
         self.language_indexer.get_index("en");
         self.predicate_indexer.get_index("rdfs:label");
+        self.value_type_idx.clear();
+    }
+}
+
+fn rdf_type_to_value_type(data_type: &str) -> ValueTypes {
+    if data_type.ends_with(":integer") 
+        || data_type.ends_with(":int") 
+        || data_type.ends_with(":long")
+        || data_type.ends_with(":short")
+        || data_type.ends_with(":byte")
+        || data_type.ends_with(":nonNegativeInteger")
+        || data_type.ends_with(":positiveInteger") {
+        ValueTypes::INTEGER
+    } else if data_type.ends_with(":boolean") {
+        ValueTypes::BOOLEAN
+    } else if data_type.ends_with(":decimal") || data_type.ends_with(":float") || data_type.ends_with(":double") {
+        ValueTypes::DOUBLE
+    } else if data_type.ends_with(":decimal") || data_type.ends_with(":float") || data_type.ends_with(":double") {
+        ValueTypes::DOUBLE
+    } else if data_type.ends_with(":date") {
+        ValueTypes::DATE
+    } else if data_type.ends_with(":time") {
+        ValueTypes::TIME
+    } else if data_type.ends_with(":datetime") {
+        ValueTypes::DATE_TIME
+    } else if data_type.ends_with(":duration") {
+        ValueTypes::DURATION
+    } else if data_type.ends_with(":XMLLiteral") {
+        ValueTypes::XML
+    } else if data_type.ends_with(":JSON") {
+        ValueTypes::JSON
+    } else {
+        ValueTypes::UNKNOWN
     }
 }
 

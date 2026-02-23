@@ -29,3 +29,7 @@ pub const ICON_KEY: &str = "\u{1f511}";
 pub const ICON_EXPORT: &str = "\u{1f4e4}";
 pub const ICON_NUMBER: &str = "\u{fe82c}";
 pub const ICON_ROCKET: &str = "\u{1f680}";
+pub const ICON_QUERY_BUILDER: &str = "\u{1f453}";
+pub const ICON_RUN: &str = "\u{1f3c3}";
+pub const ICON_LINK: &str = "\u{1f517}";
+pub const ICON_REV_LINK: &str = "\u{2baa}\u{1f517}";

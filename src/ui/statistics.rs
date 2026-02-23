@@ -5,17 +5,11 @@ use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
 
 use crate::{
-    uistate::actions::NodeAction, RdfGlanceApp, uistate::UIState, 
-    domain::{LabelContext, LangIndex, RdfData,
-        config::{Config, IriDisplay}, 
-        statistics::StatisticsData,
-        graph_styles::GVisualizationStyle
-    }, 
-    support::uitools::ScrollBar, 
-    ui::{
-        style::ICON_EXPORT, 
+    RdfGlanceApp, domain::{LabelContext, LangIndex, RdfData, config::{Config, IriDisplay}, graph_styles::GVisualizationStyle, statistics::StatisticsData, type_index::ValueStatistics
+    }, support::uitools::{ScrollBar, primary_color}, ui::{
+        style::{ICON_CLOSE, ICON_EXPORT}, 
         table_view::{text_wrapped, text_wrapped_link}
-    }
+    }, uistate::{UIState, actions::NodeAction}
 };
 
 const ROW_HIGHT: f32 = 17.0;
@@ -525,6 +519,58 @@ impl StatisticsData {
         }
         wtr.flush()?;
         Ok(())
+    }
+}
+
+impl ValueStatistics {
+    pub fn show_ui(&self, ui: &mut egui::Ui, rdf_data: &RdfData) -> bool {
+        ui.label(format!("Count: {}", self.count));
+        ui.label(format!("Missing: {}", self.missing));
+        if !self.most_frequent_values.is_empty() {
+            ui.heading("Short string frequencies");
+            egui::Grid::new("value_freq")
+                .num_columns(2)
+                .spacing([40.0, 4.0])
+                .striped(true)
+                .show(ui, |ui| {
+                    for (value, count) in &self.most_frequent_values {
+                        let value_str = rdf_data.node_data.indexers.short_literal_indexer.index_to_str(*value);
+                        if let Some(value_str) = value_str {
+                            ui.label(value_str);
+                            ui.label(count.to_string());
+                            ui.end_row();
+                        }
+                    }
+                });
+        }
+        if let Some(num_statistics) = self.num_statistic.as_ref() {
+            ui.heading("Numerical statistics");
+            egui::Grid::new("value_freq")
+                .num_columns(2)
+                .spacing([40.0, 4.0])
+                .striped(true)
+                .show(ui, |ui| {
+                ui.strong("Count:");
+                ui.label(format!("{}", num_statistics.count));
+                ui.end_row();
+                ui.strong("Min:");
+                ui.label(format!("{}", num_statistics.min));
+                ui.end_row();
+                ui.strong("Max:");
+                ui.label(format!("{}", num_statistics.max));
+                ui.end_row();
+                ui.strong("Sum:");
+                ui.label(format!("{:.3}", num_statistics.sum));
+                ui.end_row();
+                ui.strong("Average:");
+                ui.label(format!("{:.3}", num_statistics.avg));
+                ui.end_row();
+            });
+        }
+        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
+        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
+        let b_resp = ui.add(nav_but);
+        b_resp.clicked()
     }
 }
 

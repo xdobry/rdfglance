@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use crate::ui::style::*;
+use crate::{domain::{type_index::TypeInstanceIndex, visual_query::VisualQuery}, ui::style::*};
 use anyhow::Error;
 use eframe::Storage;
 use egui::{Key, Rangef, Rect};
@@ -43,7 +43,6 @@ use crate::{
     ui::{
         graph_view::{NeighborPos, update_layout_edges},
         style::{ICON_DELETE, ICON_OPEN_FOLDER},
-        table_view::TypeInstanceIndex,
     },
     uistate::{
         DataLoading, GraphState, ImportFormat, ImportFromUrlData, LastVisitedSelection, LoadResult, UIState,
@@ -66,6 +65,7 @@ pub struct RdfGlanceApp {
     pub meta_graph_state: GraphState,
     pub visualization_style: GVisualizationStyle,
     pub statistics_data: Option<StatisticsData>,
+    pub visual_query: VisualQuery,
     #[cfg(not(target_arch = "wasm32"))]
     pub sparql_dialog: Option<SparqlDialog>,
     pub status_message: String,
@@ -136,6 +136,7 @@ impl RdfGlanceApp {
             graph_state: GraphState { scene_rect: Rect::ZERO },
             meta_graph_state: GraphState { scene_rect: Rect::ZERO },
             statistics_data: None,
+            visual_query: VisualQuery::default(),
             ui_state: UIState::default(),
             help_open: false,
             load_handle: None,
@@ -679,6 +680,7 @@ impl RdfGlanceApp {
         });
         self.visible_nodes.clear();
         self.meta_nodes.clear();
+        self.visual_query.clean();
     }
 
     pub fn mut_rdf_data<R>(&mut self, mut mutator: impl FnMut(&mut RdfData) -> R) -> Option<R> {
@@ -882,8 +884,12 @@ impl eframe::App for RdfGlanceApp {
                         &mut self.display_type,
                         DisplayType::MetaGraph,
                         concatcp!(ICON_METADATA, " Meta Graph"),
-                    )
-                    .clicked();
+                    );
+                    ui.selectable_value(
+                        &mut self.display_type,
+                        DisplayType::VisualQuery,
+                        concatcp!(ICON_QUERY_BUILDER, " Visual Query"),
+                    );
                     ui.selectable_value(
                         &mut self.display_type,
                         DisplayType::Statistics,
@@ -911,9 +917,9 @@ impl eframe::App for RdfGlanceApp {
                     let is_mod = i.modifiers.ctrl;
                     if is_mod && i.key_pressed(Key::Num1) {
                         self.display_type = DisplayType::Table;
-                    } else if is_mod && i.key_pressed(Key::Num7) {
+                    } else if is_mod && i.key_pressed(Key::Num8) {
                         self.display_type = DisplayType::Configuration;
-                    } else if is_mod && i.key_pressed(Key::Num6) {
+                    } else if is_mod && i.key_pressed(Key::Num7) {
                         self.display_type = DisplayType::Prefixes;
                     } else if !self.is_empty() {
                         if is_mod && i.key_pressed(Key::Num2) {
@@ -923,8 +929,10 @@ impl eframe::App for RdfGlanceApp {
                             self.display_type = DisplayType::Browse;
                         } else if is_mod && i.key_pressed(Key::Num4) {
                             self.display_type = DisplayType::MetaGraph;
-                        } else if is_mod && i.key_pressed(Key::Num5) {
+                        } else if is_mod && i.key_pressed(Key::Num6) {
                             self.display_type = DisplayType::Statistics;
+                        } else if is_mod && i.key_pressed(Key::Num5) {
+                            self.display_type = DisplayType::VisualQuery;
                         }
                     }
                 })
@@ -966,6 +974,7 @@ impl eframe::App for RdfGlanceApp {
                                 self.show_meta_graph(ctx, ui)
                             }
                             DisplayType::Statistics => self.show_statistics(ctx, ui),
+                            DisplayType::VisualQuery => self.show_visual_query(ctx, ui),
                         };
                     });
                     strip.cell(|ui| {
@@ -997,33 +1006,36 @@ impl eframe::App for RdfGlanceApp {
                 }
                 NodeAction::ShowVisual(node_index) => {
                     self.display_type = DisplayType::Graph;
-                    self.visible_nodes.add_by_index(node_index);
-                    if let Ok(rdf_data) = self.rdf_data.read() {
-                        let npos = NeighborPos::one(node_index);
-                        update_layout_edges(
-                            &npos,
-                            &mut self.visible_nodes,
-                            &rdf_data.node_data,
-                            &self.ui_state.hidden_predicates,
-                        );
+                    if self.visible_nodes.add_by_index(node_index) {
+                        if let Ok(rdf_data) = self.rdf_data.read() {
+                            let npos = NeighborPos::one(node_index);
+                            update_layout_edges(
+                                &npos,
+                                &mut self.visible_nodes,
+                                &rdf_data.node_data,
+                                &self.ui_state.hidden_predicates,
+                            );
+                        }
+                        self.visible_nodes.update_node_shapes = true;
                     }
-                    self.visible_nodes.update_node_shapes = true;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                     self.ui_state.selection_start_rect = None;
                 }
                 NodeAction::AddVisual(node_index) => {
-                    self.visible_nodes.add_by_index(node_index);
-                    if let Ok(rdf_data) = self.rdf_data.read() {
-                        let npos = NeighborPos::one(node_index);
-                        update_layout_edges(
-                            &npos,
-                            &mut self.visible_nodes,
-                            &rdf_data.node_data,
-                            &self.ui_state.hidden_predicates,
-                        );
+                    if self.visible_nodes.add_by_index(node_index) {
+                        if let Ok(rdf_data) = self.rdf_data.read() {
+                            let npos = NeighborPos::one(node_index);
+                            update_layout_edges(
+                                &npos,
+                                &mut self.visible_nodes,
+                                &rdf_data.node_data,
+                                &self.ui_state.hidden_predicates,
+                            );
+                        }
+                        self.visible_nodes.update_node_shapes = true;
                     }
-                    self.visible_nodes.update_node_shapes = true;
+                    self.ui_state.selection_start_rect = None;
                     self.ui_state.selected_node = Some(node_index);
                     self.ui_state.selected_nodes.insert(node_index);
                 }

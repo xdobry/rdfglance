@@ -6,6 +6,8 @@ pub mod statistics;
 pub mod rdf_data;
 pub mod app_persistence;
 pub mod graph_styles;
+pub mod visual_query;
+pub mod type_index;
 
 pub use self::graph_model::*;
 pub use self::string_indexer::*;
