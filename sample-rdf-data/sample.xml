@@ -1,31 +1,14 @@
 <data>
-  <persons ja="322">
-    <person id="0">
-      <name>Artur</name>
-      <year>1973</year>
-    </person>
-    <person id="1">
-      <name>Bob</name>
-      <year>2002</year>
-    </person>
-    <person id="2">
-      <name>M&amp;B&#128522;C</name>
-      <year>2010</year>
-    </person>
-  </persons>
-  <rulechecks>
-    <configuration name="Configuration">
-        <files>
-            <all_files/>
-        </files>
-        <rules>
-            <rule name="CWE.835" partial="1">
-                <check name="infinite-loop"/>
-            </rule>
-        </rules>
-    </configuration>
-  </rulechecks>
-  <t>
-      <a id="0">b</a>
-  </t>
+  <person id="0">
+    <name>Artur</name>
+    <year>1973</year>
+  </person>
+  <person id="1">
+    <name>Bob</name>
+    <year>2002</year>
+  </person>
+  <person id="2">
+    <name>M&amp;B&#128522;C</name>
+    <year>2010</year>
+  </person>
 </data>
