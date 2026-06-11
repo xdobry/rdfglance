@@ -20,22 +20,26 @@ impl RdfGlanceApp {
         let mut action_type_index: NodeAction = NodeAction::None;
         ui.horizontal(|ui| {
             ui.horizontal(|ui| {
-                if (ui.button("\u{2b05}").clicked()
-                    || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft)))
-                    && self.nav_pos > 0
-                {
-                    self.nav_pos -= 1;
-                    let object_iri_index = self.nav_history[self.nav_pos];
-                    self.show_object_by_index(object_iri_index, false);
-                }
-                if (ui.button("\u{27a1}").clicked()
-                    || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)))
-                    && self.nav_pos < self.nav_history.len() - 1
-                {
-                    self.nav_pos += 1;
-                    let object_iri_index = self.nav_history[self.nav_pos];
-                    self.show_object_by_index(object_iri_index, false);
-                }
+                ui.add_enabled_ui(self.nav_pos > 0, |ui| {
+                    if (ui.button("\u{2b05}").clicked()
+                        || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft)))
+                        && self.nav_pos > 0
+                    {
+                        self.nav_pos -= 1;
+                        let object_iri_index = self.nav_history[self.nav_pos];
+                        self.show_object_by_index(object_iri_index, false);
+                    }
+                });
+                ui.add_enabled_ui(self.nav_history.len()>0 && self.nav_pos < self.nav_history.len() - 1, |ui| {
+                    if (ui.button("\u{27a1}").clicked()
+                        || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)))
+                        && self.nav_history.len()>0 && self.nav_pos < self.nav_history.len() - 1
+                    {
+                        self.nav_pos += 1;
+                        let object_iri_index = self.nav_history[self.nav_pos];
+                        self.show_object_by_index(object_iri_index, false);
+                    }
+                });
             });
             egui::TextEdit::singleline(&mut self.object_iri).show(ui);
             if ui.button("Load Object").clicked() {

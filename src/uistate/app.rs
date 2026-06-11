@@ -12,12 +12,11 @@ use std::{
     time::Duration,
 };
 
-use crate::{domain::{type_index::TypeInstanceIndex, visual_query::VisualQuery}, ui::style::*};
+use crate::{domain::{type_index::TypeInstanceIndex, visual_query::VisualQuery}, ui::{reference_resolver::ReferenceResolver, style::*}};
 use anyhow::Error;
-use eframe::Storage;
-use egui::{Key, Rangef, Rect};
+use eframe::{Frame, Storage};
+use egui::{Key, Rangef, Rect, Ui};
 use egui_extras::StripBuilder;
-use oxrdf::vocab::rdf;
 use string_interner::Symbol;
 
 #[cfg(target_arch = "wasm32")]
@@ -66,6 +65,7 @@ pub struct RdfGlanceApp {
     pub visualization_style: GVisualizationStyle,
     pub statistics_data: Option<StatisticsData>,
     pub visual_query: VisualQuery,
+    pub reference_resolver: ReferenceResolver,
     #[cfg(not(target_arch = "wasm32"))]
     pub sparql_dialog: Option<SparqlDialog>,
     pub status_message: String,
@@ -144,6 +144,7 @@ impl RdfGlanceApp {
             #[cfg(target_arch = "wasm32")]
             file_upload: None,
             import_from_url: None,
+            reference_resolver: ReferenceResolver::default(),
         };
         #[cfg(not(target_arch = "wasm32"))]
         if !args.is_empty() {
@@ -518,8 +519,8 @@ impl RdfGlanceApp {
         }
     }
     pub fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("No data loaded. Load RDF file first.");
-        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open RDF File (Ctrl-O)")).size(16.0);
+        ui.heading("No data loaded. Load data file first.");
+        let button_text = egui::RichText::new(concatcp!(ICON_OPEN_FOLDER, "Open Data File (Ctrl-O)")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
         let b_resp = ui.add(nav_but);
         if b_resp.clicked() {
@@ -758,12 +759,12 @@ impl RdfGlanceApp {
 }
 
 impl eframe::App for RdfGlanceApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
         if let Some(cpu_usage) = frame.info().cpu_usage {
             self.ui_state.cpu_usage = self.ui_state.cpu_usage * 0.95 + cpu_usage * 0.05;
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             if let Some(data_loading) = &self.data_loading {
                 if !data_loading.finished.load(Ordering::Relaxed) {
                     ui.label("RDF data is currently being loaded. Please wait...");
@@ -780,7 +781,7 @@ impl eframe::App for RdfGlanceApp {
                     if !data_loading.stop_loading.load(Ordering::Relaxed) && ui.button("Stop Loading").clicked() {
                         data_loading.stop_loading.store(true, Ordering::Relaxed);
                     }
-                    ctx.request_repaint_after(Duration::from_millis(100));
+                    ui.ctx().request_repaint_after(Duration::from_millis(100));
                     return;
                 } else {
                     self.join_load(ui.visuals().dark_mode);
@@ -789,8 +790,8 @@ impl eframe::App for RdfGlanceApp {
             #[cfg(target_arch = "wasm32")]
             if self.file_upload.is_some() {
                 ui.label("RDF data is currently being loaded. Please wait...");
-                ctx.request_repaint_after(Duration::from_millis(100));
-                self.handle_files(ctx, ui.visuals());
+                ui.ctx().request_repaint_after(Duration::from_millis(100));
+                self.handle_files(ui.ctx(), ui.visuals());
                 return;
             }
 
@@ -799,7 +800,7 @@ impl eframe::App for RdfGlanceApp {
                     .collapsible(false)
                     .resizable(false)
                     .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]) // Center the modal
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.label(self.system_message.get_message());
                         if ui.button("OK").clicked() {
                             self.system_message = SystemMessage::None;
@@ -814,7 +815,7 @@ impl eframe::App for RdfGlanceApp {
                     .collapsible(false)
                     .resizable(true)
                     .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]) // Center the modal
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.label("Import RDF data from URL:");
                         ui.horizontal(|ui| {
                             ui.label("URL:");
@@ -854,7 +855,7 @@ impl eframe::App for RdfGlanceApp {
                 }
                 self.import_from_url = None;
             }
-            self.show_about(ctx, ui);
+            self.show_about(ui);
 
             self.menu_bar(ui);
             // The menu bar action could start loading data, so we check if data is being loaded
@@ -906,6 +907,13 @@ impl eframe::App for RdfGlanceApp {
                     DisplayType::Configuration,
                     concatcp!(ICON_CONFIG, " Settings"),
                 );
+                ui.add_enabled_ui(!self.is_empty(), |ui| {
+                    ui.selectable_value(
+                    &mut self.display_type,
+                    DisplayType::ReferenceResolver,
+                    concatcp!(ICON_CONFIG, " Reference Resolver"),
+                    );
+                });
                 #[cfg(target_arch = "wasm32")]
                 ui.small("Num+Alt to Switch");
                 #[cfg(not(target_arch = "wasm32"))]
@@ -946,14 +954,13 @@ impl eframe::App for RdfGlanceApp {
                     strip.cell(|ui| {
                         node_action = match self.display_type {
                             DisplayType::Browse => self.show_table(ui),
-                            DisplayType::Graph => self.show_graph(ctx, ui),
+                            DisplayType::Graph => self.show_graph(ui),
                             DisplayType::Table => {
                                 if self.is_empty() {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
                                 } else if let Ok(mut rdf_data) = self.rdf_data.write() {
                                     self.type_index.display(
-                                        ctx,
                                         ui,
                                         &mut rdf_data,
                                         &mut self.ui_state,
@@ -964,17 +971,18 @@ impl eframe::App for RdfGlanceApp {
                                     NodeAction::None
                                 }
                             }
-                            DisplayType::Configuration => self.show_config(ctx, ui),
-                            DisplayType::Prefixes => self.show_prefixes(ctx, ui),
+                            DisplayType::Configuration => self.show_config(ui),
+                            DisplayType::Prefixes => self.show_prefixes(ui),
                             DisplayType::MetaGraph => {
                                 let is_empty = self.meta_nodes.nodes.read().unwrap().is_empty();
                                 if is_empty {
                                     self.build_meta_graph();
                                 }
-                                self.show_meta_graph(ctx, ui)
+                                self.show_meta_graph(ui)
                             }
-                            DisplayType::Statistics => self.show_statistics(ctx, ui),
-                            DisplayType::VisualQuery => self.show_visual_query(ctx, ui),
+                            DisplayType::Statistics => self.show_statistics(ui),
+                            DisplayType::VisualQuery => self.show_visual_query(ui),
+                            DisplayType::ReferenceResolver => self.show_reference_resolver(ui),
                         };
                     });
                     strip.cell(|ui| {
@@ -1043,7 +1051,7 @@ impl eframe::App for RdfGlanceApp {
             }
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(dialog) = &mut self.sparql_dialog {
-                let (close_dialog, result) = dialog.show(ctx, &self.persistent_data.last_endpoints);
+                let (close_dialog, result) = dialog.show(ui.ctx(), &self.persistent_data.last_endpoints);
                 if close_dialog {
                     if let Some(endpoint) = result {
                         use crate::integration::sparql::SparqlAdapter;
@@ -1071,7 +1079,7 @@ impl eframe::App for RdfGlanceApp {
              */
         });
 
-        ctx.input(|i| {
+        ui.ctx().input(|i| {
             for file in &i.raw.dropped_files {
                 if let Some(file_path) = &file.path {
                     #[cfg(not(target_arch = "wasm32"))]

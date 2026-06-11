@@ -194,7 +194,7 @@ mod tests {
     use std::collections::{BTreeMap};
 
     use super::*;
-    use rand::{seq::SliceRandom, Rng};
+    use rand::{Rng, RngExt, seq::SliceRandom};
     
     fn gen_test_data(desc: &Vec<(u32,f32,f32)>) -> Vec<f32> {
         let mut res = Vec::new();

@@ -1,10 +1,11 @@
-use core::{f64, num};
+use core::f64;
 use std::{collections::HashMap};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 use bitflags::bitflags;
 use ordered_float::OrderedFloat;
 use egui::Pos2;
+use string_interner::Symbol;
 
 use crate::{IriIndex, domain::{LabelContext, LangIndex, Literal, NodeData, RdfData}, ui::table_view::CHAR_WIDTH, uistate::ref_selection::RefSelection};
 
@@ -26,6 +27,7 @@ pub struct TypeInstanceIndex {
     pub unresolved_references: usize,
     pub types: HashMap<IriIndex, TypeData>,
     pub types_order: Vec<IriIndex>,
+    pub predicates: Vec<IriIndex>,
     pub types_filtered: Vec<IriIndex>,
     pub selected_type: Option<IriIndex>,
     pub types_filter: String,
@@ -463,6 +465,7 @@ impl TypeInstanceIndex {
             types_filter: String::new(),
             type_cell_action: TypeCellAction::None,
             value_statistics: None,
+            predicates: Vec::new(),
         }
     }
 
@@ -478,6 +481,7 @@ impl TypeInstanceIndex {
         self.min_instance_type_count = 0;
         self.types.clear();
         self.types_order.clear();
+        self.predicates.clear();
     }
 
     pub fn update(&mut self, node_data: &NodeData) {
@@ -549,6 +553,10 @@ impl TypeInstanceIndex {
         }
         self.unique_predicates = node_data.unique_predicates();
         self.unique_types = node_data.unique_types();
+        for (pred_index, _iri) in node_data.indexers.predicate_indexer.map.iter() {
+            let pred_index = pred_index.to_usize() as IriIndex;
+            self.predicates.push(pred_index);
+        }
         for (type_index, type_data) in self.types.iter_mut() {
             self.types_order.push(*type_index);
             if self.min_instance_type_count == 0 && self.max_instance_type_count == 0 {

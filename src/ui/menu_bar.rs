@@ -68,7 +68,7 @@ impl RdfGlanceApp {
                     }
                     ui.separator();
                 }
-                if ui.button("Import RDF File\tCtrl-O").clicked() {
+                if ui.button("Import Data File\tCtrl-O").clicked() {
                     menu_action = MenuAction::ImportRDF;
                     ui.close_kind(UiKind::Menu);
                 }
@@ -447,7 +447,7 @@ impl RdfGlanceApp {
     pub fn import_file_dialog(&mut self, ui: &mut egui::Ui) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = FileDialog::new()
-            .add_filter("RDF Files", &["ttl", "rdf", "xml", "nt", "trig", "nq"])
+            .add_filter("RDF Files", &["ttl", "rdf", "xml", "nt", "trig", "nq", "jsonld","csv","json","ndjson"])
             .pick_file()
         {
             let selected_file = Some(path.display().to_string());
@@ -460,7 +460,7 @@ impl RdfGlanceApp {
             use poll_promise::Promise;
             self.file_upload = Some(Promise::spawn_local(async {
                 let file_selected = rfd::AsyncFileDialog::new()
-                    .add_filter("rdf", &["ttl", "rdf", "xml", "nt", "trig", "nq"])
+                    .add_filter("rdf", &["ttl", "rdf", "xml", "nt", "trig", "nq", "jsonld","csv","json","ndjson"])
                     .pick_file()
                     .await;
                 if let Some(curr_file) = file_selected {

@@ -1,16 +1,12 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet}, hash::Hash, sync::{Arc, RwLock}
+    collections::{BTreeSet, HashMap, HashSet}, sync::{Arc, RwLock}
 };
 
 use egui::{Pos2, Rect};
 
 use crate::{
     IriIndex,
-    domain::{RdfData, graph_styles::GVisualizationStyle, rdf_data},
-    layoutalg::{
-        LayoutOrientation,
-        circular::{GEdge, find_components, gen_adj_start_node, random_dfs},
-    },
+    domain::{RdfData, graph_styles::GVisualizationStyle},
     support::SortedVec,
     uistate::layout::SortedNodeLayout,
 };

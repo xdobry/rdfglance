@@ -118,6 +118,7 @@ pub enum DisplayType {
     MetaGraph,
     Statistics,
     VisualQuery,
+    ReferenceResolver,
 }
 
 // Define the application structure

@@ -7,7 +7,7 @@ use crate::{
 };
 
 impl RdfGlanceApp {
-    pub fn show_config(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_config(&mut self, ui: &mut egui::Ui) -> NodeAction {
         ui.horizontal(|ui| {
             ui.label("language filter (comma separated):");
             ui.text_edit_singleline(&mut self.persistent_data.config_data.language_filter);
@@ -64,13 +64,13 @@ impl RdfGlanceApp {
         NodeAction::None
     }
 
-    pub fn show_about(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn show_about(&mut self, ui: &mut egui::Ui) {
         if self.ui_state.about_window {
             egui::Window::new("About")
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]) // Center the modal
-                .show(ctx, |ui| {
+                .show(ui.ctx(), |ui| {
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
                         ui.heading("RDF Glance");
                         ui.spacing();

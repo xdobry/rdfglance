@@ -4,7 +4,7 @@
 
 use egui::{Rect, Vec2};
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use std::collections::{BTreeSet, HashSet};
 
 use crate::IriIndex;

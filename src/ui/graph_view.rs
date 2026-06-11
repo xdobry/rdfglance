@@ -35,7 +35,7 @@ use crate::{
 use const_format::concatcp;
 use eframe::egui::{self, Pos2, Sense, Vec2};
 use egui::{Key, Painter, Popup, Rect, Shape, Slider, Stroke, StrokeKind};
-use rand::Rng;
+use rand::RngExt;
 
 const INITIAL_DISTANCE: f32 = 100.0;
 
@@ -107,7 +107,7 @@ impl NodeContextAction {
 }
 
 impl RdfGlanceApp {
-    pub fn show_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_graph(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
         if self.visible_nodes.nodes.read().unwrap().is_empty() {
             ui.heading(concatcp!(
@@ -211,7 +211,6 @@ impl RdfGlanceApp {
                 ui.add(Slider::new(&mut self.ui_state.semantic_zoom_magnitude, 1..=10));
             }
             self.visible_nodes.show_handle_layout_ui(
-                ctx,
                 ui,
                 &self.persistent_data.config_data,
                 &self.ui_state.hidden_predicates,
@@ -292,7 +291,7 @@ impl RdfGlanceApp {
                     .default_size([300.0, 100.0])
                     .default_pos(help_but.rect.left_bottom())
                     .open(&mut self.help_open) // Small window
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.label(
                             "Use right mouse click on node to open context Menu
 
@@ -324,18 +323,18 @@ Expand Relations - double click on node",
             }
             StyleEdit::None => {
                 if self.ui_state.show_properties {
-                    egui::SidePanel::right("right_panel")
-                        .exact_width(500.0)
+                    egui::Panel::right("right_panel")
+                        .exact_size(500.0)
                         .show_inside(ui, |ui| {
                             egui::ScrollArea::both().show(ui, |ui| {
                                 node_to_click = self.display_node_details(ui);
                             });
                         });
                     egui::CentralPanel::default().show_inside(ui, |ui| {
-                        self.display_graph(ctx, ui, &mut node_to_click);
+                        self.display_graph( ui, &mut node_to_click);
                     });
                 } else {
-                    self.display_graph(ctx, ui, &mut node_to_click);
+                    self.display_graph( ui, &mut node_to_click);
                 }
             }
         }
@@ -731,7 +730,7 @@ Expand Relations - double click on node",
         node_to_click
     }
 
-    pub fn display_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, node_browse: &mut NodeAction) {
+    pub fn display_graph(&mut self, ui: &mut egui::Ui, node_browse: &mut NodeAction) {
         let mut node_count = 0;
         let mut edge_count = 0;
         let mut secondary_clicked = false;
@@ -746,6 +745,7 @@ Expand Relations - double click on node",
         let mut was_action = false;
         let mut start_translate = false;
 
+        let ctx = &ui.ctx().clone();
         let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
         let global_rect = ui.min_rect();
 

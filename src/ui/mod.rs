@@ -12,5 +12,6 @@ pub mod sparql_dialog;
 pub mod statistics;
 pub mod table_view;
 pub mod visual_query;
+pub mod reference_resolver;
 
 pub use self::drawing::*;

@@ -1,7 +1,10 @@
 use fixedbitset::FixedBitSet;
 use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashSet}};
 
-use crate::{IriIndex, domain::{NodeData, config::Config, prefix_manager::PrefixManager}, integration::rdfwrap::RDFAdapter, support::SortedVec, ui::graph_view::{NeighborPos, update_layout_edges}, uistate::layout::{NodeLayout, SortedNodeLayout}
+use crate::{IriIndex, domain::{NodeData, config::Config, prefix_manager::PrefixManager}, 
+    integration::rdfwrap::RDFAdapter, support::SortedVec, 
+    ui::graph_view::{NeighborPos, update_layout_edges}, 
+    uistate::layout::SortedNodeLayout,
 };
 
 pub struct RdfData {

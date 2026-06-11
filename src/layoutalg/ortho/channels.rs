@@ -1,6 +1,6 @@
 use egui::{Pos2, Rect as ERect};
 
-use super::routing::{Orientation, NodePort, Side};
+use super::routing::{Orientation, Side};
 
 #[derive(Debug)]
 pub struct RChannel {

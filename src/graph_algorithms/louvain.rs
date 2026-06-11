@@ -3,7 +3,7 @@ use crate::{
     uistate::layout::Edge, support::SortedVec
 };
 
-use rand::Rng;
+use rand::RngExt;
 use std::{collections::{hash_map::Entry, HashMap}};
 
 /**

@@ -85,10 +85,19 @@ RDFGlance offers the following visualization capabilities for RDF data:
 The RDF Data can be loaded by using following formats:
 
 - ttl
-- rdf/xml
+- rdf/xml - need rdf file extension
 - trig - named graphs are ignored
 - nt (n-tuples)
 - nq (n-quads) - named graphs are ignored
+- jsonld - rdf encoded as jsonld
+
+Also some non RDF Data can be imported and internally converted to RDF
+
+- json - All JSON Objects will be RDF Node. Object properties are created from JSON tree structure
+- xml - All complex XML tags (not only text content) will be RDF nodes. Object properties are created from XML tree structure
+- csv - One row will be one RDF node. Columns will be data properties.
+
+After importing non-RDF data you may use reference resolver (see file menu) to create object properties from primary and foreign key data properties.
 
 Defined prefixes are taken from the input file if possible.
 

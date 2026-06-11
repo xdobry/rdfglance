@@ -8,6 +8,7 @@ pub mod app_persistence;
 pub mod graph_styles;
 pub mod visual_query;
 pub mod type_index;
+pub mod reference_resolver;
 
 pub use self::graph_model::*;
 pub use self::string_indexer::*;

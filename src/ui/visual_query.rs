@@ -23,12 +23,12 @@ use crate::{
 const TABLE_V_GAP: f32 = 50.0;
 const TABLE_H_GAP: f32 = 50.0;
 const TABLE_H: f32 = 20.0;
-const TABLE_W: f32 = 200.0;
+const TABLE_W: f32 = 250.0;
 const PANEL_W: f32 = 400.0;
 const PANEL_H: f32 = 300.0;
 
 impl RdfGlanceApp {
-    pub fn show_visual_query(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {       
+    pub fn show_visual_query(&mut self, ui: &mut egui::Ui) -> NodeAction {       
         ui.horizontal(|ui| {
             if self.ui_state.visual_query.selected_type_iri.is_none() {
                 if let Some(selected_type) = self.type_index.selected_type {
@@ -40,7 +40,7 @@ impl RdfGlanceApp {
                 if let Ok(rdf_data) = self.rdf_data.read() {
                     if let Some(table_query) = self.visual_query.root_table.as_mut() {
                         ui.horizontal(|ui| {
-                            let any_popup = Popup::is_any_open(ctx);
+                            let any_popup = Popup::is_any_open(ui.ctx());
                             let mut key_run = false;
                             if !any_popup {
                                 ui.input(|i| {
@@ -103,8 +103,8 @@ impl RdfGlanceApp {
                 ui.set_height(PANEL_H);
                 if let Ok(rdf_data) = self.rdf_data.read() {
                     let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &rdf_data.prefix_manager);
-                    egui::SidePanel::right("details_panel")
-                        .exact_width(500.0)
+                    egui::Panel::right("details_panel")
+                        .exact_size(500.0)
                         .show_inside(ui, |ui| {
                             egui::ScrollArea::both().show(ui, |ui| {
                                 if let Some(table_query) = self.visual_query.root_table.as_mut() {
@@ -152,7 +152,7 @@ impl RdfGlanceApp {
             .size(egui_extras::Size::exact(20.0)) // Two resizable panels with equal initial width
             .horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    self.show_query_result(ctx, ui);
+                    self.show_query_result(ui);
                 });
                 strip.cell(|ui| {
                     ui.add(ScrollBar::new(
@@ -166,7 +166,7 @@ impl RdfGlanceApp {
         NodeAction::None
     }
 
-    pub fn show_query_result(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_query_result(&mut self, ui: &mut egui::Ui) -> NodeAction {
         if self.visual_query.root_table.is_none() {
             return NodeAction::None;
         }
@@ -178,13 +178,13 @@ impl RdfGlanceApp {
             let available_height = ui.available_height();
             let available_rect = ui.max_rect();
             let size = Vec2::new(available_width, available_height);
-            let (rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
+            let (_rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
             let painter = ui.painter();
             let primary_clicked = response.clicked();
             let secondary_clicked = response.secondary_clicked();
             let mouse_pos = response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
             let mut primary_down = false;
-            ctx.input(|input| {
+            ui.ctx().input(|input| {
                 if input.pointer.button_pressed(egui::PointerButton::Primary) {
                     primary_down = true;
                 }
@@ -247,7 +247,7 @@ impl RdfGlanceApp {
                         if column_rect.contains(mouse_pos) {
                             if secondary_clicked {
                                 was_context_click = true;
-                                Popup::open_id(ctx, popup_id);
+                                Popup::open_id(ui.ctx(), popup_id);
                                 self.visual_query.instance_view.context_menu =
                                     TableContextMenu::QueryColumnMenu(mouse_pos, column_desc.predicate_index, table_query.row_index);
                             } else {
@@ -323,7 +323,7 @@ impl RdfGlanceApp {
                                     );
                                     if primary_clicked && cell_rect.contains(mouse_pos) {
                                         was_context_click = true;
-                                        Popup::open_id(ctx, popup_id);
+                                        Popup::open_id(ui.ctx(), popup_id);
                                         self.visual_query.instance_view.ref_selection = RefSelection::None;
                                         self.visual_query.instance_view.context_menu =
                                             TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
@@ -364,7 +364,7 @@ impl RdfGlanceApp {
 
             if !was_context_click && primary_clicked {
                 self.visual_query.instance_view.context_menu = TableContextMenu::None;
-                Popup::close_id(ctx, popup_id);
+                Popup::close_id(ui.ctx(), popup_id);
             }
             let width = match self.visual_query.instance_view.context_menu {
                 TableContextMenu::CellMenu(_, _, _) => {
@@ -389,7 +389,7 @@ impl RdfGlanceApp {
                     if value_statistics.show_ui(ui, &rdf_data) {
                         self.visual_query.value_statistics = None;
                         self.visual_query.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 } else {
                     match self.visual_query.instance_view.context_menu {
@@ -414,7 +414,7 @@ impl RdfGlanceApp {
 
                             if close_menu {
                                 self.visual_query.instance_view.context_menu = TableContextMenu::None;
-                                Popup::close_id(ctx, popup_id);
+                                Popup::close_id(ui.ctx(), popup_id);
                             }
                         }
                         TableContextMenu::QueryColumnMenu(_pos, predicate, table_idx) => {
@@ -469,7 +469,7 @@ impl RdfGlanceApp {
                             }
                             if close_menu {
                                 self.visual_query.instance_view.context_menu = TableContextMenu::None;
-                                Popup::close_id(ctx, popup_id);
+                                Popup::close_id(ui.ctx(), popup_id);
                             }
                         }
                         _ => {}
@@ -551,7 +551,18 @@ fn show_query_table(table_query: &mut TableQuery, show_context: &mut QueryTableS
                 frame.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let type_str = show_context.rdf_data.node_data.type_display(table_query.type_iri, show_context.label_context, &show_context.rdf_data.node_data.indexers);
-                    if ui.label(type_str.as_str()).clicked() {
+                    let char_len = type_str.as_str().chars().count();
+                    // if label has more then 20 characters shown only the last 20 characters
+                    let max_label_length = 20;
+                    let type_label = if char_len>max_label_length {
+                        let s = type_str.as_str();
+                        let mut iter = s.char_indices().skip(char_len-max_label_length);
+                        let start_byte = iter.next().map(|(i, _)| i).unwrap_or(0);
+                        &s[start_byte..]
+                    } else {
+                        type_str.as_str()
+                    };
+                    if ui.label(type_label).clicked() {
                         *show_context.selected_table = Some(table_query.row_index);
                     }
                     if ui.button(ICON_CLEAN_ALL).clicked() {

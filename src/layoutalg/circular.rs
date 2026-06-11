@@ -5,9 +5,7 @@ use std::{
 
 use egui::{Pos2, Rect};
 use rand::{
-    Rng,
-    rngs::ThreadRng,
-    seq::{SliceRandom, index::sample},
+    RngExt, rngs::ThreadRng, seq::{SliceRandom, index::sample}
 };
 
 use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};

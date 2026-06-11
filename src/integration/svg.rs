@@ -530,7 +530,7 @@ fn draw_self_edge_svg<F, W>(
     rotation: f32,
     _shape: NodeShape,
     edge_style: &EdgeStyle,
-    label_cb: F,
+    _label_cb: F,
 ) -> std::io::Result<()>
 where
     F: Fn() -> String,

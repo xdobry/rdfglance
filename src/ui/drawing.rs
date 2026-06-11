@@ -447,6 +447,7 @@ pub fn draw_node_label(
                     radius: Vec2::new(node_rect.width() / 2.0, node_rect.height() / 2.0),
                     fill: fade_color(type_style.color, faded),
                     stroke,
+                    angle: 0.0,
                 }));
             }
             NodeShape::Rect => {

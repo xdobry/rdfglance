@@ -5,7 +5,6 @@ use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Popup, Pos2, Rect, Sense, Slider, Stroke, Vec2};
 use egui_extras::{Column, StripBuilder, TableBuilder};
 use rayon::prelude::*;
-use serde::de::value;
 
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
@@ -51,7 +50,6 @@ impl TypeData {
     pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
         table_action: &mut TableAction,
         instance_action: &mut NodeAction,
         node_data: &mut NodeData,
@@ -66,7 +64,7 @@ impl TypeData {
         let mut instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
         let capacity = ((a_height / ROW_HIGHT) as usize).max(2) - 1;
 
-        let any_popup = Popup::is_any_open(ctx);
+        let any_popup = Popup::is_any_open(ui.ctx());
         if !any_popup && !text_has_focus {
             if let Some((_node_iri, idx)) = self.instance_view.selected_idx {
                 ui.input(|i| {
@@ -247,7 +245,7 @@ impl TypeData {
         );
 
         let mut primary_down = false;
-        ctx.input(|input| {
+        ui.ctx().input(|input| {
             if input.pointer.button_pressed(egui::PointerButton::Primary) {
                 primary_down = true;
             }
@@ -269,7 +267,7 @@ impl TypeData {
         );
         if secondary_clicked && iri_column_rec.contains(mouse_pos) {
             was_context_click = true;
-            Popup::open_id(ctx, popup_id);
+            Popup::open_id(ui.ctx(), popup_id);
             self.instance_view.context_menu = TableContextMenu::IriColumnMenu(mouse_pos);
         }
         painter.text(
@@ -300,7 +298,7 @@ impl TypeData {
         }
         if ref_column_rec.contains(mouse_pos) && secondary_clicked {
             was_context_click = true;
-            Popup::open_id(ctx, popup_id);
+            Popup::open_id(ui.ctx(), popup_id);
             self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
         }
         xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
@@ -330,7 +328,7 @@ impl TypeData {
             if column_rect.contains(mouse_pos) {
                 if secondary_clicked {
                     was_context_click = true;
-                    Popup::open_id(ctx, popup_id);
+                    Popup::open_id(ui.ctx(), popup_id);
                     self.instance_view.context_menu =
                         TableContextMenu::ColumnMenu(mouse_pos, column_desc.predicate_index);
                 } else {
@@ -450,7 +448,7 @@ impl TypeData {
                 );
                 if primary_clicked && ref_rect.contains(mouse_pos) {
                     was_context_click = true;
-                    Popup::open_id(ctx, popup_id);
+                    Popup::open_id(ui.ctx(), popup_id);
                     self.instance_view.context_menu = TableContextMenu::RefMenu(mouse_pos, *instance_index);
                 }
 
@@ -486,7 +484,7 @@ impl TypeData {
                         );
                         if primary_clicked && cell_rect.contains(mouse_pos) {
                             was_context_click = true;
-                            Popup::open_id(ctx, popup_id);
+                            Popup::open_id(ui.ctx(), popup_id);
                             self.instance_view.ref_selection = RefSelection::None;
                             self.instance_view.context_menu =
                                 TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
@@ -522,7 +520,7 @@ impl TypeData {
             if show_refs {
                 was_context_click = true;
                 self.instance_view.ref_selection = RefSelection::None;
-                Popup::open_id(ctx, popup_id);
+                Popup::open_id(ui.ctx(), popup_id);
             }
         }
         // Draw vertical lines
@@ -581,7 +579,7 @@ impl TypeData {
         //if !was_context_click && (secondary_clicked || primary_clicked) {
         if !was_context_click && primary_clicked {
             self.instance_view.context_menu = TableContextMenu::None;
-            Popup::close_id(ctx, popup_id);
+            Popup::close_id(ui.ctx(), popup_id);
         }
         let width = match self.instance_view.context_menu {
             TableContextMenu::CellMenu(_, _, _) => 500.0,
@@ -606,7 +604,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
                 TableContextMenu::RefColumnMenu(_pos) => {
@@ -621,7 +619,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
                 TableContextMenu::ColumnMenu(_pos, column_predicate) => {
@@ -678,7 +676,7 @@ impl TypeData {
 
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
                 TableContextMenu::CellMenu(_pos, instance_index, predicate) => {
@@ -702,7 +700,7 @@ impl TypeData {
 
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
                 TableContextMenu::RefMenu(_pos, instance_index) => {
@@ -781,7 +779,7 @@ impl TypeData {
                     }
                     if close_menu {
                         self.instance_view.context_menu = TableContextMenu::None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
                 TableContextMenu::QueryColumnMenu(_,_ ,_ ) => {}
@@ -1011,7 +1009,6 @@ impl TypeInstanceIndex {
 
     pub fn display(
         &mut self,
-        ctx: &egui::Context,
         ui: &mut egui::Ui,
         rdf_data: &mut RdfData,
         layout_data: &mut UIState,
@@ -1130,7 +1127,7 @@ impl TypeInstanceIndex {
                                 let type_cell_action =
                                     type_data.display_references(ui, &label_context, &rdf_data.node_data);
                                 if let TypeCellAction::ShowRefTypes(pos, predicate_index) = type_cell_action {
-                                    Popup::open_id(ctx, popup_id);
+                                    Popup::open_id(ui.ctx(), popup_id);
                                     self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
                                 }
                             });
@@ -1170,14 +1167,14 @@ impl TypeInstanceIndex {
                                     }
                                     if close_menu {
                                         self.type_cell_action = TypeCellAction::None;
-                                        Popup::close_id(ctx, popup_id);
+                                        Popup::close_id(ui.ctx(), popup_id);
                                     }
                                 }
                                 TypeCellAction::ShowValueStatistics(_pos) => {
                                     if let Some(value_statistics) = &self.value_statistics {
                                         if value_statistics.show_ui(ui, &rdf_data) {
                                             self.value_statistics = None;
-                                            Popup::close_id(ctx, popup_id);
+                                            Popup::close_id(ui.ctx(), popup_id);
                                         }
                                     }
                                 }
@@ -1273,7 +1270,6 @@ impl TypeInstanceIndex {
                         strip.cell(|ui| {
                             type_data.instance_table(
                                 ui,
-                                ctx,
                                 &mut table_action,
                                 &mut instance_action,
                                 &mut rdf_data.node_data,
@@ -1476,7 +1472,7 @@ impl TypeInstanceIndex {
                     TableAction::ValueStatistics(predicate, mouse_pos) => {
                        self.value_statistics = Some(type_data.calculate_value_statistics(predicate, &rdf_data.node_data));
                        self.type_cell_action = TypeCellAction::ShowValueStatistics(mouse_pos);
-                       Popup::open_id(ctx, popup_id);
+                       Popup::open_id(ui.ctx(), popup_id);
                     }
                     TableAction::None => {}
                 }

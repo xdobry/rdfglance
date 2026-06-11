@@ -1,0 +1,592 @@
+[
+	{
+		"@id": "http://example.org/it#Admin",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Administrator",
+				"@language": "en"
+			},
+			{
+				"@value": "Administrator",
+				"@language": "de"
+			},
+			{
+				"@value": "Administrator",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Application",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Application",
+				"@language": "en"
+			},
+			{
+				"@value": "Anwendung",
+				"@language": "de"
+			},
+			{
+				"@value": "Aplikacja",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Computer",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Computer",
+				"@language": "en"
+			},
+			{
+				"@value": "Computer",
+				"@language": "de"
+			},
+			{
+				"@value": "Komputer",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Database",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Database",
+				"@language": "en"
+			},
+			{
+				"@value": "Datenbank",
+				"@language": "de"
+			},
+			{
+				"@value": "Baza danych",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Firewall",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Firewall",
+				"@language": "en"
+			},
+			{
+				"@value": "Firewall",
+				"@language": "de"
+			},
+			{
+				"@value": "Zapora sieciowa",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Network",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Network",
+				"@language": "en"
+			},
+			{
+				"@value": "Netzwerk",
+				"@language": "de"
+			},
+			{
+				"@value": "Sieć",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Router",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Router",
+				"@language": "en"
+			},
+			{
+				"@value": "Router",
+				"@language": "de"
+			},
+			{
+				"@value": "Router",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Server",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Server",
+				"@language": "en"
+			},
+			{
+				"@value": "Server",
+				"@language": "de"
+			},
+			{
+				"@value": "Serwer",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#Switch",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Switch",
+				"@language": "en"
+			},
+			{
+				"@value": "Switch",
+				"@language": "de"
+			},
+			{
+				"@value": "Przełącznik",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#User",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#Class"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "User",
+				"@language": "en"
+			},
+			{
+				"@value": "Benutzer",
+				"@language": "de"
+			},
+			{
+				"@value": "Użytkownik",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#admin1",
+		"@type": [
+			"http://example.org/it#Admin"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "System Administrator",
+				"@language": "en"
+			},
+			{
+				"@value": "Systemadministrator",
+				"@language": "de"
+			},
+			{
+				"@value": "Administrator systemu",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#manages": [
+			{
+				"@id": "http://example.org/it#srv1"
+			},
+			{
+				"@id": "http://example.org/it#srv2"
+			},
+			{
+				"@id": "http://example.org/it#db1"
+			},
+			{
+				"@id": "http://example.org/it#app1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#app1",
+		"@type": [
+			"http://example.org/it#Application"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "CRM Application",
+				"@language": "en"
+			},
+			{
+				"@value": "CRM-Anwendung",
+				"@language": "de"
+			},
+			{
+				"@value": "Aplikacja CRM",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#installedOn": [
+			{
+				"@id": "http://example.org/it#srv1"
+			}
+		],
+		"http://example.org/it#uses": [
+			{
+				"@id": "http://example.org/it#db1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#connectedTo",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#ObjectProperty"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "connected to",
+				"@language": "en"
+			},
+			{
+				"@value": "verbunden mit",
+				"@language": "de"
+			},
+			{
+				"@value": "połączony z",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#db1",
+		"@type": [
+			"http://example.org/it#Database"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Main Database",
+				"@language": "en"
+			},
+			{
+				"@value": "Hauptdatenbank",
+				"@language": "de"
+			},
+			{
+				"@value": "Główna baza danych",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#hostedBy": [
+			{
+				"@id": "http://example.org/it#srv1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#firewall1",
+		"@type": [
+			"http://example.org/it#Firewall"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Perimeter Firewall",
+				"@language": "en"
+			},
+			{
+				"@value": "Perimeter-Firewall",
+				"@language": "de"
+			},
+			{
+				"@value": "Zapora perymetryczna",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#connectedTo": [
+			{
+				"@id": "http://example.org/it#router1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#hosts",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#ObjectProperty"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "hosts",
+				"@language": "en"
+			},
+			{
+				"@value": "hostet",
+				"@language": "de"
+			},
+			{
+				"@value": "hostuje",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#installedOn",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#ObjectProperty"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "installed on",
+				"@language": "en"
+			},
+			{
+				"@value": "installiert auf",
+				"@language": "de"
+			},
+			{
+				"@value": "zainstalowany na",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#manages",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#ObjectProperty"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "manages",
+				"@language": "en"
+			},
+			{
+				"@value": "verwaltet",
+				"@language": "de"
+			},
+			{
+				"@value": "zarządza",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#net1",
+		"@type": [
+			"http://example.org/it#Network"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Office Network",
+				"@language": "en"
+			},
+			{
+				"@value": "Büronetzwerk",
+				"@language": "de"
+			},
+			{
+				"@value": "Sieć biurowa",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#router1",
+		"@type": [
+			"http://example.org/it#Router"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Office Router",
+				"@language": "en"
+			},
+			{
+				"@value": "Büro-Router",
+				"@language": "de"
+			},
+			{
+				"@value": "Router biurowy",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#connectedTo": [
+			{
+				"@id": "http://example.org/it#net1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#srv1",
+		"@type": [
+			"http://example.org/it#Server"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Web Server",
+				"@language": "en"
+			},
+			{
+				"@value": "Webserver",
+				"@language": "de"
+			},
+			{
+				"@value": "Serwer WWW",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#connectedTo": [
+			{
+				"@id": "http://example.org/it#switch1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#srv2",
+		"@type": [
+			"http://example.org/it#Server"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Mail Server",
+				"@language": "en"
+			},
+			{
+				"@value": "Mailserver",
+				"@language": "de"
+			},
+			{
+				"@value": "Serwer poczty",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#connectedTo": [
+			{
+				"@id": "http://example.org/it#switch1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#switch1",
+		"@type": [
+			"http://example.org/it#Switch"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Main Switch",
+				"@language": "en"
+			},
+			{
+				"@value": "Haupt-Switch",
+				"@language": "de"
+			},
+			{
+				"@value": "Główny przełącznik",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#connectedTo": [
+			{
+				"@id": "http://example.org/it#router1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#user1",
+		"@type": [
+			"http://example.org/it#User"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Alice",
+				"@language": "en"
+			},
+			{
+				"@value": "Alice",
+				"@language": "de"
+			},
+			{
+				"@value": "Alicja",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#uses": [
+			{
+				"@id": "http://example.org/it#app1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#user2",
+		"@type": [
+			"http://example.org/it#User"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "Bob",
+				"@language": "en"
+			},
+			{
+				"@value": "Bob",
+				"@language": "de"
+			},
+			{
+				"@value": "Bohdan",
+				"@language": "pl"
+			}
+		],
+		"http://example.org/it#uses": [
+			{
+				"@id": "http://example.org/it#app1"
+			}
+		]
+	},
+	{
+		"@id": "http://example.org/it#uses",
+		"@type": [
+			"http://www.w3.org/2002/07/owl#ObjectProperty"
+		],
+		"http://www.w3.org/2000/01/rdf-schema#label": [
+			{
+				"@value": "uses",
+				"@language": "en"
+			},
+			{
+				"@value": "nutzt",
+				"@language": "de"
+			},
+			{
+				"@value": "używa",
+				"@language": "pl"
+			}
+		]
+	},
+	{
+		"@id": "http://www.w3.org/2002/07/owl#Class"
+	},
+	{
+		"@id": "http://www.w3.org/2002/07/owl#ObjectProperty"
+	}
+]

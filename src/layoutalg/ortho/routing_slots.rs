@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use egui::{Pos2, Rect as ERect, emath::easing::cubic_in};
+use egui::{Pos2, Rect as ERect};
 
 use crate::{dbgorth, layoutalg::ortho::{channels::ChannelPortType, route_sorting::TopologyRouting, routing::{BendDirection, NodePort}}, uistate::layout::Edge};
 

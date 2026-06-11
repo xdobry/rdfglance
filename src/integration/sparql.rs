@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::BufReader;
 
 use crate::domain::{NObject, NodeData};
@@ -19,16 +18,30 @@ impl SparqlAdapter {
             // client: Client::builder().no_proxy().build().unwrap(),
         }
     }
+
+    fn encode_form_component(value: &str) -> String {
+        let mut encoded = String::with_capacity(value.len());
+        for b in value.bytes() {
+            match b {
+                b'A'..=b'Z'
+                | b'a'..=b'z'
+                | b'0'..=b'9'
+                | b'-'
+                | b'_'
+                | b'.'
+                | b'~' => encoded.push(b as char),
+                b' ' => encoded.push('+'),
+                _ => encoded.push_str(&format!("%{:02X}", b)),
+            }
+        }
+        encoded
+    }
 }
 
 impl RDFAdapter for SparqlAdapter {
     fn load_object(&mut self, iri: &str, node_data: &mut NodeData) -> Option<NObject> {
         let triples = {
             let response = {
-                let mut form_data = HashMap::new();
-                form_data.insert("limit", "500");
-                form_data.insert("infer", "false");
-                form_data.insert("offset", "0");
                 let query = format!(
                     r#"construct {{
    ?o ?p ?v.
@@ -41,7 +54,10 @@ where {{
 }} limit 500"#,
                     iri
                 );
-                form_data.insert("query", query.as_str());
+                let form_body = format!(
+                    "limit=500&infer=false&offset=0&query={}",
+                    SparqlAdapter::encode_form_component(&query)
+                );
                 // println!("Query: {}", query);
                 match self.client
                     .post(&self.endpoint)
@@ -50,7 +66,7 @@ where {{
                         "application/x-www-form-urlencoded;charset=UTF-8",
                     )
                     .header("Accept", "text/turtle")
-                    .form(&form_data)
+                    .body(form_body)
                     .send()
                 {
                     Ok(response) => response,

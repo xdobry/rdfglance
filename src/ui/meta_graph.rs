@@ -10,7 +10,7 @@ const NODE_RMIN: f32 = 4.0;
 const NODE_RMAX: f32 = 80.0;
 
 impl RdfGlanceApp {
-    pub fn show_meta_graph(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_meta_graph(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut node_action = NodeAction::None;
 
         ui.horizontal(|ui| {
@@ -31,7 +31,7 @@ impl RdfGlanceApp {
                 self.meta_nodes.update_node_shapes = true;
             }
             self.meta_nodes
-                .show_handle_layout_ui(ctx, ui, &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                .show_handle_layout_ui(ui, &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             ui.label("nodes force");
             let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
@@ -60,8 +60,8 @@ impl RdfGlanceApp {
             }
         });
 
-        egui::SidePanel::right("right_panel")
-            .exact_width(500.0)
+        egui::Panel::right("right_panel")
+            .exact_size(500.0)
             .show_inside(ui, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
                     let detail_node_action = self.display_type_node_details(ui);
@@ -83,7 +83,7 @@ impl RdfGlanceApp {
             let mut node_to_hover: Option<IriIndex> = None;
             let mut was_action = false;
 
-            let global_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+            let global_mouse_pos = ui.ctx().pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
 
             let scene = egui::Scene::new().zoom_range(0.3..=4.0);
             scene.show(ui, &mut self.meta_graph_state.scene_rect, |ui| {
@@ -101,14 +101,14 @@ impl RdfGlanceApp {
                 // so we need to handle events manually by input and if input are consumed
                 // after it create big interact area that consume all events
 
-                let transform = ctx.layer_transform_to_global(ui.layer_id());
+                let transform = ui.ctx().layer_transform_to_global(ui.layer_id());
                 let mouse_pos = if let Some(transform) = transform {
-                    let local_mouse_pos = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                    let local_mouse_pos = ui.ctx().pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
                     transform.inverse() * local_mouse_pos
                 } else {
                     Pos2::new(0.0, 0.0)
                 };
-                ctx.input(|input| {
+                ui.ctx().input(|input| {
                     single_clicked = input.pointer.button_clicked(egui::PointerButton::Primary);
                     secondary_clicked = input.pointer.button_clicked(egui::PointerButton::Secondary);
                     double_clicked = input.pointer.button_double_clicked(egui::PointerButton::Primary);
@@ -289,7 +289,7 @@ impl RdfGlanceApp {
     
                     let popup_id = ui.make_persistent_id("mnode_context_menu");
                     if was_context_click {
-                        Popup::toggle_id(ctx, popup_id);
+                        Popup::toggle_id(ui.ctx(), popup_id);
                     }
     
                     popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
@@ -335,7 +335,7 @@ impl RdfGlanceApp {
                             }
                             if close_menu {
                                 self.ui_state.context_menu_node = None;
-                                Popup::close_id(ctx, popup_id);
+                                Popup::close_id(ui.ctx(), popup_id);
                             }
                         } else {
                             ui.label("no node selected");
@@ -377,7 +377,7 @@ impl RdfGlanceApp {
 
                     if !was_context_click && (secondary_clicked || single_clicked) {
                         self.ui_state.context_menu_node = None;
-                        Popup::close_id(ctx, popup_id);
+                        Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
             });

@@ -24,7 +24,7 @@ enum StatisticsTableAction {
 }
 
 impl RdfGlanceApp {
-    pub fn show_statistics(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_statistics(&mut self, ui: &mut egui::Ui) -> NodeAction {
         if self.statistics_data.is_some() {
             ui.horizontal(|ui| {
                 ui.label("Statistics Data Available");
@@ -71,14 +71,14 @@ impl RdfGlanceApp {
                     }
                 }
             });
-            self.show_statistics_data(ctx, ui)
+            self.show_statistics_data(ui)
         } else {
             ui.label("No Statistics Data yet. Add some nodes to visual graph and run statistics algorithms on this");
             NodeAction::None
         }
     }
 
-    pub fn show_statistics_data(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_statistics_data(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut instance_action = NodeAction::None;
         if let Some(statistics_data) = self.statistics_data.as_mut() {
             let needed_len = (statistics_data.nodes.len() + 2) as f32 * ROW_HIGHT;
@@ -91,7 +91,6 @@ impl RdfGlanceApp {
                         if let Ok(mut rdf_data) = self.rdf_data.write() {
                             statistics_data.instance_table(
                                 ui,
-                                ctx,
                                 &mut rdf_data,
                                 &mut instance_action,
                                 &self.ui_state,
@@ -119,7 +118,6 @@ impl StatisticsData {
     pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
         rfd_data: &mut RdfData,
         instance_action: &mut NodeAction,
         layout_data: &UIState,
@@ -152,7 +150,7 @@ impl StatisticsData {
         let mut primary_down = false;
         let mut sort_idx: Option<usize> = None;
 
-        ctx.input(|i| {
+        ui.ctx().input(|i| {
             if i.pointer.button_pressed(egui::PointerButton::Primary) {
                 primary_down = true;
             }

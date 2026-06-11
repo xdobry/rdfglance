@@ -341,17 +341,6 @@ impl NodePort {
     }
 }
 
-
-#[derive(Debug)]
-struct OppositePort {
-    node_id_ls: usize,
-    node_id_gt: usize,
-    channel_idx: usize,
-    side_ls: Side,
-    side_gt: Side,
-}
-
-
 pub fn create_routing_graph(boxes: &[ERect]) -> RoutingGraph {
     let (mut vchannels, mut hchannels) = build_channels(boxes);
     let mut cross_points: Vec<(usize,usize,Pos2)> = Vec::new();
@@ -821,7 +810,7 @@ pub fn map_routes_to_segments(routing_graph: &RoutingGraph, boxes: &[ERect], rou
                     }
                 },
                 RNodeType::BendPoint(vindex,hindex) => {
-                    if let Some((last_channel_id,orientation)) = last_channel.take() {
+                    if let Some((_last_channel_id,orientation)) = last_channel.take() {
                         let channel_slot = edge_route.channel_slots[point_idx -1];
                         let (crossing_channel_id, vslot, hslot) = if orientation == Orientation::Vertical {
                             (*hindex, channel_slot, edge_route.channel_slots[point_idx])

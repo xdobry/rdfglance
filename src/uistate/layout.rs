@@ -9,7 +9,7 @@ use crate::{
 use eframe::egui::Vec2;
 use egui::Pos2;
 use fixedbitset::FixedBitSet;
-use rand::Rng;
+use rand::{RngExt};
 use rayon::prelude::*;
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
@@ -679,7 +679,6 @@ impl SortedNodeLayout {
 
     pub fn show_handle_layout_ui(
         &mut self,
-        ctx: &egui::Context,
         ui: &mut egui::Ui,
         config: &Config,
         hidden_predicates: &SortedVec,
@@ -692,7 +691,7 @@ impl SortedNodeLayout {
                     layout_handle.join_handle.join().unwrap();
                 }
             }
-            ctx.request_repaint();
+            ui.ctx().request_repaint();
         }
         let mut keep_temperature = self.keep_temperature.load(Ordering::Relaxed);
         #[cfg(target_arch = "wasm32")]
@@ -722,7 +721,7 @@ impl SortedNodeLayout {
             }
             if self.compute_layout || keep_temperature {
                 self.compute_layout = true;
-                ctx.request_repaint();
+                ui.ctx().request_repaint();
             }
         }
         if self.layout_handle.is_none() {
