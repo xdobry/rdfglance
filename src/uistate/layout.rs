@@ -984,6 +984,7 @@ impl SortedNodeLayout {
             edges_pos_to_remove.sort_unstable();
             edges_pos_to_remove.dedup();
             for pos in edges_pos_to_remove.iter().rev() {
+                // TODO could be optimized - store edge indixes to keep, recreate vector of edges
                 edges.remove(*pos);
             }
             // println!("Removed {} redundant edges", edges.len());

@@ -106,8 +106,9 @@ So every node have a assigned rdf type. The program index and show all data usin
 
 Some features of RDF are not supported very well. This includes:
 
-- named graphs
+- named graphs not supported
 - RDF list (you may resolve the lists to simple predicates. The order are preserved)
+- RDF-star (RDF*) not supported
 
 I hope to improve it in later versions.
 You may use github issue system to report bug and feature wishes.

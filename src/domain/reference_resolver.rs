@@ -12,6 +12,7 @@ pub fn resolve_references(node_data: &mut NodeData, type_instance_index: &TypeIn
     // create index of the to types
     // Map<short string index, instance index>
     let mut to_index: HashMap<IriIndex, IriIndex> = HashMap::new();
+    // TODO can be optimized by rayon
     type_instance_index.types.get(&to_type).map(|type_data| {
         for inst_index in type_data.instances.iter() {
             let node = node_data.get_node_by_index(*inst_index);

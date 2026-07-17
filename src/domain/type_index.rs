@@ -128,7 +128,8 @@ pub enum InstanceColumnResize {
     Predicate(Pos2, IriIndex),
     Iri(Pos2),
     Refs(Pos2),
-    QueryPredicate(Pos2, IriIndex, usize), //  u32 is query table row index
+    QueryPredicate(Pos2, IriIndex, usize), //  usize is query table row index
+    QueryAggregation(Pos2, usize) // usize is aggregation index global
 }
 
 pub enum TableContextMenu {
@@ -139,6 +140,7 @@ pub enum TableContextMenu {
     IriColumnMenu(Pos2),
     RefColumnMenu(Pos2),
     QueryColumnMenu(Pos2, IriIndex, usize),
+    AggregationColumnMenu(Pos2, usize), // usize is aggregation index global
 }
 
 impl Default for InstanceView {
@@ -313,6 +315,7 @@ impl ValueStatistics {
         } else {
             None
         };
+        // TODO can be optimized by rayon
         for instance_index in iter {
             if let Some((_iri, nobject)) = node_data.get_node_by_index(*instance_index) {
                 let mut found = false;

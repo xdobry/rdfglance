@@ -1,0 +1,152 @@
+@prefix ex: <http://example.org/university/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+############################
+# Faculties
+############################
+
+ex:ComputerScience
+    a ex:Faculty ;
+    ex:name "Faculty of Computer Science" .
+
+ex:Mathematics
+    a ex:Faculty ;
+    ex:name "Faculty of Mathematics" .
+
+############################
+# Professors
+############################
+
+ex:ProfSmith
+    a ex:Professor ;
+    ex:name "John Smith" ;
+    ex:employeeId "P1001" ;
+    ex:email "john.smith@university.edu" ;
+    ex:worksFor ex:ComputerScience ;
+    ex:teaches ex:Algorithms,
+                ex:Databases .
+
+ex:ProfMiller
+    a ex:Professor ;
+    ex:name "Sarah Miller" ;
+    ex:employeeId "P1002" ;
+    ex:worksFor ex:ComputerScience ;
+    ex:teaches ex:Programming .
+
+ex:ProfBrown
+    a ex:Professor ;
+    ex:name "David Brown" ;
+    ex:employeeId "P2001" ;
+    ex:worksFor ex:Mathematics ;
+    ex:teaches ex:LinearAlgebra .
+
+ex:ProfWilson
+    a ex:Professor ;
+    ex:name "Emma Wilson" ;
+    ex:employeeId "P2002" ;
+    ex:worksFor ex:Mathematics ;
+    ex:teaches ex:Statistics .
+
+############################
+# Courses
+############################
+
+ex:Algorithms
+    a ex:Course ;
+    ex:name "Algorithms" ;
+    ex:courseCode "CS301" .
+
+ex:Databases
+    a ex:Course ;
+    ex:name "Database Systems" ;
+    ex:courseCode "CS302" .
+
+ex:Programming
+    a ex:Course ;
+    ex:name "Introduction to Programming" ;
+    ex:courseCode "CS101" .
+
+ex:LinearAlgebra
+    a ex:Course ;
+    ex:name "Linear Algebra" ;
+    ex:courseCode "MA201" .
+
+ex:Statistics
+    a ex:Course ;
+    ex:name "Statistics" ;
+    ex:courseCode "MA301" .
+
+############################
+# Faculty -> Courses
+############################
+
+ex:ComputerScience
+    ex:offersCourse
+        ex:Programming,
+        ex:Algorithms,
+        ex:Databases .
+
+ex:Mathematics
+    ex:offersCourse
+        ex:LinearAlgebra,
+        ex:Statistics .
+
+############################
+# Students
+############################
+
+ex:Alice
+    a ex:Student ;
+    ex:name "Alice Johnson" ;
+    ex:studentId "S10001" ;
+    ex:memberOf ex:ComputerScience ;
+    ex:enrolledIn ex:Programming,
+                  ex:Algorithms .
+
+ex:Bob
+    a ex:Student ;
+    ex:name "Bob Davis" ;
+    ex:studentId "S10002" ;
+    ex:memberOf ex:ComputerScience ;
+    ex:enrolledIn ex:Programming,
+                  ex:Databases .
+
+ex:Carol
+    a ex:Student ;
+    ex:name "Carol White" ;
+    ex:studentId "S10003" ;
+    ex:memberOf ex:ComputerScience ;
+    ex:enrolledIn ex:Algorithms,
+                  ex:Databases .
+
+ex:Daniel
+    a ex:Student ;
+    ex:name "Daniel Thomas" ;
+    ex:studentId "S20001" ;
+    ex:memberOf ex:Mathematics ;
+    ex:enrolledIn ex:LinearAlgebra,
+                  ex:Statistics .
+
+ex:Eva
+    a ex:Student ;
+    ex:name "Eva Martin" ;
+    ex:studentId "S20002" ;
+    ex:memberOf ex:Mathematics ;
+    ex:enrolledIn ex:Statistics,
+                  ex:Programming .
+
+ex:Frank
+    a ex:Student ;
+    ex:name "Frank Moore" ;
+    ex:studentId "S20003" ;
+    ex:memberOf ex:Mathematics ;
+    ex:enrolledIn ex:LinearAlgebra,
+                  ex:Algorithms .
+
+ex:Peter
+    a ex:Student ;
+    ex:name "Peter Grob" ;
+    ex:studentId "S20004" ;
+    ex:memberOf ex:Mathematics .

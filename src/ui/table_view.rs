@@ -36,6 +36,7 @@ impl TableContextMenu {
             TableContextMenu::IriColumnMenu(pos) => *pos,
             TableContextMenu::None => Pos2::new(0.0, 0.0),
             TableContextMenu::QueryColumnMenu(pos,_ ,_ ) => *pos,
+            TableContextMenu::AggregationColumnMenu(pos, _) => *pos,
         }
     }
 }
@@ -225,7 +226,7 @@ impl TypeData {
                         self.instance_view.ref_count_width = width;
                     }
                 }
-                InstanceColumnResize::QueryPredicate(_, _, _) => {
+                InstanceColumnResize::QueryPredicate(_, _, _) | InstanceColumnResize::QueryAggregation(_, _) => {
 
                 }
             }
@@ -782,8 +783,7 @@ impl TypeData {
                         Popup::close_id(ui.ctx(), popup_id);
                     }
                 }
-                TableContextMenu::QueryColumnMenu(_,_ ,_ ) => {}
-                TableContextMenu::None => {}
+                _ => {}
             },
         );
     }

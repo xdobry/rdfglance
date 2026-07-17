@@ -7,17 +7,11 @@ use const_format::concatcp;
 use rfd::FileDialog;
 
 use crate::{
-    IriIndex, RdfGlanceApp, 
-    domain::{
-        LabelContext, RdfData, graph_styles::NodeStyle, rdf_data, 
-        type_index::{InstanceColumnResize, TableContextMenu, TypeInstanceIndex, ValueStatistics}, 
-        visual_query::{PredicateFilter, QueryReference, TableQuery}
-    }, 
-    support::uitools::{ScrollBar, popup_at, primary_color}, 
-    ui::{draw_node_label, 
+    IriIndex, RdfGlanceApp, domain::{
+        LabelContext, RdfData, graph_styles::NodeStyle, rdf_data, type_index::{InstanceColumnResize, TableContextMenu, TypeInstanceIndex, ValueStatistics}, visual_query::{AggregationType, PredicateAggregation, PredicateFilter, QueryReference, TableQuery}
+    }, support::uitools::{ScrollBar, popup_at, primary_color}, ui::{draw_node_label, 
         style::{ICON_CLEAN_ALL, ICON_CLOSE, ICON_EXPORT, ICON_LINK, ICON_REV_LINK, ICON_RUN}, 
-        table_view::{CHAR_WIDTH, COLUMN_GAP, ROW_HIGHT, text_wrapped}}, 
-    uistate::{actions::NodeAction, ref_selection::RefSelection, SystemMessage} 
+        table_view::{CHAR_WIDTH, COLUMN_GAP, ROW_HIGHT, text_wrapped}}, uistate::{SystemMessage, actions::NodeAction, ref_selection::RefSelection} 
 };
 
 const TABLE_V_GAP: f32 = 50.0;
@@ -38,6 +32,7 @@ impl RdfGlanceApp {
             if let Some(selected_type) = self.ui_state.visual_query.selected_type_iri {
                 let mut export_csv = false;
                 if let Ok(rdf_data) = self.rdf_data.read() {
+                    let rows_len = self.visual_query.len();
                     if let Some(table_query) = self.visual_query.root_table.as_mut() {
                         ui.horizontal(|ui| {
                             let any_popup = Popup::is_any_open(ui.ctx());
@@ -51,13 +46,14 @@ impl RdfGlanceApp {
                             }
                             if key_run || ui.button(concatcp!(ICON_RUN, " Run (F5)")).clicked() {
                                 if let Some(type_data) = self.type_index.types.get(&table_query.type_iri) {
-                                    table_query.instances = type_data.query_instances_for_table_query(table_query, &rdf_data);
+                                    (self.visual_query.tables_pro_row, self.visual_query.aggregations_pro_row) = table_query.refresh_table_data();                                   
+                                    let instances = type_data.query_instances_for_table_query(table_query, &rdf_data);
+                                    self.visual_query.instance_view.pos = 0.0;
+                                    (self.visual_query.instances, self.visual_query.aggregated_values) = table_query.compute_instances(&rdf_data, &instances);
                                 }
-                                self.visual_query.instance_view.pos = 0.0;
-                                self.visual_query.instances = table_query.compute_instances(&rdf_data);
                             }
-                            if !self.visual_query.instances.is_empty() {
-                                ui.label((self.visual_query.instances.len() / self.visual_query.tables_pro_row).to_string());
+                            if rows_len>0 {
+                                ui.label(rows_len.to_string());
                                 if ui.button(concatcp!(ICON_EXPORT, " Export CSV")).clicked() {
                                     export_csv = true;
                                 }
@@ -101,6 +97,7 @@ impl RdfGlanceApp {
         ui.allocate_ui(Vec2::new(available_width, PANEL_H), |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.set_height(PANEL_H);
+                let mut structure_updated = false;
                 if let Ok(rdf_data) = self.rdf_data.read() {
                     let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &rdf_data.prefix_manager);
                     egui::Panel::right("details_panel")
@@ -108,13 +105,12 @@ impl RdfGlanceApp {
                         .show_inside(ui, |ui| {
                             egui::ScrollArea::both().show(ui, |ui| {
                                 if let Some(table_query) = self.visual_query.root_table.as_mut() {
-                                    show_query_table_details(ui, table_query, &rdf_data, &label_context, &self.type_index, self.visual_query.selected_table);
+                                    show_query_table_details(ui, table_query, &rdf_data, &label_context, &self.type_index, self.visual_query.selected_table, &mut structure_updated);
                                 }
                             });
                     });
                     egui::CentralPanel::default().show_inside(ui, |ui| {
                         if let Some(mut table_query) = self.visual_query.root_table.as_mut() {
-                            let mut structure_updated = false;
                             let mut selected_table = self.visual_query.selected_table;
                             let offset = ui.next_widget_position();
                             let mut show_context = QueryTableShowContext {
@@ -131,8 +127,9 @@ impl RdfGlanceApp {
                                 self.visual_query.clear_instances();
                                 self.visual_query.root_table = None;
                             } else if structure_updated {
-                                let tables_count = table_query.refresh_table_data();
-                                self.visual_query.tables_pro_row = tables_count;
+                                let (tables_pro_row, aggregations_pro_row) = table_query.refresh_table_data();
+                                self.visual_query.tables_pro_row = tables_pro_row;
+                                self.visual_query.aggregations_pro_row = aggregations_pro_row;
                                 layout_tree(ui.available_width()-PANEL_W, PANEL_H, &mut table_query, Vec2::new(TABLE_W, TABLE_H) , TABLE_H_GAP, TABLE_V_GAP);
                                 self.visual_query.clear_instances();
                             }
@@ -145,7 +142,11 @@ impl RdfGlanceApp {
             });
         });
 
-        let needed_len = (self.visual_query.instances.len()/self.visual_query.tables_pro_row + 2) as f32 * ROW_HIGHT;
+        let needed_len = if self.visual_query.tables_pro_row>0 {
+            (self.visual_query.instances.len()/self.visual_query.tables_pro_row + 2) as f32 * ROW_HIGHT
+        } else {
+            (self.visual_query.aggregated_values.len()/self.visual_query.aggregations_pro_row + 2) as f32 * ROW_HIGHT
+        };
         let a_height = ui.available_height();
         StripBuilder::new(ui)
             .size(egui_extras::Size::remainder())
@@ -194,11 +195,11 @@ impl RdfGlanceApp {
             }
             let popup_id = ui.make_persistent_id("query_context_menu");
             let mut was_context_click = false;
+            let mut start_xpos_agg = 0.0;
 
             if let Some(table_query) = self.visual_query.root_table.as_mut() {
                 if response.dragged() {
                     match self.visual_query.instance_view.column_resize {
-                        InstanceColumnResize::None => {}
                         InstanceColumnResize::QueryPredicate(start_pos, predicate_index, table_idx) => {
                             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
                             for table_query in table_query.iter_tables_mut() {
@@ -209,8 +210,21 @@ impl RdfGlanceApp {
                                             if width > CHAR_WIDTH * 2.0 {
                                                 column_desc.width = width;
                                             }
+                                            break;
                                         }
                                     }
+                                }
+                            }
+                        }
+                        InstanceColumnResize::QueryAggregation(start_pos, agg_idx) => {
+                            ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                            for table_query in table_query.iter_tables_mut() {
+                                if agg_idx>=table_query.aggregation_index && agg_idx<table_query.aggregation_index+table_query.aggregations.len() {
+                                    let width = mouse_pos.x - start_pos.x;
+                                    if width > CHAR_WIDTH * 2.0 {
+                                        table_query.aggregations[agg_idx-table_query.aggregation_index].width = width;
+                                    }
+                                    break;
                                 }
                             }
                         }
@@ -227,128 +241,250 @@ impl RdfGlanceApp {
                 let mut xpos = 0.0;
                 // Draw columns headers
                 for table_query in table_query.iter_tables_mut() {
-                    for column_desc in table_query.visible_predicates
-                        .iter()
-                        .filter(|p| p.visible) {
+                    if table_query.aggregations.len()==0 {
+                        for column_desc in table_query.visible_predicates
+                            .iter()
+                            .filter(|p| p.visible) {
+                            let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
+                            let predicate_label =
+                                rdf_data.node_data.predicate_display(column_desc.predicate_index, &label_context, &rdf_data.node_data.indexers);
+                            text_wrapped(
+                                predicate_label.as_str(),
+                                column_desc.width,
+                                painter,
+                                top_left,
+                                false,
+                                true,
+                                ui.visuals(),
+                            );
+                            xpos += column_desc.width + COLUMN_GAP;
+                            let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
+                            if column_rect.contains(mouse_pos) {
+                                if secondary_clicked {
+                                    was_context_click = true;
+                                    Popup::open_id(ui.ctx(), popup_id);
+                                    self.visual_query.instance_view.context_menu =
+                                        TableContextMenu::QueryColumnMenu(mouse_pos, column_desc.predicate_index, table_query.row_index);
+                                } else {
+                                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
+                                }
+                            }
+                            let columns_drag_size_rect = egui::Rect::from_min_size(
+                                top_left + Vec2::new(column_desc.width - 3.0, 0.0),
+                                Vec2::new(6.0, ROW_HIGHT),
+                            );
+                            if columns_drag_size_rect.contains(mouse_pos) {
+                                ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                                if primary_down && matches!(self.visual_query.instance_view.column_resize, InstanceColumnResize::None) {
+                                    self.visual_query.instance_view.column_resize = InstanceColumnResize::QueryPredicate(
+                                        mouse_pos - Vec2::new(column_desc.width, 0.0),
+                                        column_desc.predicate_index,
+                                        table_query.row_index,
+                                    );
+                                }
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                // draw aggregated columns if exists
+                start_xpos_agg = xpos;
+                for table_query in table_query.iter_tables_mut() {
+                    for (agg_idx, aggregation) in table_query.aggregations.iter().enumerate() {
                         let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
                         let predicate_label =
-                            rdf_data.node_data.predicate_display(column_desc.predicate_index, &label_context, &rdf_data.node_data.indexers);
+                            rdf_data.node_data.predicate_display(aggregation.predicate_iri, &label_context, &rdf_data.node_data.indexers);
+                        let aggr_label = format!("{}({})",aggregation.aggregation_type,predicate_label.as_str());
                         text_wrapped(
-                            predicate_label.as_str(),
-                            column_desc.width,
+                            aggr_label.as_str(),
+                            aggregation.width,
                             painter,
                             top_left,
                             false,
                             true,
                             ui.visuals(),
                         );
-                        xpos += column_desc.width + COLUMN_GAP;
-                        let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
+                        xpos += aggregation.width + COLUMN_GAP;
+                        let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(aggregation.width, ROW_HIGHT));
                         if column_rect.contains(mouse_pos) {
                             if secondary_clicked {
                                 was_context_click = true;
                                 Popup::open_id(ui.ctx(), popup_id);
                                 self.visual_query.instance_view.context_menu =
-                                    TableContextMenu::QueryColumnMenu(mouse_pos, column_desc.predicate_index, table_query.row_index);
+                                    TableContextMenu::AggregationColumnMenu(mouse_pos, agg_idx+table_query.aggregation_index);
                             } else {
                                 ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
                             }
                         }
+
                         let columns_drag_size_rect = egui::Rect::from_min_size(
-                            top_left + Vec2::new(column_desc.width - 3.0, 0.0),
+                            top_left + Vec2::new(aggregation.width - 3.0, 0.0),
                             Vec2::new(6.0, ROW_HIGHT),
                         );
                         if columns_drag_size_rect.contains(mouse_pos) {
                             ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
                             if primary_down && matches!(self.visual_query.instance_view.column_resize, InstanceColumnResize::None) {
-                                self.visual_query.instance_view.column_resize = InstanceColumnResize::QueryPredicate(
-                                    mouse_pos - Vec2::new(column_desc.width, 0.0),
-                                    column_desc.predicate_index,
-                                    table_query.row_index,
+                                self.visual_query.instance_view.column_resize = InstanceColumnResize::QueryAggregation(
+                                    mouse_pos - Vec2::new(aggregation.width, 0.0),
+                                    table_query.aggregation_index + agg_idx,
                                 );
                             }
                         }
                     }
                 }
+
+
             }
             // draw rows
             let instance_index = (self.visual_query.instance_view.pos / ROW_HIGHT) as usize;
             let capacity = ((a_height / ROW_HIGHT) as usize).max(2) - 1;
             let tables_per_row = self.visual_query.tables_pro_row;
-            let mut start_pos = instance_index;
             let mut ypos = ROW_HIGHT;
-            let instance_slice = &self.visual_query.instances[instance_index*tables_per_row..min((instance_index+capacity)*tables_per_row, self.visual_query.instances.len())];
-            for instances in instance_slice.chunks(tables_per_row) {
-                let mut xpos = 0.0;
-                if start_pos % 2 == 0 {
-                    painter.rect_filled(
-                        Rect::from_min_size(
-                            available_rect.left_top() + Vec2::new(0.0, ypos),
-                            Vec2::new(available_width, ROW_HIGHT),
-                        ),
-                        0.0,
-                        ui.visuals().faint_bg_color,
-                    );
-                }
-                start_pos += 1;
-                if let Some(table_query) = self.visual_query.root_table.as_mut() {
-                    for (table_query, instance_index) in table_query.iter_tables().zip(instances) {
-                        let node = rdf_data.node_data.get_node_by_index(*instance_index);
-                        if let Some((_node_iri, node)) = node {
-                        for column_desc in table_query.visible_predicates
-                            .iter()
-                            .filter(|p| p.visible) {
-                                let property = node.get_property_count(column_desc.predicate_index, self.ui_state.display_language);
-                                if let Some((property, count)) = property {
-                                    let value = property.as_str_ref(&rdf_data.node_data.indexers);
-                                    let cell_rect = egui::Rect::from_min_size(
-                                        available_rect.left_top() + Vec2::new(xpos, ypos),
-                                        Vec2::new(column_desc.width, ROW_HIGHT),
-                                    );
-                                    let mut cell_hovered = false;
-                                    if cell_rect.contains(mouse_pos) {
-                                        cell_hovered = true;
+
+            if tables_per_row>0 {
+                let mut start_pos = instance_index;
+                let instance_slice = &self.visual_query.instances[instance_index*tables_per_row..min((instance_index+capacity)*tables_per_row, self.visual_query.instances.len())];
+                for instances in instance_slice.chunks(tables_per_row) {
+                    let mut xpos = 0.0;
+                    if start_pos % 2 == 0 {
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                available_rect.left_top() + Vec2::new(0.0, ypos),
+                                Vec2::new(available_width, ROW_HIGHT),
+                            ),
+                            0.0,
+                            ui.visuals().faint_bg_color,
+                        );
+                    }
+                    start_pos += 1;
+                    if let Some(table_query) = self.visual_query.root_table.as_mut() {
+                        for (table_query, instance_index) in table_query.iter_tables().zip(instances) {
+                            let node = rdf_data.node_data.get_node_by_index(*instance_index);
+                            if let Some((_node_iri, node)) = node {
+                            for column_desc in table_query.visible_predicates
+                                .iter()
+                                .filter(|p| p.visible) {
+                                    let property = node.get_property_count(column_desc.predicate_index, self.ui_state.display_language);
+                                    if let Some((property, count)) = property {
+                                        let value = property.as_str_ref(&rdf_data.node_data.indexers);
+                                        let cell_rect = egui::Rect::from_min_size(
+                                            available_rect.left_top() + Vec2::new(xpos, ypos),
+                                            Vec2::new(column_desc.width, ROW_HIGHT),
+                                        );
+                                        let mut cell_hovered = false;
+                                        if cell_rect.contains(mouse_pos) {
+                                            cell_hovered = true;
+                                        }
+                                        if count > 1 {
+                                            painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
+                                        }
+                                        text_wrapped(
+                                            value,
+                                            column_desc.width,
+                                            painter,
+                                            cell_rect.left_top(),
+                                            cell_hovered,
+                                            false,
+                                            ui.visuals(),
+                                        );
+                                        if primary_clicked && cell_rect.contains(mouse_pos) {
+                                            was_context_click = true;
+                                            Popup::open_id(ui.ctx(), popup_id);
+                                            self.visual_query.instance_view.ref_selection = RefSelection::None;
+                                            self.visual_query.instance_view.context_menu =
+                                                TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
+                                        }
                                     }
-                                    if count > 1 {
-                                        painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
-                                    }
-                                    text_wrapped(
-                                        value,
-                                        column_desc.width,
-                                        painter,
-                                        cell_rect.left_top(),
-                                        cell_hovered,
-                                        false,
-                                        ui.visuals(),
-                                    );
-                                    if primary_clicked && cell_rect.contains(mouse_pos) {
-                                        was_context_click = true;
-                                        Popup::open_id(ui.ctx(), popup_id);
-                                        self.visual_query.instance_view.ref_selection = RefSelection::None;
-                                        self.visual_query.instance_view.context_menu =
-                                            TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
-                                    }
+                                    xpos += column_desc.width + COLUMN_GAP;
                                 }
-                                xpos += column_desc.width + COLUMN_GAP;
                                 if xpos > available_rect.width() {
                                     break;
                                 }
                             }
                         }
                     }
+                    ypos += ROW_HIGHT;
                 }
-                ypos += ROW_HIGHT;
             }
+
+            // Draw aggregation cells
+            let aggregations_per_row = self.visual_query.aggregations_pro_row;
+            if aggregations_per_row>0 {
+                let mut start_pos = instance_index;
+                ypos = ROW_HIGHT;
+                let mut agg_widths: Vec<f32> = Vec::new();
+                if let Some(table_query) = &self.visual_query.root_table {
+                    for s_table_query in table_query.iter_tables() {
+                        for agg in s_table_query.aggregations.iter() {
+                            agg_widths.push(agg.width);
+                        }
+                    }
+                }
+                let aggregation_values_slice = &self.visual_query.aggregated_values[instance_index*aggregations_per_row..min((instance_index+capacity)*aggregations_per_row, self.visual_query.aggregated_values.len())];
+                for aggregation_values in aggregation_values_slice.chunks(aggregations_per_row) {
+                    let mut xpos = start_xpos_agg;
+                    if start_pos % 2 == 0 {
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                available_rect.left_top() + Vec2::new(0.0, ypos),
+                                Vec2::new(available_width, ROW_HIGHT),
+                            ),
+                            0.0,
+                            ui.visuals().faint_bg_color,
+                        );
+                    }
+                    start_pos += 1;
+                    for (aggregation_value, width) in aggregation_values.iter().zip(&agg_widths) {
+                        let cell_rect = egui::Rect::from_min_size(
+                                            available_rect.left_top() + Vec2::new(xpos, ypos),
+                                            Vec2::new(*width, ROW_HIGHT),
+                                        );
+                        let aggr_display = aggregation_value.to_display_str(&rdf_data.node_data.indexers);
+                        text_wrapped(
+                            aggr_display.as_ref(),
+                            *width,
+                            painter,
+                            cell_rect.left_top(),
+                            false,
+                            true,
+                            ui.visuals(),
+                        );
+                        xpos += width + COLUMN_GAP;            
+                    }
+                    ypos += ROW_HIGHT;
+                }
+            }
+
 
             // Draw vertical lines
             if let Some(table_query) = &self.visual_query.root_table {
                 let mut xpos = 0.0;
                 for table_query in table_query.iter_tables() {
-                    for column_desc in table_query.visible_predicates
-                        .iter()
-                        .filter(|p| p.visible)
-                    {
-                        xpos += column_desc.width;
+                    if table_query.aggregations.len()==0 {
+                        for column_desc in table_query.visible_predicates
+                            .iter()
+                            .filter(|p| p.visible)
+                        {
+                            xpos += column_desc.width;
+                            painter.line(
+                                [
+                                    Pos2::new(available_rect.left() + xpos, available_rect.top()),
+                                    Pos2::new(available_rect.left() + xpos, available_rect.top() + ypos),
+                                ]
+                                .to_vec(),
+                                Stroke::new(1.0, Color32::DARK_GRAY),
+                            );
+                            xpos += COLUMN_GAP;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                for table_query in table_query.iter_tables() {
+                    for aggregation in table_query.aggregations
+                        .iter() {
+                        xpos += aggregation.width;
                         painter.line(
                             [
                                 Pos2::new(available_rect.left() + xpos, available_rect.top()),
@@ -466,6 +602,21 @@ impl RdfGlanceApp {
                                 let value_type = self.visual_query.value_type(table_idx, predicate, &self.type_index);
                                 self.visual_query.value_statistics = Some(ValueStatistics::calculate_value_statistics(predicate, value_type, &rdf_data.node_data, 
                                     self.visual_query.instances.iter().skip(table_idx).step_by(self.visual_query.tables_pro_row)));
+                            }
+                            if close_menu {
+                                self.visual_query.instance_view.context_menu = TableContextMenu::None;
+                                Popup::close_id(ui.ctx(), popup_id);
+                            }
+                        }
+                        TableContextMenu::AggregationColumnMenu(_pos, aggr_idx) => {
+                            let mut close_menu = false;
+                            if ui.button("Sort Asc").clicked() {
+                                self.visual_query.sort_aggr(aggr_idx, true);
+                                close_menu = true;
+                            }
+                            if ui.button("Sort Desc").clicked() {
+                                self.visual_query.sort_aggr(aggr_idx, false);
+                                close_menu = true;
                             }
                             if close_menu {
                                 self.visual_query.instance_view.context_menu = TableContextMenu::None;
@@ -663,7 +814,7 @@ fn show_query_table(table_query: &mut TableQuery, show_context: &mut QueryTableS
 }
 
 pub fn show_query_table_details(ui: &mut egui::Ui, root_table: &mut TableQuery, rdf_data: &rdf_data::RdfData, label_context: &LabelContext, 
-    _type_index: &TypeInstanceIndex, selected_table: Option<usize>) {
+    _type_index: &TypeInstanceIndex, selected_table: Option<usize>, structure_updated: &mut bool) {
     if let Some(selected_table) = selected_table {
         for table_query in root_table.iter_tables_mut() {
             if table_query.row_index == selected_table {
@@ -680,6 +831,7 @@ pub fn show_query_table_details(ui: &mut egui::Ui, root_table: &mut TableQuery, 
                     }
                 });
                 let mut add_filter: Option<IriIndex> = None;
+                let mut add_aggregation: Option<IriIndex> = None;
                 for column_desc in table_query.visible_predicates.iter_mut() {
                     let predicate_str = rdf_data.node_data.predicate_display(column_desc.predicate_index, &label_context, &rdf_data.node_data.indexers);
                     ui.horizontal(|ui| {
@@ -689,13 +841,23 @@ pub fn show_query_table_details(ui: &mut egui::Ui, root_table: &mut TableQuery, 
                                 add_filter = Some(column_desc.predicate_index);
                             }
                         }
+                        if ui.button("Add Aggregation").clicked() {
+                            add_aggregation = Some(column_desc.predicate_index);
+                        }
                     });
                 }
                 if let Some(predicate_iri) = add_filter {
-                    table_query.predicate_filters.push(crate::domain::visual_query::PredicateFilter {
+                    table_query.predicate_filters.push(PredicateFilter {
                         predicate_iri,
                         ..Default::default()
                     });
+                }
+                if let Some(predicate_iri) = add_aggregation {
+                    *structure_updated = true;
+                    table_query.aggregations.push(PredicateAggregation {
+                        predicate_iri,
+                        ..Default::default()
+                    })
                 }
                 // Filters
                 for filter in table_query.predicate_filters.iter_mut() {
@@ -723,6 +885,29 @@ pub fn show_query_table_details(ui: &mut egui::Ui, root_table: &mut TableQuery, 
                     });
                 }
                 table_query.predicate_filters.retain(|f| !f.to_remove);
+                // Aggregations
+                for (agg_idx, aggregation) in table_query.aggregations.iter_mut().enumerate() {
+                    let predicate_str = rdf_data.node_data.predicate_display(aggregation.predicate_iri, 
+                        &label_context, &rdf_data.node_data.indexers);
+                    ui.horizontal(|ui| {
+                        ui.label(predicate_str.as_str());
+                        egui::ComboBox::from_id_salt(format!("aggr_type_{}_{}", predicate_str.as_str(), agg_idx))
+                            .selected_text(aggregation.aggregation_type.to_string())
+                            .show_ui(ui, |ui| {
+                                use strum::IntoEnumIterator;
+                                for aggregation_type in AggregationType::iter() {
+                                    if ui.selectable_label(aggregation.aggregation_type == aggregation_type, aggregation_type.to_string().as_str()).clicked() {
+                                        aggregation.aggregation_type = aggregation_type;
+                                    }
+                                }
+                            });
+                        if ui.button(ICON_CLEAN_ALL).clicked() {
+                            aggregation.to_remove = true;
+                            *structure_updated = true;
+                        }
+                    });
+                }
+                table_query.aggregations.retain(|f| !f.to_remove);
                 break;
             }
         }
