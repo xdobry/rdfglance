@@ -12,6 +12,7 @@ pub enum Literal {
     StringShort(IriIndex),
     String(IndexSpan),
     LangString(LangIndex, IndexSpan),
+    LangShortString(LangIndex, IriIndex),
     TypedString(DataTypeIndex, IndexSpan),
     NoValue(),
 }
@@ -29,6 +30,10 @@ impl Literal {
             }
             Literal::LangString(_index, str) => {
                 let str = indexers.literal_cache.get_str(*str);
+                str
+            }
+            Literal::LangShortString(_lang_index, index) => {
+                let str = indexers.short_literal_indexer.index_to_str(*index).unwrap();
                 str
             }
             Literal::TypedString(_type, str) => {
@@ -50,6 +55,9 @@ impl Literal {
             }
             Literal::LangString(_index, _str) => {
                 ValueTypes::LANG_STRING
+            }
+            Literal::LangShortString(_index, _str) => {
+                ValueTypes::SHORT_STRING
             }
             Literal::TypedString(type_idx, _str) => {
                 indexers.get_value_type(*type_idx)
@@ -185,6 +193,14 @@ impl NObject {
                             fallback_lang = Some(value);
                         }
                     }
+                    ObjectType::LangShortString(lang, _) => {
+                        if *lang == language_index {
+                            return Some(value);
+                        }
+                        if *lang == 0 {
+                            fallback_lang = Some(value);
+                        }
+                    }
                     ObjectType::String(_) | ObjectType::TypedString(_, _) | ObjectType::StringShort(_) => {
                         no_lang = Some(value);
                     }
@@ -217,6 +233,14 @@ impl NObject {
                 count += 1;
                 match value {
                     ObjectType::LangString(lang, _) => {
+                        if *lang == language_index && lang_value.is_none() {
+                            lang_value = Some(value);
+                        }
+                        if *lang == 0 && fallback_lang.is_none() {
+                            fallback_lang = Some(value);
+                        }
+                    }
+                    ObjectType::LangShortString(lang, _) => {
                         if *lang == language_index && lang_value.is_none() {
                             lang_value = Some(value);
                         }

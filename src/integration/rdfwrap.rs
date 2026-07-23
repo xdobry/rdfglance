@@ -629,6 +629,9 @@ impl RDFWrap {
         } else {
             0
         }));
+        // code to see what thread is waiting (slower) if size is 0 than producer is slower than consumer
+        // let queue_size = Arc::new(AtomicUsize::new(0));
+        // let queue_size_cpy = queue_size.clone();
         let (tx, rx) = mpsc::sync_channel(1000);
 
         let bytes_read_tx = Arc::clone(&bytes_read);
@@ -643,6 +646,7 @@ impl RDFWrap {
                     while let Some(triple) = parser.next() {
                         if !prefix_read {
                             for (prefix, iri) in parser.prefixes() {
+                                // queue_size_cpy.fetch_add(1, Ordering::Relaxed);
                                 if tx.send(ParseItem::Prefix(prefix.to_string(), iri.to_string())).is_err() {
                                     break;
                                 }
@@ -651,6 +655,7 @@ impl RDFWrap {
                         }
                         match triple {
                             Ok(triple) => {
+                                // queue_size_cpy.fetch_add(1, Ordering::Relaxed);
                                 if tx.send(ParseItem::Triple(Ok(triple))).is_err() {
                                     break;
                                 }
@@ -840,7 +845,15 @@ impl RDFWrap {
             Ok(())
         });
 
+        // let mut i  = 0;        
         for parse_item in rx {
+            /*
+            queue_size.fetch_sub(1, Ordering::Relaxed);
+            if i%1000==0 {
+                println!("queue size = {}", queue_size.load(Ordering::Relaxed));
+            }
+            i+=1;
+             */
             if let Some(data_loading) = data_loading {
                 if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
                     println!("Stopping loading due to user request");
@@ -1088,9 +1101,15 @@ fn add_predicate_object(
                     let datatype = literal.datatype();
                     if let Some(language) = language {
                         let language_index = indexer.get_language_index(language);
-                        let span = indexer.literal_cache.push_str(value);
+                        let literal = if value.len() < SHORT_STR_LITERAL_LEN {
+                            let index = indexer.short_literal_indexer.get_index(value);
+                            Literal::LangShortString(language_index, index)
+                        } else {
+                            let span = indexer.literal_cache.push_str(value);
+                            Literal::LangString(language_index, span)
+                        };
                         node.properties
-                            .push((predicate_index, Literal::LangString(language_index, span)));
+                            .push((predicate_index, literal));
                     } else if datatype == xsd::STRING {
                         let literal = if value.len() < SHORT_STR_LITERAL_LEN {
                             let index = indexer.short_literal_indexer.get_index(value);
@@ -1142,6 +1161,48 @@ use super::*;
                     );
         assert!(load_result.is_ok());
         assert!(load_result.unwrap()>0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_ttl_data_check() -> std::io::Result<()> {
+        
+        let mut rdf_data = RdfData {
+                node_data: NodeData::new(),
+                prefix_manager: PrefixManager::new(),
+        };
+        let language_filter: Vec<String> = Vec::new();
+        let load_result = RDFWrap::load_file(
+                        "sample-rdf-data/uni.ttl".to_string(),
+                        &mut rdf_data,
+                        &language_filter,
+                        None,
+                    );
+        assert!(load_result.is_ok());
+        assert!(load_result.unwrap()>0);
+        let student_type_index = rdf_data.node_data.indexers.get_type_index("ex:Student");
+        let name_pred = rdf_data.node_data.indexers.get_predicate_index("ex:name");
+        let member_pred = rdf_data.node_data.indexers.get_predicate_index("ex:memberOf");
+        let bob_node_idx = rdf_data.node_data.get_node_index("ex:Bob").unwrap();
+        let bob_node = rdf_data.node_data.get_node_by_index(bob_node_idx).unwrap().1;
+        let types = vec![student_type_index];
+        assert_eq!(1,bob_node.types.len());
+        assert!(bob_node.match_types(&types));
+        // Test Properties
+        let Some(literal) = bob_node.get_property(name_pred, 0) else {
+            panic!("property name not found");
+        };
+        let name_str = literal.as_str_ref(&rdf_data.node_data.indexers);
+        assert_eq!("Bob Davis",name_str);
+        // Test references and reverse references
+        let comp_science_idx = rdf_data.node_data.get_node_index("ex:ComputerScience").unwrap();
+        let comp_science_idx_ref = bob_node.references.iter().find(| (pred,ref_node) | *pred == member_pred).unwrap().1;
+        assert_eq!(comp_science_idx, comp_science_idx_ref);
+        let Some((_,comp_science_node)) = rdf_data.node_data.get_node_by_index(comp_science_idx) else {
+            panic!("comp science node not found")
+        };
+        assert!(comp_science_node.reverse_references.iter().find(| (pred, ref_node)| *pred == member_pred && *ref_node==bob_node_idx).is_some());
 
         Ok(())
     }

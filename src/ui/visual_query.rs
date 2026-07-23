@@ -5,6 +5,7 @@ use egui_extras::StripBuilder;
 use const_format::concatcp;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
+use rayon::prelude::*;
 
 use crate::{
     IriIndex, RdfGlanceApp, domain::{
@@ -23,6 +24,7 @@ const PANEL_H: f32 = 300.0;
 
 impl RdfGlanceApp {
     pub fn show_visual_query(&mut self, ui: &mut egui::Ui) -> NodeAction {       
+        let mut node_action = NodeAction::None;
         ui.horizontal(|ui| {
             if self.ui_state.visual_query.selected_type_iri.is_none() {
                 if let Some(selected_type) = self.type_index.selected_type {
@@ -153,7 +155,7 @@ impl RdfGlanceApp {
             .size(egui_extras::Size::exact(20.0)) // Two resizable panels with equal initial width
             .horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    self.show_query_result(ui);
+                    self.show_query_result(ui, &mut node_action);
                 });
                 strip.cell(|ui| {
                     ui.add(ScrollBar::new(
@@ -164,12 +166,12 @@ impl RdfGlanceApp {
                     ));
                 });
             });
-        NodeAction::None
+        node_action
     }
 
-    pub fn show_query_result(&mut self, ui: &mut egui::Ui) -> NodeAction {
+    pub fn show_query_result(&mut self, ui: &mut egui::Ui, node_action: &mut NodeAction) {
         if self.visual_query.root_table.is_none() {
-            return NodeAction::None;
+            return
         }
         if let Ok(rdf_data) = self.rdf_data.read() {
             let label_context = LabelContext::new(self.ui_state.display_language, self.persistent_data.config_data.iri_display, &rdf_data.prefix_manager);
@@ -362,16 +364,17 @@ impl RdfGlanceApp {
                         for (table_query, instance_index) in table_query.iter_tables().zip(instances) {
                             let node = rdf_data.node_data.get_node_by_index(*instance_index);
                             if let Some((_node_iri, node)) = node {
+
                             for column_desc in table_query.visible_predicates
                                 .iter()
                                 .filter(|p| p.visible) {
+                                    let cell_rect = egui::Rect::from_min_size(
+                                        available_rect.left_top() + Vec2::new(xpos, ypos),
+                                        Vec2::new(column_desc.width, ROW_HIGHT),
+                                    );
                                     let property = node.get_property_count(column_desc.predicate_index, self.ui_state.display_language);
                                     if let Some((property, count)) = property {
                                         let value = property.as_str_ref(&rdf_data.node_data.indexers);
-                                        let cell_rect = egui::Rect::from_min_size(
-                                            available_rect.left_top() + Vec2::new(xpos, ypos),
-                                            Vec2::new(column_desc.width, ROW_HIGHT),
-                                        );
                                         let mut cell_hovered = false;
                                         if cell_rect.contains(mouse_pos) {
                                             cell_hovered = true;
@@ -394,6 +397,10 @@ impl RdfGlanceApp {
                                             self.visual_query.instance_view.ref_selection = RefSelection::None;
                                             self.visual_query.instance_view.context_menu =
                                                 TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
+                                        }
+                                    } else {
+                                        if primary_clicked && cell_rect.contains(mouse_pos) {
+                                            *node_action = NodeAction::BrowseNode(*instance_index);
                                         }
                                     }
                                     xpos += column_desc.width + COLUMN_GAP;
@@ -532,7 +539,10 @@ impl RdfGlanceApp {
                         TableContextMenu::CellMenu(_pos, instance_index, predicate) => {
                             let mut close_menu = false;
                             let node = rdf_data.node_data.get_node_by_index(instance_index);
-                            if let Some((_node_iri, node)) = node {
+                            if let Some((node_iri, node)) = node {
+                                if ui.link(node_iri).clicked() {
+                                    *node_action = NodeAction::BrowseNode(instance_index);
+                                }
                                 for (predicate_index, value) in &node.properties {
                                     if predicate == *predicate_index {
                                         ui.label(value.as_str_ref(&rdf_data.node_data.indexers));
@@ -628,7 +638,6 @@ impl RdfGlanceApp {
                 }
            });
         }       
-        NodeAction::None
     }
 
     pub fn export_visual_query_dialog(&mut self) {

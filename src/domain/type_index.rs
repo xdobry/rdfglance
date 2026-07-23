@@ -6,8 +6,9 @@ use bitflags::bitflags;
 use ordered_float::OrderedFloat;
 use egui::Pos2;
 use string_interner::Symbol;
+use rayon::prelude::*;
 
-use crate::{IriIndex, domain::{LabelContext, LangIndex, Literal, NodeData, RdfData}, ui::table_view::CHAR_WIDTH, uistate::ref_selection::RefSelection};
+use crate::{IriIndex, domain::{LabelContext, LangIndex, Literal, NObject, NodeData, RdfData}, ui::table_view::CHAR_WIDTH, uistate::ref_selection::RefSelection};
 
 use rayon::prelude::*;
 
@@ -99,6 +100,34 @@ pub struct ReferenceCharacteristics {
     pub types: Vec<IriIndex>,
 }
 
+impl ReferenceCharacteristics {
+    fn merge(&mut self, other: ReferenceCharacteristics) {
+        self.count += other.count;
+        self.max_cardinality =
+            self.max_cardinality.max(other.max_cardinality);
+        self.min_cardinality =
+            self.min_cardinality.min(other.min_cardinality);
+        for type_index in other.types {
+            if !self.types.contains(&type_index) {
+                self.types.push(type_index)
+            }
+        }
+    }
+}
+
+impl Default for ReferenceCharacteristics {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            min_cardinality: u32::MAX,
+            max_cardinality: 0,
+            types: Vec::new()
+        }
+    }    
+}
+
+
+
 pub struct TypeData {
     pub instances: Vec<IriIndex>,
     pub filtered_instances: Vec<IriIndex>,
@@ -179,6 +208,22 @@ impl Default for DataPropCharacteristics {
     }
 }
 
+impl DataPropCharacteristics {
+    pub fn merge(&mut self, other: Self) {
+        self.count += other.count;
+
+        self.max_len = self.max_len.max(other.max_len);
+
+        self.max_cardinality =
+            self.max_cardinality.max(other.max_cardinality);
+
+        self.min_cardinality =
+            self.min_cardinality.min(other.min_cardinality);
+
+        self.value_types |= other.value_types;
+    }
+}
+
 impl Default for NumStatistics {
     fn default() -> Self {
         Self {
@@ -188,6 +233,14 @@ impl Default for NumStatistics {
             avg: 0.0,
             sum: 0.0,
         }
+    }
+}
+
+fn merge_reference_counts(references: &mut HashMap<IriIndex, ReferenceCharacteristics>, other: HashMap<IriIndex, ReferenceCharacteristics>) {
+    for (prop, stat) in other {
+        references.entry(prop)
+            .or_default()
+            .merge(stat);
     }
 }
 
@@ -201,6 +254,26 @@ impl TypeData {
             rev_references: HashMap::new(),
             instance_view: InstanceView::default(),
         }
+    }
+
+    pub fn merge(&mut self, other: TypeData) {
+        self.instances.extend(other.instances);
+        for (prop, stat) in other.properties {
+            self.properties
+                .entry(prop)
+                .or_default()
+                .merge(stat);
+        }
+
+        merge_reference_counts(
+            &mut self.references,
+            other.references,
+        );
+
+        merge_reference_counts(
+            &mut self.rev_references,
+            other.rev_references,
+        );
     }
     
     pub fn calculate_value_statistics(&self, predicate: IriIndex, node_data: &NodeData) -> ValueStatistics {
@@ -243,7 +316,7 @@ impl TypeData {
         }
         let asc_greater = if is_asc { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Less};
         let asc_less = if is_asc { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater};
-        self.filtered_instances.sort_by(|a, b| {
+        self.filtered_instances.par_sort_by(|a, b| {
             let node_a = rdf_data.node_data.get_node_by_index(*a);
             let node_b = rdf_data.node_data.get_node_by_index(*b);
             if let Some((_, node_a)) = node_a {
@@ -279,10 +352,10 @@ impl TypeData {
     } 
 }
 
-fn sort_from_pairs<T: Ord>(instances: &mut Vec<IriIndex>, mut pairs: Vec<(usize,T)>, is_asc: bool) 
+fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, mut pairs: Vec<(usize,T)>, is_asc: bool) 
 {
     // we use stable version because use can apply several sorts on different columns
-    pairs.sort_by(|a, b| {
+    pairs.par_sort_by(|a, b| {
         if is_asc {
             a.1.cmp(&b.1)
         } else {
@@ -327,6 +400,9 @@ impl ValueStatistics {
                             Literal::StringShort(s) => {
                                 *freq.entry(*s).or_insert(0) += 1;
                             },
+                            Literal::LangShortString(_lang_index, s) => {
+                                *freq.entry(*s).or_insert(0) += 1;
+                            },
                             _ => {
                             }
                         }
@@ -356,7 +432,7 @@ impl ValueStatistics {
             .into_iter()
             .map(|(s_idx, count)| (s_idx, count))
             .collect();
-        freq_vec.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        freq_vec.par_sort_unstable_by(|a, b| b.1.cmp(&a.1));
         let most_frequent_values = freq_vec.into_iter().take(10).collect();
         ValueStatistics { 
             count: count,
@@ -449,6 +525,102 @@ pub struct ColumnDesc {
     pub visible: bool,
 }
 
+struct TypesWorkload {
+    pub nodes: usize,
+    pub properties: usize,
+    pub references: usize,
+    pub blank_nodes: usize,
+    pub unresolved_references: usize,
+    pub types: HashMap<IriIndex, TypeData>,
+}
+
+impl TypesWorkload {
+    fn new() -> Self {
+        Self {
+            nodes: 0,
+            properties: 0,
+            references: 0,
+            blank_nodes: 0,
+            unresolved_references: 0,
+            types: HashMap::new(),
+        }
+    }
+    fn process_node(&mut self,
+        node_index: usize,
+        node: &NObject,
+        node_data: &NodeData) {
+        if node.has_subject {
+            self.nodes += 1;
+        } else {
+            self.unresolved_references += 1;
+        }
+        if node.is_blank_node {
+            self.blank_nodes += 1;
+        }
+        for type_index in &node.types {
+            let type_data = self
+                .types
+                .entry(*type_index)
+                .or_insert_with(|| TypeData::new(*type_index));
+            type_data.instances.push(node_index as IriIndex);
+            for (property_index, property_stat) in type_data.properties.iter_mut() {
+                let mut property_card = 0;
+                for (predicate_index, value) in &node.properties {
+                    if *property_index == *predicate_index {
+                        property_stat.count += 1;
+                        property_stat.value_types |= value.value_type(&node_data.indexers);
+                        property_card += 1;
+                        property_stat.max_len = property_stat
+                            .max_len
+                            .max(value.as_str_ref(&node_data.indexers).len() as u32);
+                    }
+                }
+                property_stat.max_cardinality = property_stat.max_cardinality.max(property_card);
+                property_stat.min_cardinality = property_stat.min_cardinality.min(property_card);
+            }
+            let mut unknown_properties = vec![];
+            for (predicate_index, _value) in &node.properties {
+                if !type_data.properties.contains_key(predicate_index) {
+                    unknown_properties.push(*predicate_index);
+                }
+            }
+            for predicate_index in unknown_properties {
+                let mut property_card = 0;
+                let mut property_stat = DataPropCharacteristics::default();
+                for (property_index, value) in &node.properties {
+                    if *property_index == predicate_index {
+                        property_stat.count += 1;
+                        property_card += 1;
+                        property_stat.max_len = property_stat
+                            .max_len
+                            .max(value.as_str_ref(&node_data.indexers).len() as u32);
+                    }
+                }
+                property_stat.max_cardinality = property_card;
+                property_stat.min_cardinality = property_card;
+                type_data.properties.insert(predicate_index, property_stat);
+            }
+            count_type_references(&mut type_data.references, &node.references, node_data);
+            count_type_references(&mut type_data.rev_references, &node.reverse_references, node_data);
+        }
+        self.references += node.references.len();
+        self.properties += node.properties.len();
+    }
+
+    fn merge(&mut self, other: TypesWorkload) {
+        self.nodes += other.nodes;
+        self.properties += other.properties;
+        self.blank_nodes += other.blank_nodes;
+        self.references += other.references;
+        for (type_index, other_type) in other.types {
+            self.types
+                .entry(type_index)
+                .or_insert_with(|| TypeData::new(type_index))
+                .merge(other_type);
+        }
+    }
+}
+
 impl TypeInstanceIndex {
     pub fn new() -> Self {
         Self {
@@ -492,68 +664,22 @@ impl TypeInstanceIndex {
         #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
         let node_len = node_data.len();
-        // TODO concurrent optimization
-        // 1. partition the instances in groups (count  rayon::current_num_threads()) in dependency to type
-        // 2. build hash map of each group (there are disjuct)
-        // 3. merge all hash maps
-        for (node_index, (_node_iri, node)) in node_data.iter().enumerate() {
-            if node.has_subject {
-                self.nodes += 1;
-            } else {
-                self.unresolved_references += 1;
-            }
-            if node.is_blank_node {
-                self.blank_nodes += 1;
-            }
-            for type_index in &node.types {
-                let type_data = self
-                    .types
-                    .entry(*type_index)
-                    .or_insert_with(|| TypeData::new(*type_index));
-                type_data.instances.push(node_index as IriIndex);
-                for (property_index, property_stat) in type_data.properties.iter_mut() {
-                    let mut property_card = 0;
-                    for (predicate_index, value) in &node.properties {
-                        if *property_index == *predicate_index {
-                            property_stat.count += 1;
-                            property_stat.value_types |= value.value_type(&node_data.indexers);
-                            property_card += 1;
-                            property_stat.max_len = property_stat
-                                .max_len
-                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
-                        }
-                    }
-                    property_stat.max_cardinality = property_stat.max_cardinality.max(property_card);
-                    property_stat.min_cardinality = property_stat.min_cardinality.min(property_card);
-                }
-                let mut unknown_properties = vec![];
-                for (predicate_index, _value) in &node.properties {
-                    if !type_data.properties.contains_key(predicate_index) {
-                        unknown_properties.push(*predicate_index);
-                    }
-                }
-                for predicate_index in unknown_properties {
-                    let mut property_card = 0;
-                    let mut property_stat = DataPropCharacteristics::default();
-                    for (property_index, value) in &node.properties {
-                        if *property_index == predicate_index {
-                            property_stat.count += 1;
-                            property_card += 1;
-                            property_stat.max_len = property_stat
-                                .max_len
-                                .max(value.as_str_ref(&node_data.indexers).len() as u32);
-                        }
-                    }
-                    property_stat.max_cardinality = property_card;
-                    property_stat.min_cardinality = property_card;
-                    type_data.properties.insert(predicate_index, property_stat);
-                }
-                count_type_references(&mut type_data.references, &node.references, node_data);
-                count_type_references(&mut type_data.rev_references, &node.reverse_references, node_data);
-            }
-            self.references += node.references.len();
-            self.properties += node.properties.len();
-        }
+
+        let types_work_load = node_data.node_cache.cache.par_iter().enumerate().fold(
+            || TypesWorkload::new(),
+            |mut stats, (node_index, (_str,node))| {
+                stats.process_node(node_index, node, &node_data);
+                stats
+            }).reduce(|| TypesWorkload::new(),|mut left, right| {
+                left.merge(right);
+                left
+            });
+        
+        self.nodes = types_work_load.nodes;
+        self.unresolved_references = types_work_load.unresolved_references;
+        self.blank_nodes = types_work_load.blank_nodes;
+        self.types = types_work_load.types;
+
         self.unique_predicates = node_data.unique_predicates();
         self.unique_types = node_data.unique_types();
         for (pred_index, _iri) in node_data.indexers.predicate_indexer.map.iter() {

@@ -1,5 +1,6 @@
 use std::{borrow::Cow, collections::VecDeque};
 use ordered_float::OrderedFloat;
+use rayon::prelude::*;
 
 use crate::{
     IriIndex, domain::{IndexSpan, Indexers, LangIndex, Literal, NObject, RdfData, type_index::{ColumnDesc, InstanceView, TypeData, TypeInstanceIndex, ValueStatistics, ValueTypes}},
@@ -105,7 +106,7 @@ pub enum AggregatedValue {
     Int(i64),
     ShortString(IriIndex),
     LangString(IndexSpan),
-    SumCount(f64, i64),
+    AvgCount(f64, f64),
     Empty,
 }
 
@@ -235,7 +236,7 @@ impl VisualQuery {
             }
         }).collect();
         // we use stable version because use can apply several sorts on different columns
-        row_pred.sort_by(|a, b| {
+        row_pred.par_sort_by(|a, b| {
             let a_str = a.1.as_str_ref(&rdf_data.node_data.indexers);
             let b_str = b.1.as_str_ref(&rdf_data.node_data.indexers);
             let cmp = a_str.cmp(b_str);
@@ -299,10 +300,10 @@ impl VisualQuery {
     }
 }
 
-fn sort_from_pairs<T: Ord>(instances: &mut Vec<IriIndex>, aggregated_values: &mut Vec<AggregatedValue>, mut pairs: Vec<(usize,T)>, is_asc: bool, tables_pro_row: usize, aggregation_pro_row: usize) 
+fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, aggregated_values: &mut Vec<AggregatedValue>, mut pairs: Vec<(usize,T)>, is_asc: bool, tables_pro_row: usize, aggregation_pro_row: usize) 
 {
     // we use stable version because use can apply several sorts on different columns
-    pairs.sort_by(|a, b| {
+    pairs.par_sort_by(|a, b| {
         if is_asc {
             a.1.cmp(&b.1)
         } else {
@@ -333,7 +334,7 @@ fn sort_from_pairs<T: Ord>(instances: &mut Vec<IriIndex>, aggregated_values: &mu
 impl TypeData {
     pub fn query_instances_for_table_query(&self, table_query: &TableQuery, rdf_data: &RdfData) -> Vec<IriIndex> {
         let filter_evaluator = FilterEvaluator::from_table(&table_query);
-        self.instances.iter().copied().filter(|iri_index| filter_evaluator.match_object(*iri_index, &rdf_data)).collect()
+        self.instances.par_iter().copied().filter(|iri_index| filter_evaluator.match_object(*iri_index, &rdf_data)).collect()
     }
 }
 
@@ -744,6 +745,9 @@ impl AggregatedValue {
             Literal::LangString(_, str) => {
                 AggregatedValue::LangString(*str)
             }
+            Literal::LangShortString(_, short_index) => {
+                AggregatedValue::ShortString(*short_index)
+            }
             Literal::TypedString(_, str) => {
                 AggregatedValue::LangString(*str)
             }
@@ -912,11 +916,13 @@ impl AggregationType {
                 match fvalue {
                     Ok(fvalue) => {
                         match old_value {
-                            AggregatedValue::SumCount(sum, count) => {
-                                AggregatedValue::SumCount(sum+fvalue, count+1)                                
+                            AggregatedValue::AvgCount(avg, count) => {
+                                let count = count+1.0;
+                                let avg = avg + (fvalue-avg)/count;
+                                AggregatedValue::AvgCount(avg, count)                                
                             }
                             _ => {
-                                AggregatedValue::SumCount(fvalue, 1)                                
+                                AggregatedValue::AvgCount(fvalue, 1.0)                                
                             }
                         }
                     }
@@ -934,9 +940,9 @@ impl AggregationType {
         match self {
             AggregationType::Avg => {
                 match value {
-                    AggregatedValue::SumCount(sum, count) => {
-                        if count>0 {
-                            AggregatedValue::Float(sum/(count as f64))
+                    AggregatedValue::AvgCount(avg, count) => {
+                        if count>0.0 {
+                            AggregatedValue::Float(avg)
                         } else {
                             AggregatedValue::Empty
                         }
