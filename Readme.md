@@ -136,7 +136,7 @@ Follow these steps to compile the application:
 
 2. Build the application using Cargo:
   ```sh
-  cargo build --release
+  cargo build --workspace --release
   ```
 
 3. The compiled binary will be located in the `target/release` directory.
@@ -147,7 +147,7 @@ You may also pick the precompiled executable for windows from [github releases](
 
 After compiling the application, you can run it using the following command:
 ```sh
-./target/release/rdf-glance
+cargo run --workspace --release
 ```
 
 For more information on how to use **RDFGlance**, refer to the documentation provided in the [repository](documentation/manual.md).
@@ -166,7 +166,7 @@ Prepare wasm compilation
   ```
 
   ```sh
-  cargo build --target wasm32-unknown-unknown
+  cargo build --workspace --target wasm32-unknown-unknown
   ```
 
 Run server in dev mode

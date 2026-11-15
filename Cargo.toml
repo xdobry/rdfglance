@@ -3,6 +3,10 @@ name = "rdf-glance"
 version = "0.2.0"
 edition = "2024"
 
+[workspace]
+members = ["."]
+resolver = "3"
+
 [dependencies]
 eframe = {version="0.34.3", features = ["persistence"]}
 egui = {version="0.34.3", features=["serde"]}

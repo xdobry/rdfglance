@@ -14,6 +14,7 @@ use crate::{
 pub mod graph_algorithms;
 pub mod layoutalg;
 pub mod domain;
+pub mod platform;
 pub mod ui;
 pub mod uistate;
 pub mod integration;
