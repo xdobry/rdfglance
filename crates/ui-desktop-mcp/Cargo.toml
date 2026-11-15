@@ -1,0 +1,28 @@
+[package]
+name = "rdf-glance-desktop-mcp"
+version = "0.2.0"
+edition = "2024"
+
+[[bin]]
+name = "rdf-glance-mcp"
+path = "src/main.rs"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = { version = "0.34.3", features = ["persistence"] }
+rdf-glance = { path = "../ui" }
+rmcp = { version = "3.10", features = [
+    "server",
+    "macros",
+    "transport-io",
+    "schemars",    
+] }
+
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "time",
+] }
+serde = { version = "1", features = ["derive"] }
+egui = {version="0.34.3", features=["serde"]}
+schemars = "1"
