@@ -2,6 +2,7 @@ use crate::{
     graph_algorithms::{GraphAlgorithm, StatisticValue}, 
     IriIndex,
 };
+use rayon::prelude::*;
 
 pub type NodePosition = u32;
 
@@ -71,7 +72,7 @@ impl StatisticsResult {
 
 pub fn distribute_to_zoom_layers(values: &Vec<f32>) -> Vec<u8> {
     let mut values_with_indices: Vec<_> = values.iter().enumerate().map(|(i, &v)| (v, i)).collect();
-    values_with_indices.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    values_with_indices.par_sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     let mut layers = vec![0u8; values.len()];
     let data_len = values.len();
     let a = if data_len < 12 { 1 } else { 4 };

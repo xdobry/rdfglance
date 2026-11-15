@@ -255,8 +255,6 @@ dbr:Apache_Groovy a dbo:ProgrammingLanguage ;
 
 dbr:AppleScript a dbo:ProgrammingLanguage ;
     rdfs:label "AppleScript"@en ;
-    dbo:influencedBy dbr:HyperTalk,
-        dbr:Natural_language_programming ;
     dbo:latestReleaseDate "2014-10-16"^^xsd:date ;
     dbp:paradigm dbr:Natural_language_programming,
         dbr:Scripting_language ;
@@ -559,7 +557,7 @@ dbr:CMS_Pipelines a dbo:ProgrammingLanguage ;
     dbo:designer dbr:IBM ;
     dbo:influencedBy dbr:Pipeline_\(Unix\) ;
     dbo:latestReleaseDate "2020-06-03"^^xsd:date ;
-    dbp:paradigm dbr:Dataflow .
+    dbp:paradigm dbr:Dataflow_programming .
 
 dbr:COLA_\(software_architecture\) a dbo:ProgrammingLanguage ;
     rdfs:label "COLA (software architecture)"@en ;
@@ -943,9 +941,7 @@ dbr:Dart_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:Imperative_programming,
         dbr:Multi-paradigm,
         dbr:Object-oriented_programming,
-        dbr:Reflection_\(computer_programming\) ;
-    dbp:typing 1,
-        2 .
+        dbr:Reflection_\(computer_programming\) .
 
 dbr:Darwin_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Darwin"@en ;
@@ -1710,9 +1706,9 @@ dbr:Jolie_\(programming_language\) a dbo:ProgrammingLanguage ;
 
 dbr:Joule_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Joule"@en ;
-    dbo:influencedBy dbr:Actor_model,
-        dbr:Logic_Programming ;
-    dbp:paradigm dbr:Dataflow,
+    dbo:influencedBy dbr:Actor_model;
+    dbp:paradigm dbr:Dataflow_programming,
+        dbr:Logic_Programming,
         dbr:Distributed_computing,
         dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming ;
@@ -2701,7 +2697,6 @@ dbr:Programming_with_Big_Data_in_R a dbo:ProgrammingLanguage ;
 dbr:Prograph a dbo:ProgrammingLanguage ;
     rdfs:label "Prograph"@en ;
     dbo:designer dbr:Acadia_University ;
-    dbo:influencedBy dbr:Dataflow;
     dbp:paradigm dbr:Dataflow_programming,
         dbr:Multi-paradigm_programming_language,
         dbr:Object-oriented_programming,
@@ -3647,8 +3642,8 @@ dbr:Zig_\(programming_language\) a dbo:ProgrammingLanguage ;
         dbr:JavaScript,
         dbr:LLVM_IR,
         dbr:Rust_\(programming_language\) ;
-    dbp:typing dbr:Generic_programming,
-        dbr:Static_typing,
+    dbp:paradigm dbr:Generic_programming;
+    dbp:typing dbr:Static_typing,
         dbr:Strong_typing,
         dbr:Structural_type_system,
         dbr:Type_inference .
@@ -3747,7 +3742,8 @@ dbr:AWK_\(programming_language\) a <dbo:ProgrammingLanguage>;
 dbr:Acadia_University a dbo:Person ;
     rdfs:label "Acadia University"@en .
 
-dbr:Action_language a <yago:Paradigm113804375> .
+dbr:Action_language a <yago:Paradigm113804375> ;
+    rdfs:label "Action language"@en .
 
 dbr:Actor-Based_Concurrent_Language a <dbo:ProgrammingLanguage> .
 
@@ -3766,7 +3762,8 @@ dbr:Agda_\(programming_language\) a <dbo:ProgrammingLanguage> .
 dbr:Agent-based_model a yago:Paradigm113804375 ;
     rdfs:label "Agent-based model"@en .
 
-dbr:Agent-oriented_programming a <yago:Paradigm113804375> .
+dbr:Agent-oriented_programming a <yago:Paradigm113804375> ;
+    rdfs:label "Agent-origented programming"@en .
 
 dbr:AgentCubes a dbo:ProgrammingLanguage ;
     rdfs:label "AgentCubes"@en ;
@@ -3801,6 +3798,7 @@ dbr:Alfred_Aho a dbo:Person ;
         "Canadian"@en .
 
 dbr:Algebraic_types a <yago:Paradigm113804375> .
+    rdfs:label "Algebraic types"@en ;
 
 dbr:Alice_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Alice"@en ;
@@ -4042,9 +4040,11 @@ dbr:Cilk_Plus a <dbo:ProgrammingLanguage> .
 dbr:Clarion_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Clarion"@en .
 
-dbr:Class-based_programming a <yago:Paradigm113804375> .
+dbr:Class-based_programming a <yago:Paradigm113804375> ;
+    rdfs:label "Class-based programming"@en .
 
-dbr:Classic_Visual_Basic a <dbo:ProgrammingLanguage> .
+dbr:Classic_Visual_Basic a <dbo:ProgrammingLanguage> ;
+    rdfs:label "Classic Visual Basic"@en .
 
 dbr:Cleve_Moler a dbo:Person ;
     rdfs:label "Cleve Moler"@en .
@@ -4075,7 +4075,8 @@ dbr:Component-based_software_engineering a yago:Paradigm113804375 ;
 dbr:Computer_Sciences_Corporation a dbo:Person ;
     rdfs:label "Computer Sciences Corporation"@en .
 
-dbr:Concatenative_programming_language a <yago:Paradigm113804375> .
+dbr:Concatenative_programming_language a <yago:Paradigm113804375> ;
+    rdfs:label "Concatenative programming language"@en .
 
 dbr:Concurrent_object-oriented_programming a yago:Paradigm113804375 ;
     rdfs:label "Concurrent object-oriented programming"@en .
@@ -4329,7 +4330,8 @@ dbr:Flow-sensitive_typing a dbo:Typing ;
 
 dbr:Fossil_\(software\) a <dbo:ProgrammingLanguage> .
 
-dbr:Fourth-generation_programming_language a <yago:Paradigm113804375> .
+dbr:Fourth-generation_programming_language a <yago:Paradigm113804375> ;
+    rdfs:label "Fourth-generation programming language"@en .
 
 dbr:Francis_McCabe a <dbo:Person> .
 
@@ -4500,8 +4502,7 @@ dbr:Information_Processing_Language a dbo:ProgrammingLanguage ;
     rdfs:label "Information Processing Language"@en ;
     dbo:designer dbr:Allen_Newell,
         dbr:Cliff_Shaw,
-        dbr:Herbert_A._Simon ;
-    dbp:paradigm dbr:Assembly_language .
+        dbr:Herbert_A._Simon .
 
 dbr:Intel a dbo:Person ;
     rdfs:label "Intel"@en .
@@ -5748,8 +5749,7 @@ dbr:Arthur_Whitney_\(computer_scientist\) a dbo:Person ;
 
 dbr:Ascánder_Suárez a <dbo:Person> .
 
-dbr:Assembly_language a dbo:ProgrammingLanguage,
-        <yago:Paradigm113804375> ;
+dbr:Assembly_language a dbo:ProgrammingLanguage ;
     rdfs:label "Assembly language"@en ;
     dbp:paradigm "Imperative, unstructured, often metaprogramming , certain assemblers are object-oriented and/or structured"@en ;
     dbp:typing "None"@en .
@@ -6151,7 +6151,7 @@ dbr:SISAL a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:C_\(programming_language\),
         dbr:Fortran,
         dbr:Pascal_\(programming_language\) ;
-    dbp:paradigm dbr:Dataflow,
+    dbp:paradigm dbr:Dataflow_programming,
         dbr:Functional_programming ;
     dbp:typing dbr:Static_typing,
         dbr:Strongly-typed_programming_language .
@@ -6426,9 +6426,6 @@ dbr:Aspect-oriented_programming a yago:Paradigm113804375 ;
 
 dbr:Compiled_language a <yago:Paradigm113804375> .
 
-dbr:Dataflow a <dbo:ProgrammingLanguage>,
-        <yago:Paradigm113804375> .
-
 dbr:Esoteric_programming_language a <yago:Paradigm113804375> .
 
 dbr:Euclid_\(programming_language\) a dbo:ProgrammingLanguage ;
@@ -6472,9 +6469,9 @@ dbr:Go_\(programming_language\) a dbo:ProgrammingLanguage ;
 dbr:HyperTalk a dbo:ProgrammingLanguage ;
     rdfs:label "HyperTalk"@en ;
     dbo:designer dbr:Dan_Winkler_\(computer_scientist\) ;
-    dbo:influencedBy dbr:Natural_language_programming,
-        dbr:Pascal_\(programming_language\) ;
+    dbo:influencedBy dbr:Pascal_\(programming_language\) ;
     dbp:paradigm dbr:Event-driven_programming,
+        dbr:Natural_language_programming,
         dbr:Procedural_programming .
 
 dbr:ISWIM a dbo:ProgrammingLanguage ;
@@ -6496,8 +6493,7 @@ dbr:Mesa_\(programming_language\) a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:ALGOL ;
     dbp:typing "Strong, static"@en .
 
-dbr:Natural_language_programming a <dbo:ProgrammingLanguage>,
-        <yago:Paradigm113804375> .
+dbr:Natural_language_programming a <yago:Paradigm113804375> .
 
 dbr:Occam_\(programming_language\) a <dbo:ProgrammingLanguage> .
 
@@ -6882,7 +6878,8 @@ dbr:ALGOL_68 a dbo:ProgrammingLanguage ;
         dbr:Structural_type_system,
         dbr:Type_system .
 
-dbr:Latent_typing a dbo:Typing .
+dbr:Latent_typing a dbo:Typing ;
+    rdfs:label "Latent typing"@en .
 
 dbr:Simula a dbo:ProgrammingLanguage ;
     rdfs:label "Simula"@en ;
@@ -7034,7 +7031,8 @@ dbr:Common_Lisp a dbo:ProgrammingLanguage ;
     dbp:typing dbr:Dynamic_typing,
         dbr:Strongly-typed_programming_language .
 
-dbr:Manifest_typing a dbo:Typing .
+dbr:Manifest_typing a dbo:Typing ;
+    rdfs:label "Manifest typing"@en .
 
 dbr:ALGOL a dbo:ProgrammingLanguage ;
     rdfs:label "ALGOL"@en ;
@@ -7047,14 +7045,14 @@ dbr:ALGOL a dbo:ProgrammingLanguage ;
 dbr:Event-driven_programming a yago:Paradigm113804375 ;
     rdfs:label "Event-driven programming"@en .
 
-dbr:Generic_programming a yago:Paradigm113804375,
-        dbo:Typing ;
+dbr:Generic_programming a yago:Paradigm113804375;
     rdfs:label "Generic programming"@en .
 
 dbr:Duck_typing a dbo:Typing ;
     rdfs:label "Duck typing"@en .
 
-dbr:Logic_programming a <yago:Paradigm113804375> .
+dbr:Logic_programming a <yago:Paradigm113804375> ;
+    rdfs:label "Logic programming"@en .
 
 dbr:ML_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "ML"@en ;
@@ -7261,7 +7259,8 @@ dbr:Static_typing a dbo:Typing ;
 dbr:Strong_typing a dbo:Typing ;
     rdfs:label "Strong typing"@en .
 
-dbr:Multi-paradigm_programming_language a <yago:Paradigm113804375> .
+dbr:Multi-paradigm_programming_language a <yago:Paradigm113804375> ;
+    rdfs:label "Multi-paradigm programming language"@en .
 
 dbr:Type_system a dbo:Typing ;
     rdfs:label "Type system"@en .
@@ -7272,7 +7271,8 @@ dbr:Dynamic_typing a dbo:Typing ;
 dbr:Functional_programming a yago:Paradigm113804375 ;
     rdfs:label "Functional programming"@en .
 
-dbr:Object-oriented_programming a <yago:Paradigm113804375> .
+dbr:Object-oriented_programming a <yago:Paradigm113804375> ;
+    rdfs:label "Object-oriented programming"@en .
 
 dbr:Imperative_programming a yago:Paradigm113804375 ;
     rdfs:label "Imperative programming"@en .

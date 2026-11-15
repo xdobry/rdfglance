@@ -110,7 +110,7 @@ Some features of RDF are not supported very well. This includes:
 - RDF list (you may resolve the lists to simple predicates. The order are preserved)
 - RDF-star (RDF*) not supported
 
-I hope to improve it in later versions.
+I hope to improve it in later versions but some of them (named graphs and RDF*) whould need almost whole rework of the system.
 You may use github issue system to report bug and feature wishes.
 
 ## Installation

@@ -1324,7 +1324,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::SortRefAsc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            type_data.filtered_instances.sort_by(|a, b| {
+                            type_data.filtered_instances.par_sort_by(|a, b| {
                                 let node_a = rdf_data.node_data.get_node_by_index(*a);
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {
@@ -1344,7 +1344,7 @@ impl TypeInstanceIndex {
                     }
                     TableAction::SortRefDesc() => {
                         if let Some(type_data) = self.types.get_mut(&selected_type) {
-                            type_data.filtered_instances.sort_by(|a, b| {
+                            type_data.filtered_instances.par_sort_by(|a, b| {
                                 let node_a = rdf_data.node_data.get_node_by_index(*a);
                                 let node_b = rdf_data.node_data.get_node_by_index(*b);
                                 if let Some((_, node_a)) = node_a {

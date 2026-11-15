@@ -520,6 +520,11 @@ impl Literal {
                 writer.write_u8(4)?;
                 leb128::write::unsigned(writer, *index as u64)?;
             }
+            Literal::LangShortString(lang_index, index) => {
+                writer.write_u8(5)?;
+                leb128::write::unsigned(writer, *lang_index as u64)?;
+                leb128::write::unsigned(writer, *index as u64)?;
+            }
             Literal::NoValue() => {
                 
             }
@@ -546,6 +551,11 @@ impl Literal {
             4 => {
                 let index = leb128::read::unsigned(reader)? as IriIndex;
                 Ok(Literal::StringShort(index))
+            }
+            5 => {
+                let lang_index = leb128::read::unsigned(reader)? as LangIndex;
+                let index = leb128::read::unsigned(reader)? as IriIndex;
+                Ok(Literal::LangShortString(lang_index, index))
             }
             _ => Err(anyhow::anyhow!("Unknown literal type {}", literal_type)),
         }

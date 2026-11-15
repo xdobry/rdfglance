@@ -3,6 +3,7 @@ use std::{borrow::Cow, cmp::min, io};
 use const_format::concatcp;
 use egui::{Color32, CursorIcon, Key, Pos2, Rect, Sense, Stroke, Vec2};
 use egui_extras::StripBuilder;
+use rayon::prelude::*;
 
 use crate::{
     RdfGlanceApp, domain::{LabelContext, LangIndex, RdfData, config::{Config, IriDisplay}, graph_styles::GVisualizationStyle, statistics::StatisticsData, type_index::ValueStatistics
@@ -426,7 +427,7 @@ impl StatisticsData {
                     let data_vec = self.results[column_index].get_data_vec();
                     let mut values_with_indices: Vec<_> =
                         data_vec.iter().enumerate().map(|(i, &v)| (v, i as u32)).collect();
-                    values_with_indices.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+                    values_with_indices.par_sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
                     self.reorder_in_place(&values_with_indices);
                     if let Some((selected_iri, pos)) = self.selected_idx {
                         if pos == 0 && !self.nodes.is_empty() {
