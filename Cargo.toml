@@ -2,9 +2,10 @@
 name = "rdf-glance"
 version = "0.2.0"
 edition = "2024"
+autobins = false
 
 [workspace]
-members = ["."]
+members = [".", "crates/ui-desktop", "crates/ui-wasm"]
 resolver = "3"
 
 [dependencies]

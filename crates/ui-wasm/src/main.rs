@@ -1,8 +1,9 @@
-use crate::RdfGlanceApp;
-use eframe::{wasm_bindgen::JsCast, web_sys};
-use web_sys::UrlSearchParams;
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use eframe::{wasm_bindgen::JsCast, web_sys};
+    use rdf_glance::RdfGlanceApp;
+    use web_sys::UrlSearchParams;
 
-pub fn run() {
     wasm_bindgen_futures::spawn_local(async {
         let document = web_sys::window().expect("No window").document().expect("No document");
 
@@ -35,3 +36,6 @@ pub fn run() {
             .expect("failed to start eframe");
     });
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() {}

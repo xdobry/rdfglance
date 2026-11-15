@@ -147,7 +147,7 @@ You may also pick the precompiled executable for windows from [github releases](
 
 After compiling the application, you can run it using the following command:
 ```sh
-cargo run --workspace --release
+cargo run --package rdf-glance-desktop --release
 ```
 
 For more information on how to use **RDFGlance**, refer to the documentation provided in the [repository](documentation/manual.md).
@@ -169,9 +169,10 @@ Prepare wasm compilation
   cargo build --workspace --target wasm32-unknown-unknown
   ```
 
-Run server in dev mode
+Run the browser client from its crate directory:
 
   ```sh
+  cd crates/ui-wasm
   trunk serve
   ```
 

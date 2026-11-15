@@ -4233,6 +4233,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdf-glance-desktop"
+version = "0.2.0"
+dependencies = [
+ "eframe",
+ "rdf-glance",
+]
+
+[[package]]
+name = "rdf-glance-wasm"
+version = "0.2.0"
+dependencies = [
+ "eframe",
+ "rdf-glance",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "read-fonts"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,4 +1,5 @@
 /target
 /dist
+/crates/ui-wasm/dist
 /python/__pycache__
 *.sqlite
