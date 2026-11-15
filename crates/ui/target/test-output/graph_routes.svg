@@ -1,0 +1,30 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="200" height="200" opacity="1" fill="#FFFFFF" stroke="none"/>
+<rect x="5" y="15" width="30" height="10" opacity="1" fill="none" stroke="#000000"/>
+<text x="5" y="15" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="8.064516129032258" opacity="1" fill="#000000">
+0
+</text>
+<rect x="55" y="17" width="30" height="10" opacity="1" fill="none" stroke="#000000"/>
+<text x="55" y="17" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="8.064516129032258" opacity="1" fill="#000000">
+1
+</text>
+<rect x="7" y="33" width="25" height="10" opacity="1" fill="none" stroke="#000000"/>
+<text x="7" y="33" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="8.064516129032258" opacity="1" fill="#000000">
+2
+</text>
+<rect x="52" y="35" width="35" height="10" opacity="1" fill="none" stroke="#000000"/>
+<text x="52" y="35" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="8.064516129032258" opacity="1" fill="#000000">
+3
+</text>
+<rect x="12" y="55" width="55" height="10" opacity="1" fill="none" stroke="#000000"/>
+<text x="12" y="55" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="8.064516129032258" opacity="1" fill="#000000">
+4
+</text>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="35,20 43,20 43,22 55,22 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="20,25 20,30 64,30 64,35 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="5,20 0,20 0,60 12,60 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="32,38 43,38 43,40 52,40 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="85,22 97,22 97,60 67,60 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="70,27 70,30 75,30 75,35 "/>
+<polyline fill="none" opacity="1" stroke="#00FF00" stroke-width="1" points="20,43 20,50 40,50 40,55 "/>
+</svg>

@@ -4175,6 +4175,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdf-analytics"
+version = "0.2.0"
+dependencies = [
+ "nalgebra 0.35.0",
+ "rand 0.10.1",
+ "rayon",
+ "rdf-core",
+ "strum",
+ "strum_macros",
+]
+
+[[package]]
+name = "rdf-core"
+version = "0.2.0"
+dependencies = [
+ "bimap",
+ "bitflags 2.12.1",
+ "indexmap",
+ "oxrdf",
+ "serde",
+ "string-interner",
+]
+
+[[package]]
 name = "rdf-glance"
 version = "0.2.0"
 dependencies = [
@@ -4215,6 +4239,8 @@ dependencies = [
  "quick-xml 0.40.1",
  "rand 0.10.1",
  "rayon",
+ "rdf-analytics",
+ "rdf-core",
  "reqwest",
  "rfd",
  "rust-sugiyama",

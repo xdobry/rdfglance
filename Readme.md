@@ -143,6 +143,15 @@ Follow these steps to compile the application:
 
 You may also pick the precompiled executable for windows from [github releases](https://github.com/xdobry/rdfglance/releases).
 
+The Rust code is organized as a Cargo workspace:
+
+- `crates/rdf-core` contains the RDF model and shared indexing primitives.
+- `crates/rdf-analytics` contains graph statistics and clustering algorithms.
+- `crates/ui` contains the application and its graph visualization/layout.
+- `crates/ui-desktop` and `crates/ui-wasm` provide the desktop and browser entry points.
+
+To check or test the workspace, run `cargo check --workspace` or `cargo test --workspace` from the repository root.
+
 ## Usage
 
 After compiling the application, you can run it using the following command:
