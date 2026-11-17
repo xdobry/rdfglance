@@ -1,8 +1,4 @@
-use crate::{
-    support::SortedVec, 
-    uistate::layout::SortedNodeLayout, 
-    IriIndex
-};
+use crate::{IriIndex, support::SortedVec, uistate::layout::SortedNodeLayout};
 use egui::Pos2;
 use nalgebra::linalg::SymmetricEigen;
 use nalgebra::{DMatrix, DVector, RowDVector};
@@ -152,14 +148,14 @@ fn spectral_layout_from_laplacian(lap: &DMatrix<f64>, dim: usize) -> Result<DMat
             coords[(i, d)] = vec[i];
         }
     }
-    
+
     Ok(coords)
 }
 
 #[cfg(test)]
 mod tests {
-    use nalgebra::DMatrix;
     use crate::layoutalg::spectral::*;
+    use nalgebra::DMatrix;
 
     #[test]
     fn test_spectral_from_adj_matrix() {

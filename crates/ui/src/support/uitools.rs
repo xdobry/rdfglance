@@ -25,7 +25,7 @@ pub fn popup_at<R>(ui: &Ui, popup_id: Id, pos: Pos2, width: f32, add_contents: i
         if ui.input(|i| i.key_pressed(Key::Escape)) {
             Popup::close_id(ui.ctx(), popup_id);
         } else {
-            ui.ctx().memory_mut(|mem| mem.keep_popup_open(popup_id));
+            Popup::open_id(ui.ctx(), popup_id);
         }
         Some(inner)
     } else {

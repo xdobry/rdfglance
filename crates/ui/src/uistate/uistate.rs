@@ -1,15 +1,15 @@
 use std::{
-    collections::BTreeSet, 
-    sync::{Arc, atomic::{AtomicBool, AtomicUsize}}
+    collections::BTreeSet,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize},
+    },
 };
 
 use egui::{Pos2, Rect};
 
 use crate::{
-    IriIndex, 
-    domain::LangIndex, 
-    support::SortedVec, 
-    uistate::actions::NodeContextAction,
+    IriIndex, domain::LangIndex, support::SortedVec, uistate::actions::NodeContextAction,
     uistate::visual_query::VisualQueryUIState,
 };
 
@@ -95,12 +95,9 @@ pub enum LastVisitedSelection {
     Project(usize),
 }
 
-
-
 pub struct GraphState {
     pub scene_rect: Rect,
 }
-
 
 pub enum StyleEdit {
     Node(IriIndex),
@@ -122,7 +119,6 @@ pub enum DisplayType {
 }
 
 // Define the application structure
-
 
 // Used to indicate which reference is selected in the browse view
 
@@ -171,15 +167,11 @@ pub struct LoadResult {
     pub file_name: Option<String>,
 }
 
-
-
-
 #[cfg(target_arch = "wasm32")]
 pub struct File {
     pub path: String,
     pub data: Vec<u8>,
 }
-
 
 pub enum SystemMessage {
     None,
@@ -199,4 +191,3 @@ impl SystemMessage {
         }
     }
 }
-

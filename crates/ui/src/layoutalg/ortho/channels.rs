@@ -18,13 +18,8 @@ pub struct ChannelPort {
 
 #[derive(Debug)]
 pub enum ChannelPortType {
-    NodePort{
-        node_id: usize, 
-        side: Side
-    },
-    Bend{ 
-        channel_id: usize,
-    },
+    NodePort { node_id: usize, side: Side },
+    Bend { channel_id: usize },
 }
 
 impl RChannel {
@@ -37,7 +32,7 @@ impl RChannel {
         }
     }
 
-    pub fn merge_v(&mut self, other: &mut RChannel) {       
+    pub fn merge_v(&mut self, other: &mut RChannel) {
         self.rect.set_top(self.rect.top().min(other.rect.top()));
         self.rect.set_bottom(self.rect.bottom().max(other.rect.bottom()));
         self.rect.set_left(self.rect.left().max(other.rect.left()));
@@ -45,7 +40,7 @@ impl RChannel {
         self.ports.append(&mut other.ports);
     }
 
-    pub fn merge_h(&mut self, other: &mut RChannel) {       
+    pub fn merge_h(&mut self, other: &mut RChannel) {
         self.rect.set_left(self.rect.left().min(other.rect.left()));
         self.rect.set_right(self.rect.right().max(other.rect.right()));
         self.rect.set_top(self.rect.top().max(other.rect.top()));
@@ -55,12 +50,8 @@ impl RChannel {
 
     pub fn point_on_representative(&self, port_pos: Pos2) -> Pos2 {
         match self.orientation {
-            Orientation::Vertical => {
-                Pos2::new(self.rect.center().x, port_pos.y)
-            },
-            Orientation::Horizontal => {
-                Pos2::new(port_pos.x, self.rect.center().y)
-            },
+            Orientation::Vertical => Pos2::new(self.rect.center().x, port_pos.y),
+            Orientation::Horizontal => Pos2::new(port_pos.x, self.rect.center().y),
         }
     }
 
@@ -76,11 +67,11 @@ impl RChannel {
             Orientation::Vertical => {
                 let spacing = self.rect.width() / (total_slots as f32 + 1.0);
                 Pos2::new(self.rect.min.x + spacing * (slot as f32 + 1.0), port_pos.y)
-            },
+            }
             Orientation::Horizontal => {
                 let spacing = self.rect.height() / (total_slots as f32 + 1.0);
                 Pos2::new(port_pos.x, self.rect.min.y + spacing * (slot as f32 + 1.0))
-            },
+            }
         }
     }
 
@@ -94,40 +85,83 @@ impl RChannel {
 
 /* One need for different AreaLimit to build a channel rect */
 struct AreaLimit {
-    coord: f32, 
-    min: f32, 
-    max: f32, 
+    coord: f32,
+    min: f32,
+    max: f32,
     node_id: usize,
 }
 
-pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
+pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>, Vec<RChannel>) {
     let bounding_box = boxes.iter().fold(
-        ERect::from_min_max(egui::pos2(f32::INFINITY, f32::INFINITY), egui::pos2(f32::NEG_INFINITY, f32::NEG_INFINITY)),
-        |acc, b| acc.union(*b)
+        ERect::from_min_max(
+            egui::pos2(f32::INFINITY, f32::INFINITY),
+            egui::pos2(f32::NEG_INFINITY, f32::NEG_INFINITY),
+        ),
+        |acc, b| acc.union(*b),
     );
-    
+
     let mut limits_vl = Vec::new();
     let mut limits_vr = Vec::new();
     let mut limits_ht = Vec::new();
     let mut limits_hb = Vec::new();
     for (i, b) in boxes.iter().enumerate() {
-        limits_vl.push(AreaLimit{coord: b.min.x, min: b.min.y, max: b.max.y, node_id: i});
-        limits_vr.push(AreaLimit{coord: b.max.x, min: b.min.y, max: b.max.y, node_id: i});
-        limits_ht.push(AreaLimit{coord: b.min.y, min: b.min.x, max: b.max.x, node_id: i});
-        limits_hb.push(AreaLimit{coord: b.max.y, min: b.min.x, max: b.max.x, node_id: i});
+        limits_vl.push(AreaLimit {
+            coord: b.min.x,
+            min: b.min.y,
+            max: b.max.y,
+            node_id: i,
+        });
+        limits_vr.push(AreaLimit {
+            coord: b.max.x,
+            min: b.min.y,
+            max: b.max.y,
+            node_id: i,
+        });
+        limits_ht.push(AreaLimit {
+            coord: b.min.y,
+            min: b.min.x,
+            max: b.max.x,
+            node_id: i,
+        });
+        limits_hb.push(AreaLimit {
+            coord: b.max.y,
+            min: b.min.x,
+            max: b.max.x,
+            node_id: i,
+        });
     }
     let margin: f32 = 20.0;
     let bounding_box = bounding_box.expand(margin);
-    limits_vl.push(AreaLimit{coord: bounding_box.max.x, min: bounding_box.min.y, max: bounding_box.max.y, node_id: usize::MAX});
-    limits_vr.push(AreaLimit{coord: bounding_box.min.x, min: bounding_box.min.y, max: bounding_box.max.y, node_id: usize::MAX});
-    limits_ht.push(AreaLimit{coord: bounding_box.max.y, min: bounding_box.min.x, max: bounding_box.max.x, node_id: usize::MAX});
-    limits_hb.push(AreaLimit{coord: bounding_box.min.y, min: bounding_box.min.x, max: bounding_box.max.x,  node_id: usize::MAX});
+    limits_vl.push(AreaLimit {
+        coord: bounding_box.max.x,
+        min: bounding_box.min.y,
+        max: bounding_box.max.y,
+        node_id: usize::MAX,
+    });
+    limits_vr.push(AreaLimit {
+        coord: bounding_box.min.x,
+        min: bounding_box.min.y,
+        max: bounding_box.max.y,
+        node_id: usize::MAX,
+    });
+    limits_ht.push(AreaLimit {
+        coord: bounding_box.max.y,
+        min: bounding_box.min.x,
+        max: bounding_box.max.x,
+        node_id: usize::MAX,
+    });
+    limits_hb.push(AreaLimit {
+        coord: bounding_box.min.y,
+        min: bounding_box.min.x,
+        max: bounding_box.max.x,
+        node_id: usize::MAX,
+    });
 
-    limits_vl.sort_by(|a,b| a.coord.partial_cmp(&b.coord).unwrap());
-    limits_vr.sort_by(|a,b| a.coord.partial_cmp(&b.coord).unwrap());
-    limits_ht.sort_by(|a,b| a.coord.partial_cmp(&b.coord).unwrap());
-    limits_hb.sort_by(|a,b| a.coord.partial_cmp(&b.coord).unwrap());
-    
+    limits_vl.sort_by(|a, b| a.coord.partial_cmp(&b.coord).unwrap());
+    limits_vr.sort_by(|a, b| a.coord.partial_cmp(&b.coord).unwrap());
+    limits_ht.sort_by(|a, b| a.coord.partial_cmp(&b.coord).unwrap());
+    limits_hb.sort_by(|a, b| a.coord.partial_cmp(&b.coord).unwrap());
+
     let mut vchannels: Vec<RChannel> = Vec::new();
 
     // Find vertical channels based of left limits
@@ -155,7 +189,7 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                 let mut channel = RChannel::from_min_max(
                                     egui::pos2(left.coord, top.coord),
                                     egui::pos2(right.coord, bottom.coord),
-                                    Orientation::Vertical
+                                    Orientation::Vertical,
                                 );
                                 if right.node_id != usize::MAX {
                                     let port_type = ChannelPortType::NodePort {
@@ -163,7 +197,11 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                         side: Side::Left,
                                     };
                                     let position = boxes[right.node_id].center().y;
-                                    channel.ports.push(ChannelPort { position, port_type, rnode_id: usize::MAX });
+                                    channel.ports.push(ChannelPort {
+                                        position,
+                                        port_type,
+                                        rnode_id: usize::MAX,
+                                    });
                                 }
                                 let mut merged = false;
                                 for mc in vchannels.iter_mut() {
@@ -210,7 +248,7 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                 let mut channel = RChannel::from_min_max(
                                     egui::pos2(left.coord, top.coord),
                                     egui::pos2(right.coord, bottom.coord),
-                                    Orientation::Vertical
+                                    Orientation::Vertical,
                                 );
                                 if left.node_id != usize::MAX {
                                     let port_type = ChannelPortType::NodePort {
@@ -218,7 +256,11 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                         side: Side::Right,
                                     };
                                     let position = boxes[left.node_id].center().y;
-                                    channel.ports.push(ChannelPort{ position, port_type, rnode_id: usize::MAX });
+                                    channel.ports.push(ChannelPort {
+                                        position,
+                                        port_type,
+                                        rnode_id: usize::MAX,
+                                    });
                                 }
                                 let mut merged = false;
                                 for mc in vchannels.iter_mut() {
@@ -266,7 +308,7 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                 let mut channel = RChannel::from_min_max(
                                     egui::pos2(left.coord, top.coord),
                                     egui::pos2(right.coord, bottom.coord),
-                                    Orientation::Horizontal
+                                    Orientation::Horizontal,
                                 );
                                 if bottom.node_id != usize::MAX {
                                     let port_type = ChannelPortType::NodePort {
@@ -274,7 +316,11 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                         side: Side::Top,
                                     };
                                     let position = boxes[bottom.node_id].center().x;
-                                    channel.ports.push(ChannelPort{ position, port_type, rnode_id: usize::MAX });
+                                    channel.ports.push(ChannelPort {
+                                        position,
+                                        port_type,
+                                        rnode_id: usize::MAX,
+                                    });
                                 }
                                 let mut merged = false;
                                 for mc in hchannels.iter_mut() {
@@ -320,7 +366,7 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                 let mut channel = RChannel::from_min_max(
                                     egui::pos2(left.coord, top.coord),
                                     egui::pos2(right.coord, bottom.coord),
-                                    Orientation::Horizontal
+                                    Orientation::Horizontal,
                                 );
                                 if top.node_id != usize::MAX {
                                     let port_type = ChannelPortType::NodePort {
@@ -328,8 +374,12 @@ pub fn build_channels(boxes: &[ERect]) -> (Vec<RChannel>,Vec<RChannel>) {
                                         side: Side::Bottom,
                                     };
                                     let position = boxes[top.node_id].center().x;
-                                    channel.ports.push(ChannelPort{ position, port_type, rnode_id: usize::MAX });
-                                }                                
+                                    channel.ports.push(ChannelPort {
+                                        position,
+                                        port_type,
+                                        rnode_id: usize::MAX,
+                                    });
+                                }
                                 let mut merged = false;
                                 for mc in hchannels.iter_mut() {
                                     if mc.rect.intersects(channel.rect) {
@@ -370,7 +420,11 @@ mod tests {
         ]
     }
 
-    fn draw_rects(root: &DrawingArea<SVGBackend,Shift>,rects: &[ERect],color: &RGBColor) -> Result<(), Box<dyn std::error::Error>>{
+    fn draw_rects(
+        root: &DrawingArea<SVGBackend, Shift>,
+        rects: &[ERect],
+        color: &RGBColor,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for (r, rect) in rects.iter().enumerate() {
             let top_left = (rect.min.x as i32, rect.min.y as i32);
             let bottom_right = (rect.max.x as i32, rect.max.y as i32);
@@ -379,13 +433,17 @@ mod tests {
                 ShapeStyle::from(color).stroke_width(1),
             ))?;
             let style = TextStyle::from(("sans-serif", 10).into_font()).color(color);
-            let text = format!("{}",r);
+            let text = format!("{}", r);
             root.draw_text(&text, &style, (rect.min.x as i32, rect.min.y as i32))?;
         }
         Ok(())
     }
 
-    fn draw_channels(root: &DrawingArea<SVGBackend,Shift>,channels: &[RChannel],color: &RGBColor) -> Result<(), Box<dyn std::error::Error>>{
+    fn draw_channels(
+        root: &DrawingArea<SVGBackend, Shift>,
+        channels: &[RChannel],
+        color: &RGBColor,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for channel in channels {
             let top_left = (channel.rect.min.x as i32, channel.rect.min.y as i32);
             let bottom_right = (channel.rect.max.x as i32, channel.rect.max.y as i32);
@@ -395,7 +453,7 @@ mod tests {
             ))?;
             let center = channel.rect.center();
             let style = TextStyle::from(("sans-serif", 10).into_font()).color(color);
-            let text = format!("{}",channel.ports.len());
+            let text = format!("{}", channel.ports.len());
             root.draw_text(&text, &style, (center.x as i32, center.y as i32))?;
         }
         Ok(())
@@ -404,7 +462,7 @@ mod tests {
     #[test]
     fn test_build_channels() -> Result<(), Box<dyn std::error::Error>> {
         let boxes = test_rects();
-        let (vchannels,hchannels) = build_channels(&boxes);
+        let (vchannels, hchannels) = build_channels(&boxes);
         assert!(!vchannels.is_empty());
         assert!(!hchannels.is_empty());
 

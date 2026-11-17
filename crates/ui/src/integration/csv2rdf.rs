@@ -1,9 +1,9 @@
-use std::io::{self, Read};
+use base62::encode;
 use csv::{Reader, StringRecord};
 use oxrdf::{NamedNode, Triple};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use slug::slugify;
-use base62::encode;
+use std::io::{self, Read};
 use xxhash_rust::xxh3::xxh3_64;
 
 pub struct CSVRDFParser<R: Read> {
@@ -26,7 +26,7 @@ impl<R: Read> CSVRDFParser<R> {
             // 0 is meaning that the type of column should be emitted
             current_column: 0,
             row_number: 0,
-            type_node: NamedNode::new_unchecked(format!("urn:csv:{}",slugify(&file_base))),
+            type_node: NamedNode::new_unchecked(format!("urn:csv:{}", slugify(&file_base))),
             row_subj: None,
             csv_hash: hash_string(&file_base),
         }
@@ -44,7 +44,7 @@ impl<R: Read> Iterator for CSVRDFParser<R> {
                     let mut columns: Vec<NamedNode> = Vec::with_capacity(headers.len());
                     for col in headers {
                         let encoded = utf8_percent_encode(col, NON_ALPHANUMERIC);
-                        columns.push( NamedNode::new_unchecked(format!("urn:col:{}",encoded)));
+                        columns.push(NamedNode::new_unchecked(format!("urn:col:{}", encoded)));
                     }
                     self.headers = Some(columns);
                 }
@@ -56,8 +56,8 @@ impl<R: Read> Iterator for CSVRDFParser<R> {
 
         loop {
             // Need a new record?
-            let need_record = self.current_record.is_none()
-                || self.current_column >= self.current_record.as_ref()?.len()+1;
+            let need_record =
+                self.current_record.is_none() || self.current_column >= self.current_record.as_ref()?.len() + 1;
 
             if need_record {
                 let mut record = StringRecord::new();
@@ -68,7 +68,10 @@ impl<R: Read> Iterator for CSVRDFParser<R> {
                         self.current_record = Some(record);
                         self.current_column = 0;
                         self.row_number += 1;
-                        self.row_subj = Some( NamedNode::new_unchecked(format!("urn:row:{}:{}", self.csv_hash, self.row_number)))
+                        self.row_subj = Some(NamedNode::new_unchecked(format!(
+                            "urn:row:{}:{}",
+                            self.csv_hash, self.row_number
+                        )))
                     }
                     Err(err) => {
                         return Some(Err(io::Error::other(err)));
@@ -86,12 +89,12 @@ impl<R: Read> Iterator for CSVRDFParser<R> {
                 let subj = self.row_subj.as_ref().unwrap();
                 Triple::new(subj.clone(), oxrdf::vocab::rdf::TYPE, self.type_node.clone())
             } else {
-                let value = &record[col-1];
+                let value = &record[col - 1];
                 if value.len() == 0 {
                     // Do not emit empty string (no value)
                     continue;
                 }
-                let pred = &headers[col-1];
+                let pred = &headers[col - 1];
                 // Build RDF triple here
                 let subj = self.row_subj.as_ref().unwrap();
                 let objv = oxrdf::Literal::new_simple_literal(value);

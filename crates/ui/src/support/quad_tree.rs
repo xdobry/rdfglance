@@ -16,7 +16,6 @@ impl WeightedPoint {
     }
 }
 
-
 #[derive(Debug)]
 struct Node {
     bound: Rect,
@@ -120,7 +119,7 @@ impl BHQuadtree {
         loop {
             let node = &self.nodes[n];
             let cm = node.cm;
-            let d2 = (target-cm.pos).length_sq();
+            let d2 = (target - cm.pos).length_sq();
             let s = node.bound.size().max_elem();
             if (s * s) < self.theta2 * d2 {
                 acc += force_fn(target, cm);
@@ -158,11 +157,12 @@ impl BHQuadtree {
         split[1] = split[0] + self.items[split[0]..split[2]].partition(predicate);
         split[3] = split[2] + self.items[split[2]..split[4]].partition(predicate);
 
-        let range_len = range.end-range.start;
-        if split[2]-split[1] == range_len 
-            || split[3]-split[2] == range_len 
-            || split[4]-split[3] == range_len
-            || split[1]-split[0] == range_len {
+        let range_len = range.end - range.start;
+        if split[2] - split[1] == range_len
+            || split[3] - split[2] == range_len
+            || split[4] - split[3] == range_len
+            || split[1] - split[0] == range_len
+        {
             // all nodes have same position, so we can not subdivide further
             if self.items[range].windows(2).all(|w| w[0].pos == w[1].pos) {
                 self.nodes[n].children = 0;
@@ -282,7 +282,7 @@ mod tests {
                 }
                 acc2 += force_fn(target, *item);
             }
-            assert!((acc-acc2).length()< 0.05); // Allow some tolerance for floating point errors and quad approximation
+            assert!((acc - acc2).length() < 0.05); // Allow some tolerance for floating point errors and quad approximation
         }
     }
 
@@ -298,7 +298,7 @@ mod tests {
             WeightedPoint::new(Vec2::new(-5.0, 3.0), 1.0),
         ];
         for _ in 0..5 {
-            items.push(WeightedPoint::new(Vec2::new(-2.0,-2.0),1.0));
+            items.push(WeightedPoint::new(Vec2::new(-2.0, -2.0), 1.0));
         }
 
         tree.build(items, 2);
@@ -328,8 +328,8 @@ mod tests {
                 }
                 acc2 += force_fn(target, *item);
             }
-            
-            assert!((acc-acc2).length()< 0.05); // Allow some tolerance for floating point errors and quad approximation
+
+            assert!((acc - acc2).length() < 0.05); // Allow some tolerance for floating point errors and quad approximation
         }
     }
 }

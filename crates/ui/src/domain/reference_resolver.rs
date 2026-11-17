@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use rayon::prelude::*;
 use crate::{
     IriIndex,
     domain::{Literal, NodeData, type_index::TypeInstanceIndex},
 };
+use rayon::prelude::*;
+use std::collections::HashMap;
 
 pub fn resolve_references(
     node_data: &mut NodeData,
@@ -53,7 +53,6 @@ pub fn resolve_references(
                 left
             },
         );
-   
 
     let mut target_nodes: Vec<IriIndex> = Vec::new();
     for inst_index in from_type.instances.iter() {

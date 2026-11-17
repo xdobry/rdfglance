@@ -1,17 +1,17 @@
-use std::io::{self, BufReader, Cursor, Read};
 use egui::TextBuffer;
+use json_event_parser::{JsonEvent, ReaderJsonParser};
 use oxrdf::{Literal, NamedNode, Triple};
+use serde_json::Value;
 use slug::slugify;
-use json_event_parser::{ReaderJsonParser, JsonEvent};
-use serde_json::{Value};
 use std::io::BufRead;
+use std::io::{self, BufReader, Cursor, Read};
 
 use crate::integration::{csv2rdf::hash_string, rdfwrap::ParseItem};
 
 pub struct JsonRdfParser<R: Read> {
     reader: ReaderJsonParser<R>,
     prop_path: Vec<String>,
-    obj_path: Vec<(NamedNode,usize)>,
+    obj_path: Vec<(NamedNode, usize)>,
     pub(crate) obj_count: usize,
     file_hash: String,
     array_depth: usize,
@@ -55,30 +55,40 @@ impl<R: Read> JsonRdfParser<R> {
                             break;
                         }
                         JsonEvent::StartObject => {
-                            let obj_iri = NamedNode::new_unchecked(format!("urn:json:{}#{}",self.file_hash,self.obj_count));
-                            let mut type_iri = format!("urn:json:{}",self.file_hash);
+                            let obj_iri =
+                                NamedNode::new_unchecked(format!("urn:json:{}#{}", self.file_hash, self.obj_count));
+                            let mut type_iri = format!("urn:json:{}", self.file_hash);
                             for path in &self.prop_path {
                                 type_iri.push(':');
                                 type_iri.push_str(&path);
                             }
                             self.obj_count += 1;
-                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(), oxrdf::vocab::rdf::TYPE, NamedNode::new_unchecked(&type_iri)))));
+                            f(ParseItem::Triple(Ok(Triple::new(
+                                obj_iri.clone(),
+                                oxrdf::vocab::rdf::TYPE,
+                                NamedNode::new_unchecked(&type_iri),
+                            ))));
                             // Link to parent object
                             if let Some(parent_obj) = self.obj_path.last() {
                                 if let Some(prop) = self.prop_path.last() {
-                                    let prop_pred = NamedNode::new_unchecked(format!("urn:json:{}#{}",self.file_hash, prop));
-                                    f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(),prop_pred, parent_obj.0.clone()))));
+                                    let prop_pred =
+                                        NamedNode::new_unchecked(format!("urn:json:{}#{}", self.file_hash, prop));
+                                    f(ParseItem::Triple(Ok(Triple::new(
+                                        obj_iri.clone(),
+                                        prop_pred,
+                                        parent_obj.0.clone(),
+                                    ))));
                                 }
                             }
-                            self.obj_path.push((obj_iri,self.array_depth));
+                            self.obj_path.push((obj_iri, self.array_depth));
                             self.array_depth = 0;
                         }
                         JsonEvent::EndObject => {
                             if let Some(last_obj) = self.obj_path.pop() {
                                 self.array_depth = last_obj.1;
                             }
-                            if self.array_depth==0 && self.prop_path.len()>0 {
-                                let p = self.prop_path.pop();
+                            if self.array_depth == 0 && self.prop_path.len() > 0 {
+                                let _ = self.prop_path.pop();
                             }
                         }
                         JsonEvent::StartArray => {
@@ -86,66 +96,93 @@ impl<R: Read> JsonRdfParser<R> {
                         }
                         JsonEvent::EndArray => {
                             self.array_depth -= 1;
-                            if self.prop_path.len()>0 {
+                            if self.prop_path.len() > 0 {
                                 let _p = self.prop_path.pop();
-                            }                           
+                            }
                         }
                         JsonEvent::ObjectKey(k) => {
                             self.prop_path.push(slugify(k.as_str()));
                         }
                         JsonEvent::Null => {
-                            if self.array_depth==0 && self.prop_path.len()>0 {
-                               let _p = self.prop_path.pop();
-                            }   
+                            if self.array_depth == 0 && self.prop_path.len() > 0 {
+                                let _p = self.prop_path.pop();
+                            }
                         }
                         JsonEvent::String(v) => {
-                            if v.len()>0 {
+                            if v.len() > 0 {
                                 if let Some(obj_iri) = self.obj_path.last() {
                                     if let Some(prop) = self.prop_path.last() {
-                                        let prop_pred = NamedNode::new_unchecked(format!("urn:json:{}#{}",self.file_hash, prop));
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::new_simple_literal(v)))));
+                                        let prop_pred =
+                                            NamedNode::new_unchecked(format!("urn:json:{}#{}", self.file_hash, prop));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri.0.clone(),
+                                            prop_pred,
+                                            Literal::new_simple_literal(v),
+                                        ))));
                                     }
                                 }
                             }
-                            if self.array_depth==0 && self.prop_path.len()>0 {
-                               let _p = self.prop_path.pop();
+                            if self.array_depth == 0 && self.prop_path.len() > 0 {
+                                let _p = self.prop_path.pop();
                             }
                         }
                         JsonEvent::Number(v) => {
                             if let Some(obj_iri) = self.obj_path.last() {
                                 if let Some(prop) = self.prop_path.last() {
-                                    let prop_pred = NamedNode::new_unchecked(format!("urn:json:{}#{}",self.file_hash, prop));
+                                    let prop_pred =
+                                        NamedNode::new_unchecked(format!("urn:json:{}#{}", self.file_hash, prop));
                                     let v_str: &str = v.as_str();
-                                    let value: Result<Value,_> = serde_json::from_str(v_str);
+                                    let value: Result<Value, _> = serde_json::from_str(v_str);
                                     if let Ok(Value::Number(n)) = value {
                                         if n.is_i64() {
                                             let nv: i64 = n.as_i64().unwrap();
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::from(nv)))));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri.0.clone(),
+                                                prop_pred,
+                                                Literal::from(nv),
+                                            ))));
                                         } else if n.is_u64() {
                                             let nv: u64 = n.as_u64().unwrap();
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::from(nv)))));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri.0.clone(),
+                                                prop_pred,
+                                                Literal::from(nv),
+                                            ))));
                                         } else if n.is_f64() {
                                             let nv: f64 = n.as_f64().unwrap();
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::from(nv)))));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri.0.clone(),
+                                                prop_pred,
+                                                Literal::from(nv),
+                                            ))));
                                         }
                                     } else {
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::new_simple_literal(v)))));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri.0.clone(),
+                                            prop_pred,
+                                            Literal::new_simple_literal(v),
+                                        ))));
                                     }
                                 }
                             }
-                            if self.array_depth==0 && self.prop_path.len()>0 {
-                               let _p = self.prop_path.pop();
+                            if self.array_depth == 0 && self.prop_path.len() > 0 {
+                                let _p = self.prop_path.pop();
                             }
                         }
                         JsonEvent::Boolean(v) => {
                             if let Some(obj_iri) = self.obj_path.last() {
                                 if let Some(prop) = self.prop_path.last() {
-                                    let prop_pred = NamedNode::new_unchecked(format!("urn:json:{}#{}",self.file_hash, prop));
-                                    f(ParseItem::Triple(Ok(Triple::new(obj_iri.0.clone(),prop_pred, Literal::from(v)))));
+                                    let prop_pred =
+                                        NamedNode::new_unchecked(format!("urn:json:{}#{}", self.file_hash, prop));
+                                    f(ParseItem::Triple(Ok(Triple::new(
+                                        obj_iri.0.clone(),
+                                        prop_pred,
+                                        Literal::from(v),
+                                    ))));
                                 }
                             }
-                            if self.array_depth==0 && self.prop_path.len()>0 {
-                               let _p = self.prop_path.pop();
+                            if self.array_depth == 0 && self.prop_path.len() > 0 {
+                                let _p = self.prop_path.pop();
                             }
                         }
                     }
@@ -191,7 +228,7 @@ impl<R: Read> NdJsonRdfParser<R> {
                 f(parse_item);
             })?;
             count = json_parser.obj_count;
-        }       
+        }
         Ok(())
     }
 }

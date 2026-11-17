@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::domain::config::Config;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct AppPersistentData {

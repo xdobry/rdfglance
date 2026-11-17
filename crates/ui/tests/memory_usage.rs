@@ -1,23 +1,22 @@
-use rdf_glance::RdfGlanceApp;
 use peak_alloc::PeakAlloc;
+use rdf_glance::RdfGlanceApp;
 
 #[global_allocator]
 static PEAK_ALLOC: PeakAlloc = PeakAlloc;
-
 
 #[test]
 fn test_memory_usage() {
     // cargo test --test memory_usage -- --nocapture
     let current_mem = PEAK_ALLOC.current_usage_as_kb();
-	println!("This program currently uses {} kB of RAM.", current_mem);
-    
+    println!("This program currently uses {} kB of RAM.", current_mem);
+
     let mut app = RdfGlanceApp::new(None, vec![]);
     app.load_ttl("../../sample-rdf-data/programming_languages.ttl", true);
     app.join_load(false);
-    assert!(app.rdf_data.read().unwrap().node_data.len()>0);
+    assert!(app.rdf_data.read().unwrap().node_data.len() > 0);
     let mem_after_loading = PEAK_ALLOC.current_usage_as_kb();
-	
-	println!(" !! Data strucures use {} kB of RAM.", mem_after_loading-current_mem);
+
+    println!(" !! Data strucures use {} kB of RAM.", mem_after_loading - current_mem);
     // IriIndex usize
     //  !! Data structures use 696.39355 kB of RAM.
     // IriIndex u32

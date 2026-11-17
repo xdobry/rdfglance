@@ -235,16 +235,19 @@ fn grow(tree: &WeightedDiGraph, rects: &[Rect], random: &mut StdRng) -> Vec<Rect
         return Vec::new();
     }
     dfs(0, None, Vec2::new(0.0, 0.0), tree, rects, &mut out, &mut noise);
-    out.into_iter().enumerate().map(|(index,o)| 
-        if let Some(r) = o {
-            r
-        } else {
-            // this happen if rects exact overlap so take original position and move slightly
-            let r = rects[index];
-            
-            Rect::from_center_size(r.center() + Vec2::new(0.01, 0.01), r.size())
-        }
-    ).collect()
+    out.into_iter()
+        .enumerate()
+        .map(|(index, o)| {
+            if let Some(r) = o {
+                r
+            } else {
+                // this happen if rects exact overlap so take original position and move slightly
+                let r = rects[index];
+
+                Rect::from_center_size(r.center() + Vec2::new(0.01, 0.01), r.size())
+            }
+        })
+        .collect()
 }
 
 /// Step: one iteration of the Nachmanson algorithm. Returns Some(new_rects) or None if no change needed.
@@ -521,15 +524,17 @@ mod tests {
     fn test_nachmanson_layout_no_overlap_same() {
         let mut nl = SortedNodeLayout::default();
         let len = nl.mut_nodes(|nodes, positions, _edges, node_shapes, _individual_node_styles| {
-            let rects: Vec<[f32;4]> = vec![
+            let rects: Vec<[f32; 4]> = vec![
                 [0.0, 0.0, 2.0, 2.0],
                 [1.0, 1.0, 2.0, 2.0],
                 [-1.0, -1.0, 2.0, 2.0],
                 [1.0, 1.0, 2.0, 2.0],
                 [1.1, 1.3, 2.0, 2.0],
             ];
-            for (pos,r) in rects.iter().enumerate() {
-                nodes.push(NodeLayout { node_index: pos as IriIndex });
+            for (pos, r) in rects.iter().enumerate() {
+                nodes.push(NodeLayout {
+                    node_index: pos as IriIndex,
+                });
                 positions.push(NodePosition {
                     pos: Pos2::new(r[0], r[1]),
                     ..Default::default()

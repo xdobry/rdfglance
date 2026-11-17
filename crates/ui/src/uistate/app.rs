@@ -2,7 +2,7 @@ use const_format::concatcp;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::FileDialog;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::Path,
     sync::{
         Arc, RwLock,
@@ -12,7 +12,11 @@ use std::{
     time::Duration,
 };
 
-use crate::{domain::{type_index::TypeInstanceIndex, visual_query::VisualQuery}, ui::{reference_resolver::ReferenceResolver, style::*}};
+use crate::{
+    domain::{type_index::TypeInstanceIndex, visual_query::VisualQuery},
+    ui::{reference_resolver::ReferenceResolver, style::*},
+    uistate::events::AppEvent,
+};
 use anyhow::Error;
 use eframe::{Frame, Storage};
 use egui::{Key, Rangef, Rect, Ui};
@@ -79,6 +83,8 @@ pub struct RdfGlanceApp {
     pub file_upload: Option<poll_promise::Promise<Result<File, anyhow::Error>>>,
     pub data_loading: Option<Arc<DataLoading>>,
     pub import_from_url: Option<ImportFromUrlData>,
+    pub app_event: Option<AppEvent>,
+    queued_node_actions: VecDeque<NodeAction>,
 }
 
 // Implement default values for MyApp
@@ -145,6 +151,8 @@ impl RdfGlanceApp {
             file_upload: None,
             import_from_url: None,
             reference_resolver: ReferenceResolver::default(),
+            app_event: None,
+            queued_node_actions: VecDeque::new(),
         };
         #[cfg(not(target_arch = "wasm32"))]
         if !args.is_empty() {
@@ -158,6 +166,10 @@ impl RdfGlanceApp {
             app.load_ttl_from_url(first_arg, ImportFormat::Turtle, true);
         }
         app
+    }
+
+    pub fn queue_node_action(&mut self, action: NodeAction) {
+        self.queued_node_actions.push_back(action);
     }
 
     fn show_current(&mut self) -> bool {
@@ -208,23 +220,6 @@ impl RdfGlanceApp {
                 self.ref_selection.init_from_node(current_node);
             }
         }
-    }
-
-    fn load_object(&mut self, iri: &str) -> bool {
-        if let Ok(mut rdf_data) = self.rdf_data.write() {
-            let iri_index = rdf_data.node_data.get_node_index(iri);
-            if let Some(iri_index) = iri_index {
-                self.visible_nodes.add_by_index(iri_index);
-            } else {
-                let new_object = self.rdfwrap.load_object(iri, &mut rdf_data.node_data);
-                if let Some(new_object) = new_object {
-                    rdf_data.node_data.put_node(iri, new_object);
-                } else {
-                    return false;
-                }
-            }
-        }
-        true
     }
 
     pub fn show_object(&mut self) {
@@ -516,6 +511,7 @@ impl RdfGlanceApp {
             rdf_data.node_data.indexers.type_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.language_indexer.map.shrink_to_fit();
             rdf_data.node_data.indexers.datatype_indexer.map.shrink_to_fit();
+            self.app_event = Some(AppEvent::DataSetChange);
         }
     }
     pub fn empty_data_ui(&mut self, ui: &mut egui::Ui) {
@@ -714,16 +710,10 @@ impl RdfGlanceApp {
             .save_file()
         {
             if let Ok(rdf_data) = self.rdf_data.read() {
-                use crate::domain::LabelContext;
                 use std::fs::File;
-                let label_context = LabelContext::new(
-                    self.ui_state.display_language,
-                    self.persistent_data.config_data.iri_display,
-                    &rdf_data.prefix_manager,
-                );
                 let file = File::create(path);
                 if let Ok(mut file) = file {
-                    let store_res = self.export_svg(&mut file, &rdf_data.node_data, &label_context);
+                    let store_res = self.export_svg(&mut file, &rdf_data.node_data);
                     match store_res {
                         Err(e) => {
                             self.system_message = SystemMessage::Error(format!("Can not export svg: {}", e));
@@ -737,14 +727,8 @@ impl RdfGlanceApp {
         }
         #[cfg(target_arch = "wasm32")]
         if let Ok(rdf_data) = self.rdf_data.read() {
-            use crate::domain::graph_model::LabelContext;
-            let label_context = LabelContext::new(
-                self.ui_state.display_language,
-                self.persistent_data.config_data.iri_display,
-                &rdf_data.prefix_manager,
-            );
             let mut buf = Vec::new();
-            let store_res = self.export_svg(&mut buf, &rdf_data.node_data, &label_context);
+            let store_res = self.export_svg(&mut buf, &rdf_data.node_data);
             match store_res {
                 Err(e) => {
                     self.system_message = SystemMessage::Error(format!("Can not export svg: {}", e));
@@ -909,9 +893,9 @@ impl eframe::App for RdfGlanceApp {
                 );
                 ui.add_enabled_ui(!self.is_empty(), |ui| {
                     ui.selectable_value(
-                    &mut self.display_type,
-                    DisplayType::ReferenceResolver,
-                    concatcp!(ICON_CONFIG, " Reference Resolver"),
+                        &mut self.display_type,
+                        DisplayType::ReferenceResolver,
+                        concatcp!(ICON_CONFIG, " Reference Resolver"),
                     );
                 });
                 #[cfg(target_arch = "wasm32")]
@@ -990,6 +974,14 @@ impl eframe::App for RdfGlanceApp {
                     });
                 });
 
+            let mut action_from_queue = false;
+            if matches!(&node_action, NodeAction::None) {
+                if let Some(queued_action) = self.queued_node_actions.pop_front() {
+                    node_action = queued_action;
+                    action_from_queue = true;
+                }
+            }
+
             match node_action {
                 NodeAction::ShowType(type_index) => {
                     self.display_type = DisplayType::Table;
@@ -1048,6 +1040,9 @@ impl eframe::App for RdfGlanceApp {
                     self.ui_state.selected_nodes.insert(node_index);
                 }
                 NodeAction::None => {}
+            }
+            if action_from_queue || !self.queued_node_actions.is_empty() {
+                ui.ctx().request_repaint();
             }
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(dialog) = &mut self.sparql_dialog {

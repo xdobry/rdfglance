@@ -1,12 +1,17 @@
 use core::f64;
-use std::{collections::HashMap};
+use egui::Pos2;
+use ordered_float::OrderedFloat;
+use std::collections::HashMap;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use ordered_float::OrderedFloat;
-use egui::Pos2;
 use string_interner::Symbol;
 
-use crate::{IriIndex, domain::{LabelContext, LangIndex, Literal, NObject, NodeData, RdfData}, ui::table_view::CHAR_WIDTH, uistate::ref_selection::RefSelection};
+use crate::{
+    IriIndex,
+    domain::{LabelContext, LangIndex, Literal, NObject, NodeData, RdfData},
+    ui::table_view::CHAR_WIDTH,
+    uistate::ref_selection::RefSelection,
+};
 
 use rayon::prelude::*;
 
@@ -84,10 +89,8 @@ pub struct ReferenceCharacteristics {
 impl ReferenceCharacteristics {
     fn merge(&mut self, other: ReferenceCharacteristics) {
         self.count += other.count;
-        self.max_cardinality =
-            self.max_cardinality.max(other.max_cardinality);
-        self.min_cardinality =
-            self.min_cardinality.min(other.min_cardinality);
+        self.max_cardinality = self.max_cardinality.max(other.max_cardinality);
+        self.min_cardinality = self.min_cardinality.min(other.min_cardinality);
         for type_index in other.types {
             if !self.types.contains(&type_index) {
                 self.types.push(type_index)
@@ -102,12 +105,10 @@ impl Default for ReferenceCharacteristics {
             count: 0,
             min_cardinality: u32::MAX,
             max_cardinality: 0,
-            types: Vec::new()
+            types: Vec::new(),
         }
-    }    
+    }
 }
-
-
 
 pub struct TypeData {
     pub instances: Vec<IriIndex>,
@@ -139,7 +140,7 @@ pub enum InstanceColumnResize {
     Iri(Pos2),
     Refs(Pos2),
     QueryPredicate(Pos2, IriIndex, usize), //  usize is query table row index
-    QueryAggregation(Pos2, usize) // usize is aggregation index global
+    QueryAggregation(Pos2, usize),         // usize is aggregation index global
 }
 
 pub enum TableContextMenu {
@@ -184,7 +185,7 @@ impl Default for DataPropCharacteristics {
             max_len: 0,
             min_cardinality: u32::MAX,
             max_cardinality: 0,
-            value_types: ValueTypes::empty()
+            value_types: ValueTypes::empty(),
         }
     }
 }
@@ -195,11 +196,9 @@ impl DataPropCharacteristics {
 
         self.max_len = self.max_len.max(other.max_len);
 
-        self.max_cardinality =
-            self.max_cardinality.max(other.max_cardinality);
+        self.max_cardinality = self.max_cardinality.max(other.max_cardinality);
 
-        self.min_cardinality =
-            self.min_cardinality.min(other.min_cardinality);
+        self.min_cardinality = self.min_cardinality.min(other.min_cardinality);
 
         self.value_types |= other.value_types;
     }
@@ -217,11 +216,12 @@ impl Default for NumStatistics {
     }
 }
 
-fn merge_reference_counts(references: &mut HashMap<IriIndex, ReferenceCharacteristics>, other: HashMap<IriIndex, ReferenceCharacteristics>) {
+fn merge_reference_counts(
+    references: &mut HashMap<IriIndex, ReferenceCharacteristics>,
+    other: HashMap<IriIndex, ReferenceCharacteristics>,
+) {
     for (prop, stat) in other {
-        references.entry(prop)
-            .or_default()
-            .merge(stat);
+        references.entry(prop).or_default().merge(stat);
     }
 }
 
@@ -249,73 +249,103 @@ impl TypeData {
             if self_instance_count > 0 && !self.properties.contains_key(&prop) {
                 stat.min_cardinality = 0;
             }
-            self.properties
-                .entry(prop)
-                .or_default()
-                .merge(stat);
+            self.properties.entry(prop).or_default().merge(stat);
         }
         self.instances.extend(other.instances);
 
-        merge_reference_counts(
-            &mut self.references,
-            other.references,
-        );
+        merge_reference_counts(&mut self.references, other.references);
 
-        merge_reference_counts(
-            &mut self.rev_references,
-            other.rev_references,
-        );
+        merge_reference_counts(&mut self.rev_references, other.rev_references);
     }
-    
+
     pub fn calculate_value_statistics(&self, predicate: IriIndex, node_data: &NodeData) -> ValueStatistics {
-        let value_type = self.properties.get(&predicate).map_or(ValueTypes::empty(), |d| d.value_types);
+        let value_type = self
+            .properties
+            .get(&predicate)
+            .map_or(ValueTypes::empty(), |d| d.value_types);
         ValueStatistics::calculate_value_statistics(predicate, value_type, node_data, &self.filtered_instances)
     }
 
-    pub fn sort_instances(&mut self, predicate_to_sort: IriIndex, is_asc: bool, rdf_data: &RdfData, language_index: LangIndex) {
+    pub fn sort_instances(
+        &mut self,
+        predicate_to_sort: IriIndex,
+        is_asc: bool,
+        rdf_data: &RdfData,
+        language_index: LangIndex,
+    ) {
         let prop_desc = self.properties.get(&predicate_to_sort);
         if let Some(prop_desc) = prop_desc {
             if prop_desc.value_types == ValueTypes::INTEGER {
-                let row_pred : Vec<(usize, i64)> = self.filtered_instances.iter().enumerate().map(| (row_id,instance_idx) | {
-                    if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(*instance_idx) {
-                        if let Some(literal) = nobject.get_property(predicate_to_sort, language_index) {
-                            (row_id, literal.as_str_ref(&rdf_data.node_data.indexers).parse::<i64>().unwrap_or(0))
+                let row_pred: Vec<(usize, i64)> = self
+                    .filtered_instances
+                    .iter()
+                    .enumerate()
+                    .map(|(row_id, instance_idx)| {
+                        if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(*instance_idx) {
+                            if let Some(literal) = nobject.get_property(predicate_to_sort, language_index) {
+                                (
+                                    row_id,
+                                    literal
+                                        .as_str_ref(&rdf_data.node_data.indexers)
+                                        .parse::<i64>()
+                                        .unwrap_or(0),
+                                )
+                            } else {
+                                (row_id, 0)
+                            }
                         } else {
                             (row_id, 0)
                         }
-                    } else {
-                        (row_id, 0)
-                    }
-                }).collect();
+                    })
+                    .collect();
                 sort_from_pairs(&mut self.filtered_instances, row_pred, is_asc);
-                return
+                return;
             } else if prop_desc.value_types == ValueTypes::DOUBLE {
-                let row_pred : Vec<(usize, OrderedFloat<f64>)> = self.filtered_instances.iter().enumerate().map(| (row_id,instance_idx) | {
-                    if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(*instance_idx) {
-                        if let Some(literal) = nobject.get_property(predicate_to_sort, language_index) {
-                            (row_id, OrderedFloat(literal.as_str_ref(&rdf_data.node_data.indexers).parse::<f64>().unwrap_or(0.0)))
+                let row_pred: Vec<(usize, OrderedFloat<f64>)> = self
+                    .filtered_instances
+                    .iter()
+                    .enumerate()
+                    .map(|(row_id, instance_idx)| {
+                        if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(*instance_idx) {
+                            if let Some(literal) = nobject.get_property(predicate_to_sort, language_index) {
+                                (
+                                    row_id,
+                                    OrderedFloat(
+                                        literal
+                                            .as_str_ref(&rdf_data.node_data.indexers)
+                                            .parse::<f64>()
+                                            .unwrap_or(0.0),
+                                    ),
+                                )
+                            } else {
+                                (row_id, OrderedFloat(0.0))
+                            }
                         } else {
                             (row_id, OrderedFloat(0.0))
                         }
-                    } else {
-                        (row_id, OrderedFloat(0.0))
-                    }
-                }).collect();
+                    })
+                    .collect();
                 sort_from_pairs(&mut self.filtered_instances, row_pred, is_asc);
-                return
+                return;
             }
         }
-        let asc_greater = if is_asc { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Less};
-        let asc_less = if is_asc { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater};
+        let asc_greater = if is_asc {
+            std::cmp::Ordering::Greater
+        } else {
+            std::cmp::Ordering::Less
+        };
+        let asc_less = if is_asc {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        };
         self.filtered_instances.par_sort_by(|a, b| {
             let node_a = rdf_data.node_data.get_node_by_index(*a);
             let node_b = rdf_data.node_data.get_node_by_index(*b);
             if let Some((_, node_a)) = node_a {
                 if let Some((_, node_b)) = node_b {
-                    let a_value =
-                        &node_a.get_property(predicate_to_sort, language_index);
-                    let b_value =
-                        &node_b.get_property(predicate_to_sort, language_index);
+                    let a_value = &node_a.get_property(predicate_to_sort, language_index);
+                    let b_value = &node_b.get_property(predicate_to_sort, language_index);
                     if let Some(a_value) = a_value {
                         if let Some(b_value) = b_value {
                             let a_value = a_value.as_str_ref(&rdf_data.node_data.indexers);
@@ -339,46 +369,47 @@ impl TypeData {
             } else {
                 asc_greater
             }
-        });        
-    } 
+        });
+    }
 }
 
-fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, mut pairs: Vec<(usize,T)>, is_asc: bool) 
-{
+fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, mut pairs: Vec<(usize, T)>, is_asc: bool) {
     // we use stable version because use can apply several sorts on different columns
-    pairs.par_sort_by(|a, b| {
-        if is_asc {
-            a.1.cmp(&b.1)
-        } else {
-            b.1.cmp(&a.1)
-        }
-    });
+    pairs.par_sort_by(|a, b| if is_asc { a.1.cmp(&b.1) } else { b.1.cmp(&a.1) });
     let mut invert_perm = vec![0; pairs.len()];
     for (idx, row) in pairs.iter().enumerate() {
-        invert_perm[row.0] = idx; 
+        invert_perm[row.0] = idx;
     }
     for i in 0..invert_perm.len() {
         let current = i;
         // While the element is not in the correct place
         while invert_perm[current] != current {
             let next = invert_perm[current];
-            instances.swap(current,next);
+            instances.swap(current, next);
             invert_perm.swap(current, next);
         }
     }
 }
 
 impl ValueStatistics {
-    pub fn calculate_value_statistics<'a, I>(predicate: u32, value_type: ValueTypes, node_data: &NodeData, iter: I) -> ValueStatistics
-    where I: IntoIterator<Item = &'a IriIndex>  {
+    pub fn calculate_value_statistics<'a, I>(
+        predicate: u32,
+        value_type: ValueTypes,
+        node_data: &NodeData,
+        iter: I,
+    ) -> ValueStatistics
+    where
+        I: IntoIterator<Item = &'a IriIndex>,
+    {
         let mut count = 0;
         let mut missing = 0;
         let mut freq: HashMap<u32, u32> = HashMap::new();
-        let mut num_statistics : Option<NumStatistics> = if value_type.intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER) {
-            Some(NumStatistics::default())
-        } else {
-            None
-        };
+        let mut num_statistics: Option<NumStatistics> =
+            if value_type.intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER) {
+                Some(NumStatistics::default())
+            } else {
+                None
+            };
         // TODO can be optimized by rayon
         for instance_index in iter {
             if let Some((_iri, nobject)) = node_data.get_node_by_index(*instance_index) {
@@ -390,12 +421,11 @@ impl ValueStatistics {
                         match value {
                             Literal::StringShort(s) => {
                                 *freq.entry(*s).or_insert(0) += 1;
-                            },
+                            }
                             Literal::LangShortString(_lang_index, s) => {
                                 *freq.entry(*s).or_insert(0) += 1;
-                            },
-                            _ => {
                             }
+                            _ => {}
                         }
                         if let Some(num_statistics) = num_statistics.as_mut() {
                             let literal_value_type = value.value_type(&node_data.indexers);
@@ -408,7 +438,7 @@ impl ValueStatistics {
                                     num_statistics.max = double_value;
                                 }
                                 num_statistics.count += 1.0;
-                                num_statistics.avg += (double_value-num_statistics.avg) / num_statistics.count;
+                                num_statistics.avg += (double_value - num_statistics.avg) / num_statistics.count;
                                 num_statistics.sum += double_value;
                             }
                         }
@@ -419,22 +449,23 @@ impl ValueStatistics {
                 }
             }
         }
-        let mut freq_vec: Vec<(u32, u32)> = freq
-            .into_iter()
-            .map(|(s_idx, count)| (s_idx, count))
-            .collect();
+        let mut freq_vec: Vec<(u32, u32)> = freq.into_iter().map(|(s_idx, count)| (s_idx, count)).collect();
         freq_vec.par_sort_unstable_by(|a, b| b.1.cmp(&a.1));
         let most_frequent_values = freq_vec.into_iter().take(10).collect();
-        ValueStatistics { 
+        ValueStatistics {
             count: count,
-            missing: missing, 
+            missing: missing,
             most_frequent_values,
-            num_statistic: num_statistics
+            num_statistic: num_statistics,
         }
     }
 }
 
-fn count_type_references(type_references: &mut HashMap<IriIndex, ReferenceCharacteristics>, references: &Vec<(IriIndex, IriIndex)>, node_data: &NodeData) {
+fn count_type_references(
+    type_references: &mut HashMap<IriIndex, ReferenceCharacteristics>,
+    references: &Vec<(IriIndex, IriIndex)>,
+    node_data: &NodeData,
+) {
     let mut ref_counts: Vec<(IriIndex, u32, Vec<IriIndex>)> = Vec::new();
     for (predicate_index, ref_index) in references {
         let ref_node = node_data.get_node_by_index(*ref_index);
@@ -467,10 +498,8 @@ fn count_type_references(type_references: &mut HashMap<IriIndex, ReferenceCharac
         let reference_characteristics = type_references.get_mut(&predicate_index);
         if let Some(reference_characteristics) = reference_characteristics {
             reference_characteristics.count += count;
-            reference_characteristics.max_cardinality =
-                reference_characteristics.max_cardinality.max(count);
-            reference_characteristics.min_cardinality =
-                reference_characteristics.min_cardinality.min(count);
+            reference_characteristics.max_cardinality = reference_characteristics.max_cardinality.max(count);
+            reference_characteristics.min_cardinality = reference_characteristics.min_cardinality.min(count);
             for type_index in types.iter() {
                 if !reference_characteristics.types.contains(type_index) {
                     reference_characteristics.types.push(*type_index)
@@ -487,9 +516,8 @@ fn count_type_references(type_references: &mut HashMap<IriIndex, ReferenceCharac
                 },
             );
         }
-    }        
+    }
 }
-
 
 impl InstanceView {
     pub fn get_column(&self, predicate_index: IriIndex) -> Option<&ColumnDesc> {
@@ -507,7 +535,6 @@ impl InstanceView {
         count
     }
 }
-
 
 #[derive(Clone)]
 pub struct ColumnDesc {
@@ -536,10 +563,7 @@ impl TypesWorkload {
             types: HashMap::new(),
         }
     }
-    fn process_node(&mut self,
-        node_index: usize,
-        node: &NObject,
-        node_data: &NodeData) {
+    fn process_node(&mut self, node_index: usize, node: &NObject, node_data: &NodeData) {
         if node.has_subject {
             self.nodes += 1;
         } else {
@@ -589,11 +613,7 @@ impl TypesWorkload {
                     }
                 }
                 property_stat.max_cardinality = property_card;
-                property_stat.min_cardinality = if previous_instance_count > 0 {
-                    0
-                } else {
-                    property_card
-                };
+                property_stat.min_cardinality = if previous_instance_count > 0 { 0 } else { property_card };
                 type_data.properties.insert(predicate_index, property_stat);
             }
             count_type_references(&mut type_data.references, &node.references, node_data);
@@ -662,16 +682,26 @@ impl TypeInstanceIndex {
         let start = Instant::now();
         let node_len = node_data.len();
 
-        let types_work_load = node_data.node_cache.cache.par_iter().enumerate().fold(
-            || TypesWorkload::new(),
-            |mut stats, (node_index, (_str,node))| {
-                stats.process_node(node_index, node, &node_data);
-                stats
-            }).reduce(|| TypesWorkload::new(),|mut left, right| {
-                left.merge(right);
-                left
-            });
-        
+        let types_work_load = node_data
+            .node_cache
+            .cache
+            .par_iter()
+            .enumerate()
+            .fold(
+                || TypesWorkload::new(),
+                |mut stats, (node_index, (_str, node))| {
+                    stats.process_node(node_index, node, &node_data);
+                    stats
+                },
+            )
+            .reduce(
+                || TypesWorkload::new(),
+                |mut left, right| {
+                    left.merge(right);
+                    left
+                },
+            );
+
         self.nodes = types_work_load.nodes;
         self.properties = types_work_load.properties;
         self.references = types_work_load.references;
@@ -787,9 +817,6 @@ mod tests {
         let mut without_property = TypesWorkload::new();
         without_property.process_node(1, &test_node(false), &node_data);
         with_property.merge(without_property);
-        assert_eq!(
-            with_property.types[&1].properties[&2].min_cardinality,
-            0
-        );
+        assert_eq!(with_property.types[&1].properties[&2].min_cardinality, 0);
     }
 }

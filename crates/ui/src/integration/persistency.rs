@@ -12,13 +12,15 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use crate::domain::graph_styles::{
-    ArrowLocation, ArrowStyle, EdgeFont, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize, GVisualizationStyle
+    ArrowLocation, ArrowStyle, EdgeFont, GVisualizationStyle, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize,
 };
-use crate::uistate::UIState;
-use crate::uistate::layout::{Edge, IndividualNodeStyleData, NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout, update_edges_groups};
-use crate::domain::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
 use crate::domain::prefix_manager::PrefixManager;
 use crate::domain::string_indexer::{IndexSpan, StringCache, StringIndexer};
+use crate::domain::{DataTypeIndex, IriIndex, LangIndex, Literal, NObject, NodeCache, PredicateLiteral};
+use crate::uistate::UIState;
+use crate::uistate::layout::{
+    Edge, IndividualNodeStyleData, NodeLayout, NodePosition, NodeShapeData, SortedNodeLayout, update_edges_groups,
+};
 use crate::{EdgeStyle, RdfGlanceApp, support::SortedVec};
 
 // it is just ascii "rdfg"
@@ -129,7 +131,7 @@ impl RdfGlanceApp {
         self.visualization_style.store(&mut file)?;
         self.ui_state.store(&mut file)?;
 
-        // Is some cases flush will take a long time, probably if os is trying to sync the file to disk 
+        // Is some cases flush will take a long time, probably if os is trying to sync the file to disk
         // and make virus check. But all data are written to file, because buffer drop make also the flush
         // let start = Instant::now();
         // file.flush()?;
@@ -219,8 +221,7 @@ impl RdfGlanceApp {
                                     GVisualizationStyle::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::UIState => {
-                                app.ui_state =
-                                    UIState::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
+                                app.ui_state = UIState::restore(&mut reader, block_size - BLOCK_PRELUDE_SIZE)?;
                             }
                             HeaderType::Literals => {
                                 app.mut_rdf_data(|rdf_data| {
@@ -553,9 +554,7 @@ impl LiteralPersistence for Literal {
                 leb128::write::unsigned(writer, *lang_index as u64)?;
                 leb128::write::unsigned(writer, *index as u64)?;
             }
-            Literal::NoValue() => {
-                
-            }
+            Literal::NoValue() => {}
         }
         Ok(())
     }
@@ -638,8 +637,8 @@ impl SortedNodeLayout {
                         leb128::write::unsigned(writer, node_layout.node_index as u64)?;
                         writer.write_f32::<LittleEndian>(node_pos.pos.x)?;
                         writer.write_f32::<LittleEndian>(node_pos.pos.y)?;
-                        // Write number of fields                        
-                        leb128::write::unsigned(writer, if node_pos.locked {1} else {0})?;
+                        // Write number of fields
+                        leb128::write::unsigned(writer, if node_pos.locked { 1 } else { 0 })?;
                         if node_pos.locked {
                             write_field_index(writer, FieldType::FLAG, 1)?;
                         }
@@ -674,16 +673,14 @@ impl SortedNodeLayout {
             for _ in 0..field_number {
                 let (field_type, field_index) = read_field_index(reader)?;
                 match field_index {
-                    1 => {
-                        match field_type {
-                            FieldType::FLAG => {
-                                locked = true;
-                            }
-                            _ => {
-                                skip_field(reader, field_type)?;
-                            }
+                    1 => match field_type {
+                        FieldType::FLAG => {
+                            locked = true;
                         }
-                    }
+                        _ => {
+                            skip_field(reader, field_type)?;
+                        }
+                    },
                     _ => {
                         skip_field(reader, field_type)?;
                     }
@@ -709,7 +706,12 @@ impl SortedNodeLayout {
                 let (field_type, _field_index) = read_field_index(reader)?;
                 skip_field(reader, field_type)?;
             }
-            edges.push(Edge { from, to, predicate, bezier_distance: 0.0 });
+            edges.push(Edge {
+                from,
+                to,
+                predicate,
+                bezier_distance: 0.0,
+            });
         }
         let hidden_predicates = SortedVec::new();
         update_edges_groups(&mut edges, &hidden_predicates);
@@ -1004,10 +1006,7 @@ impl EdgeFont {
             let (field_type, _field_index) = read_field_index(reader)?;
             skip_field(reader, field_type)?;
         }
-        Ok(EdgeFont {
-            font_size,
-            font_color
-        })
+        Ok(EdgeFont { font_size, font_color })
     }
 }
 
@@ -1140,15 +1139,18 @@ mod tests {
         assert_eq!(true, node_index.is_some());
         let config = Config::default();
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
-            let mut node_change_context =  NodeChangeContext {
+            let mut node_change_context = NodeChangeContext {
                 rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
                 config: &config,
             };
-            assert_eq!(true, rdf_data.load_object_by_index(node_index.unwrap(),&mut node_change_context));
+            assert_eq!(
+                true,
+                rdf_data.load_object_by_index(node_index.unwrap(), &mut node_change_context)
+            );
         };
         if let Ok(mut rdf_data) = vs.rdf_data.write() {
-            let mut node_change_context =  NodeChangeContext {
+            let mut node_change_context = NodeChangeContext {
                 rdfwrap: &mut vs.rdfwrap,
                 visible_nodes: &mut vs.visible_nodes,
                 config: &config,

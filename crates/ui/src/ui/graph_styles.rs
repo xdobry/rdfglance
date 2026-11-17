@@ -1,15 +1,16 @@
 use egui::{Color32, Popup, RichText, Sense, Slider, Vec2};
 
-use crate:: {
-    IriIndex, RdfGlanceApp, domain::{
+use crate::{
+    IriIndex, RdfGlanceApp,
+    domain::{
         LabelContext,
         graph_styles::{
-            ArrowLocation, ArrowStyle, EdgeFont, IconPosition, IconStyle, LabelPosition,
-            LineStyle, NodeShape, NodeSize,
+            ArrowLocation, ArrowStyle, EdgeFont, IconPosition, IconStyle, LabelPosition, LineStyle, NodeShape, NodeSize,
         },
-    }, ui::{draw_edge, draw_node_label}, uistate::StyleEdit    
+    },
+    ui::{draw_edge, draw_node_label},
+    uistate::StyleEdit,
 };
-
 
 impl RdfGlanceApp {
     pub fn display_node_style(&mut self, ui: &mut egui::Ui, type_style_edit: IriIndex) {
@@ -21,9 +22,10 @@ impl RdfGlanceApp {
                     self.persistent_data.config_data.iri_display,
                     &rdf_data.prefix_manager,
                 );
-                let type_label = rdf_data
-                    .node_data
-                    .type_display(type_style_edit, &label_context, &rdf_data.node_data.indexers);
+                let type_label =
+                    rdf_data
+                        .node_data
+                        .type_display(type_style_edit, &label_context, &rdf_data.node_data.indexers);
                 ui.heading(format!("Node Style for Type: {}", type_label.as_str()));
                 if ui.button("Close Style Edit").clicked() {
                     type_style.is_default = false;
@@ -108,7 +110,7 @@ impl RdfGlanceApp {
                     false,
                     true,
                     0,
-                    ui.visuals()
+                    ui.visuals(),
                 );
             }
         }
@@ -205,7 +207,7 @@ impl RdfGlanceApp {
                     node_label,
                     false,
                     0.0,
-                    ui.visuals()
+                    ui.visuals(),
                 );
             }
         }
@@ -447,7 +449,7 @@ pub fn icon_edit_button(ui: &mut egui::Ui, icon: &mut char, font_filter: &mut St
                 if ui.button("close").clicked() {
                     Popup::close_id(ui.ctx(), popup_id);
                 } else {
-                    ui.ctx().memory_mut(|mem| mem.keep_popup_open(popup_id));
+                    Popup::open_id(ui.ctx(), popup_id);
                 }
             })
             .response;

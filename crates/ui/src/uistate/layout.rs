@@ -1,15 +1,21 @@
 use crate::{
-    IriIndex, domain::{
-        config::Config, 
-        graph_styles::{GVisualizationStyle, NodeShape}, 
-        statistics::{StatisticsData, StatisticsResult, distribute_to_zoom_layers}
-    }, graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm}, layoutalg::force::layout_graph_nodes, support::SortedVec, ui::style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP}, uistate::UIState
+    IriIndex,
+    domain::{
+        config::Config,
+        graph_styles::{GVisualizationStyle, NodeShape},
+        statistics::{StatisticsData, StatisticsResult, distribute_to_zoom_layers},
+    },
+    graph_algorithms::{GraphAlgorithm, run_algorithm, run_clustering_algorithm},
+    layoutalg::force::layout_graph_nodes,
+    support::SortedVec,
+    ui::style::{ICON_KEEP_TEMPERATURE, ICON_KEY, ICON_REFRESH, ICON_STOP},
+    uistate::UIState,
 };
 
 use eframe::egui::Vec2;
 use egui::Pos2;
 use fixedbitset::FixedBitSet;
-use rand::{RngExt};
+use rand::RngExt;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
@@ -216,7 +222,7 @@ pub struct EdgeMemo {
 }
 
 pub struct OrthEdges {
-    pub edges: Vec<OrthEdge>,    
+    pub edges: Vec<OrthEdge>,
 }
 
 pub struct OrthEdge {
@@ -459,7 +465,7 @@ impl SortedNodeLayout {
 
     /**
      * Removes all nodes that do not satisfy the predicate f.
-     * 
+     *
      * Returns true if any node was removed.
      */
     pub fn retain(&mut self, hidden_predicates: &SortedVec, is_undo: bool, f: impl Fn(&NodeLayout) -> bool) -> bool {
@@ -677,12 +683,7 @@ impl SortedNodeLayout {
         self.redo_stack.clear();
     }
 
-    pub fn show_handle_layout_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        config: &Config,
-        hidden_predicates: &SortedVec,
-    ) {
+    pub fn show_handle_layout_ui(&mut self, ui: &mut egui::Ui, config: &Config, hidden_predicates: &SortedVec) {
         #[cfg(not(target_arch = "wasm32"))]
         if self.layout_handle.is_some() {
             if self.background_layout_finished.load(Ordering::Acquire) {
@@ -1130,7 +1131,8 @@ impl SortedNodeLayout {
                                     ));
                                 }
                             } else {
-                                let values = run_algorithm(graph_algorithm, nodes_len, &analytics_edges, hidden_predicates);
+                                let values =
+                                    run_algorithm(graph_algorithm, nodes_len, &analytics_edges, hidden_predicates);
                                 // the values could be already resorted so use position index to get them in right order
                                 let sorted_values = statistics_data
                                     .nodes
@@ -1317,14 +1319,11 @@ pub fn update_edges_groups(edges: &mut [Edge], hidden_predicates: &SortedVec) {
     }
 }
 
-
-
 pub struct LayoutConfig {
     pub repulsion_constant: f32,
     pub attraction_factor: f32,
     pub gravity_effect_radius: f32,
 }
-
 
 impl NodeCommand {
     pub fn undo(
@@ -1364,7 +1363,7 @@ impl NodeCommand {
                     let mut j = b_len as isize - 1;
                     let mut k = (orig_len + b_len) as isize - 1;
 
-                    let mut removed_nodes_pos : Vec<usize> = Vec::with_capacity(removed_nodes.len());
+                    let mut removed_nodes_pos: Vec<usize> = Vec::with_capacity(removed_nodes.len());
 
                     while j >= 0 {
                         if i >= 0 && nodes[i as usize].node_index > removed_nodes[j as usize].index {
@@ -1404,14 +1403,20 @@ impl NodeCommand {
                     // Add also the removed edges with right indexes
                     for edge in removed_edges.iter() {
                         // We need adapt hidden references but only for nodes that are not newly added (because they have already correct count)
-                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.from).reverse()).is_err() {
+                        if removed_nodes_pos
+                            .binary_search_by(|p| p.cmp(&edge.from).reverse())
+                            .is_err()
+                        {
                             if let Some(individual_node_style) = individual_node_styles.get_mut(edge.from) {
                                 if individual_node_style.hidden_references > 0 {
                                     individual_node_style.hidden_references -= 1;
                                 }
                             }
                         }
-                        if removed_nodes_pos.binary_search_by(|p| p.cmp(&edge.to).reverse()).is_err() {                     
+                        if removed_nodes_pos
+                            .binary_search_by(|p| p.cmp(&edge.to).reverse())
+                            .is_err()
+                        {
                             if let Some(individual_node_style) = individual_node_styles.get_mut(edge.to) {
                                 if individual_node_style.hidden_references > 0 {
                                     individual_node_style.hidden_references -= 1;
@@ -1440,8 +1445,8 @@ impl NodeCommand {
 
 #[cfg(test)]
 mod tests {
-    use crate::{IriIndex, domain::config::Config};
     use super::*;
+    use crate::{IriIndex, domain::config::Config};
 
     #[test]
     fn test_graph_nodes() {

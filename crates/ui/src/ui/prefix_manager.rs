@@ -1,7 +1,4 @@
-
-
-use crate::{uistate::actions::NodeAction, RdfGlanceApp};
-
+use crate::{RdfGlanceApp, uistate::actions::NodeAction};
 
 impl RdfGlanceApp {
     pub fn show_prefixes(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -22,4 +19,3 @@ impl RdfGlanceApp {
         NodeAction::None
     }
 }
-

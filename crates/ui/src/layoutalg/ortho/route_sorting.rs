@@ -25,7 +25,7 @@ impl TopologyRouting {
         assert!(route_less < self.routes_order_graph.len());
         dbgorth!("Adding route order: {} over {}", route_greater, route_less);
         // Check for potential cycle
-        if self.has_path_bfs(route_less,route_greater) {
+        if self.has_path_bfs(route_less, route_greater) {
             self.detected_cycles += 1;
             return false; // Cycle detected
         }

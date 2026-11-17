@@ -3,7 +3,22 @@ use std::sync::{Arc, RwLock};
 use egui::{Color32, Key, Popup, Pos2, Rect, Sense, Slider, Vec2};
 
 use crate::{
-    IriIndex, RdfGlanceApp, domain::{LabelContext, graph_styles::{EdgeFont, EdgeStyle, NodeStyle}, type_index::TypeInstanceIndex}, support::{SortedVec, uitools::popup_at}, ui::{draw_edge, draw_node_label, draw_self_edge, graph_view::is_overlapping, style::{ICON_REDO, ICON_UNDO}}, uistate::{actions::NodeAction, layout::{Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout, update_edges_groups}}
+    IriIndex, RdfGlanceApp,
+    domain::{
+        LabelContext,
+        graph_styles::{EdgeFont, EdgeStyle, NodeStyle},
+        type_index::TypeInstanceIndex,
+    },
+    support::{SortedVec, uitools::popup_at},
+    ui::{
+        draw_edge, draw_node_label, draw_self_edge,
+        graph_view::is_overlapping,
+        style::{ICON_REDO, ICON_UNDO},
+    },
+    uistate::{
+        actions::NodeAction,
+        layout::{Edge, LayoutConfUpdate, NodeLayout, NodeShapeData, SortedNodeLayout, update_edges_groups},
+    },
 };
 
 const NODE_RMIN: f32 = 4.0;
@@ -18,20 +33,28 @@ impl RdfGlanceApp {
                 self.build_meta_graph();
             }
             let undo_button = ui.add_enabled(!self.meta_nodes.undo_stack.is_empty(), egui::Button::new(ICON_UNDO));
-            if undo_button.on_hover_text("Undo").clicked() 
-                || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Z)) {
-                self.meta_nodes.undo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates );
+            if undo_button.on_hover_text("Undo").clicked() || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Z))
+            {
+                self.meta_nodes
+                    .undo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             }
             let redo_button = ui.add_enabled(!self.meta_nodes.redo_stack.is_empty(), egui::Button::new(ICON_REDO));
-            if redo_button.on_hover_text("Redo").clicked() 
-                || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Y)) {
-                self.meta_nodes.redo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+            if redo_button.on_hover_text("Redo").clicked() || ui.input(|i| i.modifiers.command && i.key_pressed(Key::Y))
+            {
+                self.meta_nodes
+                    .redo(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
             }
-            if ui.checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size").clicked() {
+            if ui
+                .checkbox(&mut self.ui_state.meta_count_to_size, "Instance Count as Size")
+                .clicked()
+            {
                 self.meta_nodes.update_node_shapes = true;
             }
-            self.meta_nodes
-                .show_handle_layout_ui(ui, &self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+            self.meta_nodes.show_handle_layout_ui(
+                ui,
+                &self.persistent_data.config_data,
+                &self.ui_state.hidden_predicates,
+            );
             ui.label("nodes force");
             let response = ui.add(Slider::new(
                 &mut self.persistent_data.config_data.m_repulsion_constant,
@@ -39,10 +62,14 @@ impl RdfGlanceApp {
             ));
             if response.changed() {
                 if let Some(layout_handle) = &self.meta_nodes.layout_handle {
-                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateRepulsionConstant(
-                        self.persistent_data.config_data.m_repulsion_constant));
+                    let _ = layout_handle
+                        .update_sender
+                        .send(LayoutConfUpdate::UpdateRepulsionConstant(
+                            self.persistent_data.config_data.m_repulsion_constant,
+                        ));
                 } else {
-                    self.meta_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
+                    self.meta_nodes
+                        .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                 }
             }
             ui.label("edges force");
@@ -52,10 +79,14 @@ impl RdfGlanceApp {
             ));
             if response.changed() {
                 if let Some(layout_handle) = &self.meta_nodes.layout_handle {
-                    let _ = layout_handle.update_sender.send(LayoutConfUpdate::UpdateAttractionFactor(
-                        self.persistent_data.config_data.m_attraction_factor));
+                    let _ = layout_handle
+                        .update_sender
+                        .send(LayoutConfUpdate::UpdateAttractionFactor(
+                            self.persistent_data.config_data.m_attraction_factor,
+                        ));
                 } else {
-                    self.meta_nodes.start_layout(&self.persistent_data.config_data,&self.ui_state.hidden_predicates);
+                    self.meta_nodes
+                        .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                 }
             }
         });
@@ -154,7 +185,9 @@ impl RdfGlanceApp {
                                         reference_label.as_str().to_owned()
                                     };
                                     let pos1 = center + positions[edge.from].pos.to_vec2();
-                                    let p_edge_style = self.visualization_style.get_edge_syle(edge.predicate, ui.visuals().dark_mode);
+                                    let p_edge_style = self
+                                        .visualization_style
+                                        .get_edge_syle(edge.predicate, ui.visuals().dark_mode);
                                     edge_style.color = p_edge_style.color;
                                     if edge.from != edge.to {
                                         let node_shape_from = &node_shapes[edge.from];
@@ -172,7 +205,7 @@ impl RdfGlanceApp {
                                             node_label,
                                             false,
                                             edge.bezier_distance,
-                                            ui.visuals()
+                                            ui.visuals(),
                                         );
                                     } else {
                                         let node_shape_from = &node_shapes[edge.from];
@@ -193,7 +226,8 @@ impl RdfGlanceApp {
                         }
                         let mut node_style: NodeStyle = NodeStyle::default();
                         if let Ok(nodes) = self.meta_nodes.nodes.read() {
-                            let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.meta_nodes.update_node_shapes {
+                            let mut new_node_shapes: Option<Vec<NodeShapeData>> = if self.meta_nodes.update_node_shapes
+                            {
                                 Some(Vec::with_capacity(nodes.len()))
                             } else {
                                 None
@@ -233,7 +267,7 @@ impl RdfGlanceApp {
                                     false,
                                     true,
                                     0,
-                                    ui.visuals()
+                                    ui.visuals(),
                                 );
                                 if let Some(new_node_shapes) = &mut new_node_shapes {
                                     new_node_shapes.push(NodeShapeData {
@@ -241,7 +275,7 @@ impl RdfGlanceApp {
                                         size: node_rect.size(),
                                         ..Default::default()
                                     });
-                                }   
+                                }
                                 if self.ui_state.context_menu_node.is_none() || was_action {
                                     if single_clicked && is_overlapping(&node_rect, mouse_pos, node_shape) {
                                         self.ui_state.selected_node = Some(node_layout.node_index);
@@ -277,7 +311,7 @@ impl RdfGlanceApp {
                             }
                         }
                     }
-    
+
                     let consume_events = was_action || self.ui_state.node_to_drag.is_some() || node_to_hover.is_some();
                     if consume_events {
                         // ui.max_rect does not give enough
@@ -286,12 +320,12 @@ impl RdfGlanceApp {
                             Rect::from_min_max(Pos2::new(-5_000.0, -5_000.0), Pos2::new(10_000.0, 10_000.0));
                         let _response = ui.interact(max_rect, id, Sense::click_and_drag());
                     }
-    
+
                     let popup_id = ui.make_persistent_id("mnode_context_menu");
                     if was_context_click {
                         Popup::toggle_id(ui.ctx(), popup_id);
                     }
-    
+
                     popup_at(ui, popup_id, self.ui_state.context_menu_pos, 200.0, |ui| {
                         if let Some(node_index) = &self.ui_state.context_menu_node {
                             let mut close_menu = false;
@@ -301,13 +335,16 @@ impl RdfGlanceApp {
                                 TypeNodeContextAction::Hide => {
                                     let hidden_predicates = SortedVec::new();
                                     self.meta_nodes.remove(current_index, &hidden_predicates);
-                                    self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                    self.meta_nodes.start_layout(
+                                        &self.persistent_data.config_data,
+                                        &self.ui_state.hidden_predicates,
+                                    );
                                     close_menu = true;
                                 }
                                 TypeNodeContextAction::HideSameInstCount => {
                                     if let Some(current_node) = self.type_index.types.get(&current_index) {
                                         let hidden_predicates = SortedVec::new();
-                                        self.meta_nodes.retain(&hidden_predicates, false,|node| {
+                                        self.meta_nodes.retain(&hidden_predicates, false, |node| {
                                             if let Some(type_data) = self.type_index.types.get(&node.node_index) {
                                                 type_data.instances.len() > current_node.instances.len()
                                             } else {
@@ -322,11 +359,14 @@ impl RdfGlanceApp {
                                         node_to_click = Some(current_index);
                                     }
                                     close_menu = true;
-                                },
+                                }
                                 TypeNodeContextAction::HideOthers => {
                                     self.meta_nodes.clear();
                                     self.meta_nodes.add_by_index(current_index);
-                                    self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                    self.meta_nodes.start_layout(
+                                        &self.persistent_data.config_data,
+                                        &self.ui_state.hidden_predicates,
+                                    );
                                     close_menu = true;
                                 }
                                 TypeNodeContextAction::None => {
@@ -354,8 +394,8 @@ impl RdfGlanceApp {
                                     }
                                 }
                             }
-                            for (type_index,type_node) in self.type_index.types.iter() {
-                                if *type_index!=node_to_click && !self.meta_nodes.contains(*type_index) {
+                            for (type_index, type_node) in self.type_index.types.iter() {
+                                if *type_index != node_to_click && !self.meta_nodes.contains(*type_index) {
                                     if type_node.references.iter().any(|(_, ref_characteristics)| {
                                         ref_characteristics.types.contains(&node_to_click)
                                     }) {
@@ -369,8 +409,9 @@ impl RdfGlanceApp {
                                 self.meta_nodes.edges = Arc::new(RwLock::new(create_types_layout_edges(
                                     &self.meta_nodes,
                                     &self.type_index,
-                                )));                           
-                                self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+                                )));
+                                self.meta_nodes
+                                    .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
                             }
                         }
                     }
@@ -394,7 +435,8 @@ impl RdfGlanceApp {
             &self.meta_nodes,
             &self.type_index,
         )));
-        self.meta_nodes.start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+        self.meta_nodes
+            .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
     }
 
     pub fn display_type_node_details(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -409,7 +451,8 @@ impl RdfGlanceApp {
                             &rdf_data.prefix_manager,
                         );
                         let type_display =
-                            rdf_data.node_data
+                            rdf_data
+                                .node_data
                                 .type_display(*iri_index, &label_context, &rdf_data.node_data.indexers);
                         if ui.button(type_display.as_str()).clicked() {
                             node_to_click = NodeAction::ShowType(*iri_index);
@@ -512,13 +555,16 @@ fn create_types_layout_edges(layout_nodes: &SortedNodeLayout, type_index: &TypeI
 mod tests {
     use std::sync::RwLock;
 
-    use crate::{layoutalg::force::layout_graph_nodes, uistate::layout::{LayoutConfig, NodePosition}};
     use super::*;
+    use crate::{
+        layoutalg::force::layout_graph_nodes,
+        uistate::layout::{LayoutConfig, NodePosition},
+    };
 
     #[test]
     fn test_meta_graph() -> std::io::Result<()> {
         let mut vs = RdfGlanceApp::new(None, vec![]);
-        vs.load_ttl("../../sample-rdf-data/programming_languages.ttl",true);
+        vs.load_ttl("../../sample-rdf-data/programming_languages.ttl", true);
         vs.join_load(true);
         for (type_index, _type_node) in vs.type_index.types.iter() {
             vs.meta_nodes.add_by_index(*type_index);

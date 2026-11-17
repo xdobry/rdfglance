@@ -1,10 +1,6 @@
 use egui::{Align, Layout, Slider};
 
-use crate::{
-    uistate::actions::NodeAction, 
-    RdfGlanceApp, 
-    domain::config::IriDisplay
-};
+use crate::{RdfGlanceApp, domain::config::IriDisplay, uistate::actions::NodeAction};
 
 impl RdfGlanceApp {
     pub fn show_config(&mut self, ui: &mut egui::Ui) -> NodeAction {
@@ -59,8 +55,17 @@ impl RdfGlanceApp {
             &mut self.persistent_data.config_data.community_randomize,
             "community detection randomize",
         );
-        ui.add(Slider::new(&mut self.persistent_data.config_data.max_visible_nodes, 1000..=200_000).text("Max nodes in visual graph"));
-        ui.add(Slider::new(&mut self.persistent_data.config_data.gravity_effect_radius, 50.0..=1000.0).text("Gravity effect radius for layout"));
+        ui.add(
+            Slider::new(&mut self.persistent_data.config_data.max_visible_nodes, 1000..=200_000)
+                .text("Max nodes in visual graph"),
+        );
+        ui.add(
+            Slider::new(
+                &mut self.persistent_data.config_data.gravity_effect_radius,
+                50.0..=1000.0,
+            )
+            .text("Gravity effect radius for layout"),
+        );
         NodeAction::None
     }
 

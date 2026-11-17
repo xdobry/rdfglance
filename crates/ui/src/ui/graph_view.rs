@@ -331,10 +331,10 @@ Expand Relations - double click on node",
                             });
                         });
                     egui::CentralPanel::default().show_inside(ui, |ui| {
-                        self.display_graph( ui, &mut node_to_click);
+                        self.display_graph(ui, &mut node_to_click);
                     });
                 } else {
-                    self.display_graph( ui, &mut node_to_click);
+                    self.display_graph(ui, &mut node_to_click);
                 }
             }
         }
@@ -1439,18 +1439,19 @@ Expand Relations - double click on node",
                             NodeContextAction::HideOtherTypes => {
                                 let types = current_node.highest_priority_types(&self.visualization_style);
                                 if !types.is_empty() {
-                                    let was_change = self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
-                                        let node = rdf_data.node_data.get_node_by_index(x.node_index);
-                                        if let Some((_, node)) = node {
-                                            node.has_same_type(&types)
-                                        } else {
-                                            false
-                                        }
-                                    });
+                                    let was_change =
+                                        self.visible_nodes.retain(&self.ui_state.hidden_predicates, false, |x| {
+                                            let node = rdf_data.node_data.get_node_by_index(x.node_index);
+                                            if let Some((_, node)) = node {
+                                                node.has_same_type(&types)
+                                            } else {
+                                                false
+                                            }
+                                        });
                                     if was_change {
                                         self.visible_nodes.start_layout(
-                                        &self.persistent_data.config_data,
-                                        &self.ui_state.hidden_predicates,
+                                            &self.persistent_data.config_data,
+                                            &self.ui_state.hidden_predicates,
                                         );
                                     }
                                 }

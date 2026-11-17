@@ -1,9 +1,13 @@
-use std::{borrow::Cow, collections::VecDeque};
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
+use std::{borrow::Cow, collections::VecDeque};
 
 use crate::{
-    IriIndex, domain::{IndexSpan, Indexers, LangIndex, Literal, NObject, RdfData, type_index::{ColumnDesc, InstanceView, TypeData, TypeInstanceIndex, ValueStatistics, ValueTypes}},
+    IriIndex,
+    domain::{
+        IndexSpan, Indexers, LangIndex, Literal, NObject, RdfData,
+        type_index::{ColumnDesc, InstanceView, TypeData, TypeInstanceIndex, ValueStatistics, ValueTypes},
+    },
 };
 use egui::Pos2;
 use strum_macros::{Display, EnumIter};
@@ -110,7 +114,6 @@ pub enum AggregatedValue {
     Empty,
 }
 
-
 impl Default for VisualQuery {
     fn default() -> Self {
         Self {
@@ -125,7 +128,6 @@ impl Default for VisualQuery {
         }
     }
 }
-
 
 impl Default for TableQuery {
     fn default() -> Self {
@@ -189,66 +191,111 @@ impl VisualQuery {
         self.aggregated_values.clear();
         self.instance_view.pos = 0.0;
     }
-    pub fn sort_instances(&mut self, table_idx: usize, predicate: IriIndex, rdf_data: &RdfData, 
+    pub fn sort_instances(
+        &mut self,
+        table_idx: usize,
+        predicate: IriIndex,
+        rdf_data: &RdfData,
         value_type: ValueTypes,
-        is_asc: bool, lang_index: LangIndex) {
+        is_asc: bool,
+        lang_index: LangIndex,
+    ) {
         if value_type == ValueTypes::INTEGER {
-            let row_pred : Vec<(usize, i64)> = self.instances.chunks(self.tables_pro_row).enumerate().map(| (row_id,instances) | {
-            let instance_idx = instances[table_idx];
-            if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
-                if let Some(literal) = nobject.get_property(predicate, lang_index) {
-                    (row_id, literal.as_str_ref(&rdf_data.node_data.indexers).parse::<i64>().unwrap_or(0))
-                } else {
-                    (row_id, 0)
-                }
-            } else {
-                (row_id, 0)
-            }
-            }).collect();
-            sort_from_pairs(&mut self.instances, &mut self.aggregated_values, row_pred, is_asc, self.tables_pro_row, self.aggregations_pro_row);
+            let row_pred: Vec<(usize, i64)> = self
+                .instances
+                .chunks(self.tables_pro_row)
+                .enumerate()
+                .map(|(row_id, instances)| {
+                    let instance_idx = instances[table_idx];
+                    if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
+                        if let Some(literal) = nobject.get_property(predicate, lang_index) {
+                            (
+                                row_id,
+                                literal
+                                    .as_str_ref(&rdf_data.node_data.indexers)
+                                    .parse::<i64>()
+                                    .unwrap_or(0),
+                            )
+                        } else {
+                            (row_id, 0)
+                        }
+                    } else {
+                        (row_id, 0)
+                    }
+                })
+                .collect();
+            sort_from_pairs(
+                &mut self.instances,
+                &mut self.aggregated_values,
+                row_pred,
+                is_asc,
+                self.tables_pro_row,
+                self.aggregations_pro_row,
+            );
             return;
         } else if value_type == ValueTypes::DOUBLE {
-            let row_pred : Vec<(usize, OrderedFloat<f64>)> = self.instances.chunks(self.tables_pro_row).enumerate().map(| (row_id,instances) | {
-            let instance_idx = instances[table_idx];
-            if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
-                if let Some(literal) = nobject.get_property(predicate, lang_index) {
-                    (row_id, OrderedFloat(literal.as_str_ref(&rdf_data.node_data.indexers).parse::<f64>().unwrap_or(0.0)))
-                } else {
-                    (row_id, OrderedFloat(0.0))
-                }
-            } else {
-                (row_id, OrderedFloat(0.0))
-            }
-            }).collect();
-            sort_from_pairs(&mut self.instances, &mut self.aggregated_values,row_pred, is_asc, self.tables_pro_row, self.aggregations_pro_row);
+            let row_pred: Vec<(usize, OrderedFloat<f64>)> = self
+                .instances
+                .chunks(self.tables_pro_row)
+                .enumerate()
+                .map(|(row_id, instances)| {
+                    let instance_idx = instances[table_idx];
+                    if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
+                        if let Some(literal) = nobject.get_property(predicate, lang_index) {
+                            (
+                                row_id,
+                                OrderedFloat(
+                                    literal
+                                        .as_str_ref(&rdf_data.node_data.indexers)
+                                        .parse::<f64>()
+                                        .unwrap_or(0.0),
+                                ),
+                            )
+                        } else {
+                            (row_id, OrderedFloat(0.0))
+                        }
+                    } else {
+                        (row_id, OrderedFloat(0.0))
+                    }
+                })
+                .collect();
+            sort_from_pairs(
+                &mut self.instances,
+                &mut self.aggregated_values,
+                row_pred,
+                is_asc,
+                self.tables_pro_row,
+                self.aggregations_pro_row,
+            );
             return;
         }
-        let mut row_pred : Vec<(usize, Literal)> = self.instances.chunks(self.tables_pro_row).enumerate().map(| (row_id,instances) | {
-            let instance_idx = instances[table_idx];
-            if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
-                if let Some(literal) = nobject.get_property(predicate, lang_index) {
-                    (row_id, literal.clone())
+        let mut row_pred: Vec<(usize, Literal)> = self
+            .instances
+            .chunks(self.tables_pro_row)
+            .enumerate()
+            .map(|(row_id, instances)| {
+                let instance_idx = instances[table_idx];
+                if let Some((_, nobject)) = rdf_data.node_data.get_node_by_index(instance_idx) {
+                    if let Some(literal) = nobject.get_property(predicate, lang_index) {
+                        (row_id, literal.clone())
+                    } else {
+                        (row_id, Literal::NoValue())
+                    }
                 } else {
                     (row_id, Literal::NoValue())
                 }
-            } else {
-                (row_id, Literal::NoValue())
-            }
-        }).collect();
+            })
+            .collect();
         // we use stable version because use can apply several sorts on different columns
         row_pred.par_sort_by(|a, b| {
             let a_str = a.1.as_str_ref(&rdf_data.node_data.indexers);
             let b_str = b.1.as_str_ref(&rdf_data.node_data.indexers);
             let cmp = a_str.cmp(b_str);
-            if is_asc {
-                cmp
-            } else {
-                cmp.reverse()
-            }
+            if is_asc { cmp } else { cmp.reverse() }
         });
         let mut invert_perm = vec![0; row_pred.len()];
         for (idx, row) in row_pred.iter().enumerate() {
-            invert_perm[row.0] = idx; 
+            invert_perm[row.0] = idx;
         }
         for i in 0..invert_perm.len() {
             let current = i;
@@ -256,28 +303,51 @@ impl VisualQuery {
             while invert_perm[current] != current {
                 let next = invert_perm[current];
                 for r in 0..self.tables_pro_row {
-                    self.instances.swap(current*self.tables_pro_row+r, next*self.tables_pro_row+r);
+                    self.instances
+                        .swap(current * self.tables_pro_row + r, next * self.tables_pro_row + r);
                 }
                 for r in 0..self.aggregations_pro_row {
-                    self.aggregated_values.swap(current*self.aggregations_pro_row+r, next*self.aggregations_pro_row+r);
+                    self.aggregated_values.swap(
+                        current * self.aggregations_pro_row + r,
+                        next * self.aggregations_pro_row + r,
+                    );
                 }
                 invert_perm.swap(current, next);
             }
         }
     }
     pub fn sort_aggr(&mut self, aggr_idx: usize, is_asc: bool) {
-        let row_pred : Vec<(usize, OrderedFloat<f64>)> = self.aggregated_values.chunks(self.aggregations_pro_row).enumerate().map(| (row_id,agg_values) | {
-            let agg_value = agg_values[aggr_idx];
-            (row_id, OrderedFloat(agg_value.float_value()))
-        }).collect();
-        sort_from_pairs(&mut self.instances, &mut self.aggregated_values,row_pred, is_asc, self.tables_pro_row, self.aggregations_pro_row);
+        let row_pred: Vec<(usize, OrderedFloat<f64>)> = self
+            .aggregated_values
+            .chunks(self.aggregations_pro_row)
+            .enumerate()
+            .map(|(row_id, agg_values)| {
+                let agg_value = agg_values[aggr_idx];
+                (row_id, OrderedFloat(agg_value.float_value()))
+            })
+            .collect();
+        sort_from_pairs(
+            &mut self.instances,
+            &mut self.aggregated_values,
+            row_pred,
+            is_asc,
+            self.tables_pro_row,
+            self.aggregations_pro_row,
+        );
     }
 
     pub fn value_type(&self, table_idx: usize, predicate: IriIndex, type_index: &TypeInstanceIndex) -> ValueTypes {
         if let Some(root_table) = &self.root_table {
-            if let Some(type_iri) = root_table.iter_tables().find(|t| t.row_index == table_idx).map(|t| t.type_iri) {
+            if let Some(type_iri) = root_table
+                .iter_tables()
+                .find(|t| t.row_index == table_idx)
+                .map(|t| t.type_iri)
+            {
                 if let Some(type_data) = type_index.types.get(&type_iri) {
-                    type_data.properties.get(&predicate).map_or(ValueTypes::empty(), |d| d.value_types)
+                    type_data
+                        .properties
+                        .get(&predicate)
+                        .map_or(ValueTypes::empty(), |d| d.value_types)
                 } else {
                     ValueTypes::empty()
                 }
@@ -290,29 +360,29 @@ impl VisualQuery {
     }
 
     pub fn len(&self) -> usize {
-        if self.instances.len()>0 {
-            self.instances.len()/self.tables_pro_row
-        } else if self.aggregated_values.len()>0 {
-            self.aggregated_values.len()/self.aggregations_pro_row
+        if self.instances.len() > 0 {
+            self.instances.len() / self.tables_pro_row
+        } else if self.aggregated_values.len() > 0 {
+            self.aggregated_values.len() / self.aggregations_pro_row
         } else {
             0
         }
     }
 }
 
-fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, aggregated_values: &mut Vec<AggregatedValue>, mut pairs: Vec<(usize,T)>, is_asc: bool, tables_pro_row: usize, aggregation_pro_row: usize) 
-{
+fn sort_from_pairs<T: Ord + Send>(
+    instances: &mut Vec<IriIndex>,
+    aggregated_values: &mut Vec<AggregatedValue>,
+    mut pairs: Vec<(usize, T)>,
+    is_asc: bool,
+    tables_pro_row: usize,
+    aggregation_pro_row: usize,
+) {
     // we use stable version because use can apply several sorts on different columns
-    pairs.par_sort_by(|a, b| {
-        if is_asc {
-            a.1.cmp(&b.1)
-        } else {
-            b.1.cmp(&a.1)
-        }
-    });
+    pairs.par_sort_by(|a, b| if is_asc { a.1.cmp(&b.1) } else { b.1.cmp(&a.1) });
     let mut invert_perm = vec![0; pairs.len()];
     for (idx, row) in pairs.iter().enumerate() {
-        invert_perm[row.0] = idx; 
+        invert_perm[row.0] = idx;
     }
     for i in 0..invert_perm.len() {
         let current = i;
@@ -320,21 +390,24 @@ fn sort_from_pairs<T: Ord + Send>(instances: &mut Vec<IriIndex>, aggregated_valu
         while invert_perm[current] != current {
             let next = invert_perm[current];
             for r in 0..tables_pro_row {
-                instances.swap(current*tables_pro_row+r, next*tables_pro_row+r);
+                instances.swap(current * tables_pro_row + r, next * tables_pro_row + r);
             }
             for r in 0..aggregation_pro_row {
-                aggregated_values.swap(current*aggregation_pro_row+r, next*aggregation_pro_row+r);
+                aggregated_values.swap(current * aggregation_pro_row + r, next * aggregation_pro_row + r);
             }
             invert_perm.swap(current, next);
         }
     }
 }
 
-
 impl TypeData {
     pub fn query_instances_for_table_query(&self, table_query: &TableQuery, rdf_data: &RdfData) -> Vec<IriIndex> {
         let filter_evaluator = FilterEvaluator::from_table(&table_query);
-        self.instances.par_iter().copied().filter(|iri_index| filter_evaluator.match_object(*iri_index, &rdf_data)).collect()
+        self.instances
+            .par_iter()
+            .copied()
+            .filter(|iri_index| filter_evaluator.match_object(*iri_index, &rdf_data))
+            .collect()
     }
 }
 
@@ -372,10 +445,10 @@ impl TableQuery {
         let mut instances_per_row = 0;
         for (idx, table) in self.iter_tables_mut().enumerate() {
             table.row_index = idx;
-            table.is_last = idx == ref_count-1;
+            table.is_last = idx == ref_count - 1;
             table.aggregation_index = aggr_count;
             aggr_count += table.aggregations.len();
-            if aggr_count==0 && table.aggregations.len()==0 {
+            if aggr_count == 0 && table.aggregations.len() == 0 {
                 instances_per_row += 1;
             }
         }
@@ -388,13 +461,17 @@ impl TableQuery {
         (instances_per_row, aggr_count)
     }
 
-    pub fn compute_instances(&self, rdf_data: &RdfData, input_instances: &Vec<IriIndex>) -> (Vec<IriIndex>, Vec<AggregatedValue>) {
+    pub fn compute_instances(
+        &self,
+        rdf_data: &RdfData,
+        input_instances: &Vec<IriIndex>,
+    ) -> (Vec<IriIndex>, Vec<AggregatedValue>) {
         let mut instances = Vec::new();
         let mut aggregated_values = Vec::new();
         let mut aggr_count = 0;
         let mut ref_count = 0;
         for query_table in self.iter_tables() {
-            if query_table.aggregations.len()>0 {
+            if query_table.aggregations.len() > 0 {
                 aggr_count += query_table.aggregations.len();
             } else if aggr_count == 0 {
                 ref_count += 1;
@@ -402,7 +479,7 @@ impl TableQuery {
         }
         let mut row = vec![IriIndex::MAX; ref_count];
         let mut aggregated_row = vec![AggregatedValue::Empty; aggr_count];
-        let filter_evaluators : Vec<_> = self.iter_tables().map(|qt| FilterEvaluator::from_table(qt)).collect();
+        let filter_evaluators: Vec<_> = self.iter_tables().map(|qt| FilterEvaluator::from_table(qt)).collect();
         let mut query_context = QueryContext {
             instances: &mut instances,
             aggregated_values: &mut aggregated_values,
@@ -419,7 +496,7 @@ impl TableQuery {
     }
 
     fn end_aggregation(&self, query_context: &mut QueryContext) {
-        if self.is_last && self.aggregations.len()>0 {
+        if self.is_last && self.aggregations.len() > 0 {
             for (idx, agg) in self
                 .iter_tables()
                 .flat_map(|table| table.aggregations.iter())
@@ -442,20 +519,20 @@ impl TableQuery {
     fn add_references(&self, node_idx: IriIndex, query_context: &mut QueryContext, was_aggregation: bool) -> bool {
         if let Some((_iri, nobject)) = query_context.rdf_data.node_data.get_node_by_index(node_idx) {
             if !nobject.types.contains(&self.type_iri) {
-                // Just skip if the type not match, 
+                // Just skip if the type not match,
                 // it could be also possible not to do it (so make checks if only the predicate match)
                 return false;
             }
-            if self.aggregations.len()>0 {
+            if self.aggregations.len() > 0 {
                 // Aggregation on type can have filters so we need if the object match the filter before we aggregate it
-                if self.row_index>0 {
+                if self.row_index > 0 {
                     if !query_context.filters[self.row_index].match_nobject(nobject, query_context.rdf_data) {
                         return false;
                     }
                 }
                 if !self.references.is_empty() {
                     let ref_iter_count = 0;
-                    
+
                     let reference = self.references.get(ref_iter_count).unwrap();
                     let mut has_one_ref = false;
                     let references = if reference.is_outgoing {
@@ -463,7 +540,7 @@ impl TableQuery {
                     } else {
                         &nobject.reverse_references
                     };
-                    for (predicate_idx,ref_index) in references {
+                    for (predicate_idx, ref_index) in references {
                         if *predicate_idx == reference.predicate {
                             // Check all sub references (same level) of this object
                             if reference.table_query.add_references(*ref_index, query_context, true) {
@@ -481,17 +558,21 @@ impl TableQuery {
                 for (agg_idx, aggregation) in self.aggregations.iter().enumerate() {
                     for (prop_iri, prop_value) in nobject.properties.iter() {
                         if aggregation.predicate_iri == *prop_iri {
-                            query_context.aggregated_row[agg_idx+self.aggregation_index] =
-                                aggregation.aggregation_type.aggregate(query_context.aggregated_row[agg_idx+self.aggregation_index], prop_value, &query_context.rdf_data.node_data.indexers);
+                            query_context.aggregated_row[agg_idx + self.aggregation_index] =
+                                aggregation.aggregation_type.aggregate(
+                                    query_context.aggregated_row[agg_idx + self.aggregation_index],
+                                    prop_value,
+                                    &query_context.rdf_data.node_data.indexers,
+                                );
                         }
                     }
-                }               
+                }
                 true
             } else {
                 if !was_aggregation {
                     query_context.row[self.row_index] = node_idx;
                 }
-                if self.row_index>0 {
+                if self.row_index > 0 {
                     if !query_context.filters[self.row_index].match_nobject(nobject, query_context.rdf_data) {
                         return false;
                     }
@@ -511,10 +592,13 @@ impl TableQuery {
                     } else {
                         &nobject.reverse_references
                     };
-                    for (predicate_idx,ref_index) in references {
+                    for (predicate_idx, ref_index) in references {
                         if *predicate_idx == reference.predicate {
                             // Check all sub references (same level) of this object
-                            if reference.table_query.add_references(*ref_index, query_context, was_aggregation) {
+                            if reference
+                                .table_query
+                                .add_references(*ref_index, query_context, was_aggregation)
+                            {
                                 has_one_ref = true;
                             }
                             if self.add_sub_reference(1, nobject, query_context, was_aggregation) {
@@ -536,7 +620,13 @@ impl TableQuery {
         }
     }
 
-    fn add_sub_reference(&self, ref_idx: usize, nobject: &NObject, query_context: &mut QueryContext, was_aggregation: bool) -> bool {
+    fn add_sub_reference(
+        &self,
+        ref_idx: usize,
+        nobject: &NObject,
+        query_context: &mut QueryContext,
+        was_aggregation: bool,
+    ) -> bool {
         if self.references.len() <= ref_idx {
             return false;
         }
@@ -547,12 +637,15 @@ impl TableQuery {
         } else {
             &nobject.reverse_references
         };
-        for (predicate_idx,ref_index) in references {
+        for (predicate_idx, ref_index) in references {
             if *predicate_idx == reference.predicate {
-                if reference.table_query.add_references(*ref_index, query_context, was_aggregation) {
+                if reference
+                    .table_query
+                    .add_references(*ref_index, query_context, was_aggregation)
+                {
                     has_one_ref = true;
                 }
-                if self.add_sub_reference(ref_idx+1, nobject, query_context, was_aggregation) {
+                if self.add_sub_reference(ref_idx + 1, nobject, query_context, was_aggregation) {
                     has_one_ref = true;
                 }
             }
@@ -578,7 +671,6 @@ impl<'a> Iterator for TableQueryIter<'a> {
     }
 }
 
-
 impl<'a> Iterator for TableQueryIterMut<'a> {
     type Item = &'a mut TableQuery;
 
@@ -600,20 +692,18 @@ impl<'a> Iterator for TableQueryIterMut<'a> {
 }
 
 pub struct FilterEvaluator<'a> {
-    table: &'a TableQuery 
+    table: &'a TableQuery,
 }
 
 impl<'a> FilterEvaluator<'a> {
     pub fn from_table(table_query: &'a TableQuery) -> Self {
-        Self {
-            table: table_query
-        }
+        Self { table: table_query }
     }
     pub fn match_object(&self, iri_idx: IriIndex, rdf_data: &RdfData) -> bool {
         if self.table.predicate_filters.is_empty() {
             return true;
         }
-        if let Some((_iri,nobject)) = rdf_data.node_data.get_node_by_index(iri_idx) {
+        if let Some((_iri, nobject)) = rdf_data.node_data.get_node_by_index(iri_idx) {
             return self.match_nobject(nobject, rdf_data);
         } else {
             return false;
@@ -631,78 +721,90 @@ impl<'a> FilterEvaluator<'a> {
                             if predicate_filter.filter_value != literal_str {
                                 return false;
                             }
-                        },
+                        }
                         FilterType::EqualsNoCase => {
                             if !predicate_filter.filter_value.eq_ignore_ascii_case(literal_str) {
                                 return false;
                             }
-                        },
+                        }
                         FilterType::Contains => {
                             if !literal_str.contains(&predicate_filter.filter_value) {
                                 return false;
                             }
-                        },
+                        }
                         FilterType::StartsWith => {
                             if !literal_str.starts_with(&predicate_filter.filter_value) {
                                 return false;
                             }
-                        },
+                        }
                         FilterType::EndsWith => {
                             if !literal_str.ends_with(&predicate_filter.filter_value) {
                                 return false;
                             }
-                        },
-                        FilterType::GraterThan => {
-                            match literal {
-                                Literal::TypedString(_type_idx,_span) => {
-                                    if literal.value_type(&rdf_data.node_data.indexers).intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER) {
-                                        if let Ok(filter_isize) = predicate_filter.filter_value.parse() as Result<f64, _> {
-                                            if let Ok(value_isize) = literal_str.parse() as Result<f64, _>  {
-                                                if filter_isize>=value_isize {
-                                                    return false;
-                                                }
-                                            } else {
+                        }
+                        FilterType::GraterThan => match literal {
+                            Literal::TypedString(_type_idx, _span) => {
+                                if literal
+                                    .value_type(&rdf_data.node_data.indexers)
+                                    .intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER)
+                                {
+                                    if let Ok(filter_isize) = predicate_filter.filter_value.parse() as Result<f64, _> {
+                                        if let Ok(value_isize) = literal_str.parse() as Result<f64, _> {
+                                            if filter_isize >= value_isize {
                                                 return false;
                                             }
                                         } else {
                                             return false;
                                         }
                                     } else {
-                                        return literal.as_str_ref(&rdf_data.node_data.indexers).cmp(&predicate_filter.filter_value).is_ge();
+                                        return false;
                                     }
-                                },
-                                _ => {
-                                    return literal.as_str_ref(&rdf_data.node_data.indexers).cmp(&predicate_filter.filter_value).is_ge();
+                                } else {
+                                    return literal
+                                        .as_str_ref(&rdf_data.node_data.indexers)
+                                        .cmp(&predicate_filter.filter_value)
+                                        .is_ge();
                                 }
                             }
+                            _ => {
+                                return literal
+                                    .as_str_ref(&rdf_data.node_data.indexers)
+                                    .cmp(&predicate_filter.filter_value)
+                                    .is_ge();
+                            }
                         },
-                        FilterType::LessThan => {
-                            match literal {
-                                Literal::TypedString(_type_idx,_span) => {
-                                    if literal.value_type(&rdf_data.node_data.indexers).intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER) {
-                                        if let Ok(filter_isize) = predicate_filter.filter_value.parse() as Result<f64, _> {
-                                            if let Ok(value_isize) = literal_str.parse() as Result<f64, _>  {
-                                                if filter_isize<=value_isize {
-                                                    return false;
-                                                }
-                                            } else {
+                        FilterType::LessThan => match literal {
+                            Literal::TypedString(_type_idx, _span) => {
+                                if literal
+                                    .value_type(&rdf_data.node_data.indexers)
+                                    .intersects(ValueTypes::DOUBLE | ValueTypes::INTEGER)
+                                {
+                                    if let Ok(filter_isize) = predicate_filter.filter_value.parse() as Result<f64, _> {
+                                        if let Ok(value_isize) = literal_str.parse() as Result<f64, _> {
+                                            if filter_isize <= value_isize {
                                                 return false;
                                             }
                                         } else {
                                             return false;
                                         }
                                     } else {
-                                        return literal.as_str_ref(&rdf_data.node_data.indexers).cmp(&predicate_filter.filter_value).is_le();    
+                                        return false;
                                     }
-                                },
-                                _ => {
-                                    return literal.as_str_ref(&rdf_data.node_data.indexers).cmp(&predicate_filter.filter_value).is_le();
+                                } else {
+                                    return literal
+                                        .as_str_ref(&rdf_data.node_data.indexers)
+                                        .cmp(&predicate_filter.filter_value)
+                                        .is_le();
                                 }
                             }
-                        }
-                        _ => {
-
-                        }
+                            _ => {
+                                return literal
+                                    .as_str_ref(&rdf_data.node_data.indexers)
+                                    .cmp(&predicate_filter.filter_value)
+                                    .is_le();
+                            }
+                        },
+                        _ => {}
                     }
                     has_match = true;
                 }
@@ -712,7 +814,7 @@ impl<'a> FilterEvaluator<'a> {
             }
         }
         true
-     }
+    }
 }
 
 impl AggregatedValue {
@@ -727,33 +829,19 @@ impl AggregatedValue {
             AggregatedValue::ShortString(index) => {
                 Cow::Borrowed(indexers.short_literal_indexer.index_to_str(*index).unwrap())
             }
-            AggregatedValue::LangString(str) => {
-                Cow::Borrowed(indexers.literal_cache.get_str(*str))
-            }
+            AggregatedValue::LangString(str) => Cow::Borrowed(indexers.literal_cache.get_str(*str)),
             AggregatedValue::Empty => Cow::Borrowed(""),
             _ => Cow::Borrowed("final missing!"),
         }
     }
     pub fn from_literal(literal: &Literal) -> Self {
         match literal {
-            Literal::StringShort(short_index) => {
-                AggregatedValue::ShortString(*short_index)
-            }
-            Literal::String(str) => {
-                AggregatedValue::LangString(*str)
-            }
-            Literal::LangString(_, str) => {
-                AggregatedValue::LangString(*str)
-            }
-            Literal::LangShortString(_, short_index) => {
-                AggregatedValue::ShortString(*short_index)
-            }
-            Literal::TypedString(_, str) => {
-                AggregatedValue::LangString(*str)
-            }
-            Literal::NoValue() => {
-                AggregatedValue::Empty
-            }
+            Literal::StringShort(short_index) => AggregatedValue::ShortString(*short_index),
+            Literal::String(str) => AggregatedValue::LangString(*str),
+            Literal::LangString(_, str) => AggregatedValue::LangString(*str),
+            Literal::LangShortString(_, short_index) => AggregatedValue::ShortString(*short_index),
+            Literal::TypedString(_, str) => AggregatedValue::LangString(*str),
+            Literal::NoValue() => AggregatedValue::Empty,
         }
     }
 
@@ -769,32 +857,22 @@ impl AggregatedValue {
 impl AggregationType {
     pub fn aggregate(&self, old_value: AggregatedValue, literal: &Literal, indexers: &Indexers) -> AggregatedValue {
         match self {
-            AggregationType::Count => {
-                match old_value {
-                    AggregatedValue::Int(old_value) => {
-                        AggregatedValue::Int(old_value+1)
-                    }
-                    _ => {
-                        AggregatedValue::Int(1)
-                    }
-                }
-            }
+            AggregationType::Count => match old_value {
+                AggregatedValue::Int(old_value) => AggregatedValue::Int(old_value + 1),
+                _ => AggregatedValue::Int(1),
+            },
             AggregationType::Sum => {
                 let s_value = literal.as_str_ref(indexers);
                 match old_value {
                     AggregatedValue::Int(old_ivalue) => {
                         let ivalue = s_value.parse::<i64>();
                         match ivalue {
-                            Ok(ivalue) => {
-                                AggregatedValue::Int(old_ivalue+ivalue)
-                            }
+                            Ok(ivalue) => AggregatedValue::Int(old_ivalue + ivalue),
                             Err(_) => {
                                 // fallback float
                                 let fvalue = s_value.parse::<f64>();
                                 match fvalue {
-                                    Ok(fvalue) => {
-                                        AggregatedValue::Float(old_ivalue as f64+fvalue)
-                                    }
+                                    Ok(fvalue) => AggregatedValue::Float(old_ivalue as f64 + fvalue),
                                     Err(_) => {
                                         // fallback float
                                         old_value
@@ -806,9 +884,7 @@ impl AggregationType {
                     AggregatedValue::Float(old_fvalue) => {
                         let fvalue = s_value.parse::<f64>();
                         match fvalue {
-                            Ok(fvalue) => {
-                                AggregatedValue::Float(old_fvalue+fvalue)
-                            }
+                            Ok(fvalue) => AggregatedValue::Float(old_fvalue + fvalue),
                             Err(_) => {
                                 // fallback float
                                 old_value
@@ -818,16 +894,12 @@ impl AggregationType {
                     _ => {
                         let ivalue = s_value.parse::<i64>();
                         match ivalue {
-                            Ok(ivalue) => {
-                                AggregatedValue::Int(ivalue)
-                            }
+                            Ok(ivalue) => AggregatedValue::Int(ivalue),
                             Err(_) => {
                                 // fallback float
                                 let fvalue = s_value.parse::<f64>();
                                 match fvalue {
-                                    Ok(fvalue) => {
-                                        AggregatedValue::Float(fvalue)
-                                    }
+                                    Ok(fvalue) => AggregatedValue::Float(fvalue),
                                     Err(_) => {
                                         // fallback float
                                         old_value
@@ -844,9 +916,7 @@ impl AggregationType {
                     AggregatedValue::Float(old_fvalue) => {
                         let fvalue = s_value.parse::<f64>();
                         match fvalue {
-                            Ok(fvalue) => {
-                                AggregatedValue::Float(old_fvalue.min(fvalue))
-                            }
+                            Ok(fvalue) => AggregatedValue::Float(old_fvalue.min(fvalue)),
                             Err(_) => {
                                 // fallback float
                                 old_value
@@ -856,12 +926,8 @@ impl AggregationType {
                     AggregatedValue::Empty => {
                         let fvalue = s_value.parse::<f64>();
                         match fvalue {
-                            Ok(fvalue) => {
-                                AggregatedValue::Float(fvalue)
-                            }
-                            Err(_) => {
-                                AggregatedValue::from_literal(literal)
-                            }
+                            Ok(fvalue) => AggregatedValue::Float(fvalue),
+                            Err(_) => AggregatedValue::from_literal(literal),
                         }
                     }
                     _ => {
@@ -880,9 +946,7 @@ impl AggregationType {
                     AggregatedValue::Float(old_fvalue) => {
                         let fvalue = s_value.parse::<f64>();
                         match fvalue {
-                            Ok(fvalue) => {
-                                AggregatedValue::Float(old_fvalue.max(fvalue))
-                            }
+                            Ok(fvalue) => AggregatedValue::Float(old_fvalue.max(fvalue)),
                             Err(_) => {
                                 // fallback float
                                 old_value
@@ -892,12 +956,8 @@ impl AggregationType {
                     AggregatedValue::Empty => {
                         let fvalue = s_value.parse::<f64>();
                         match fvalue {
-                            Ok(fvalue) => {
-                                AggregatedValue::Float(fvalue)
-                            }
-                            Err(_) => {
-                                AggregatedValue::from_literal(literal)
-                            }
+                            Ok(fvalue) => AggregatedValue::Float(fvalue),
+                            Err(_) => AggregatedValue::from_literal(literal),
                         }
                     }
                     _ => {
@@ -914,54 +974,46 @@ impl AggregationType {
                 let s_value = literal.as_str_ref(indexers);
                 let fvalue = s_value.parse::<f64>();
                 match fvalue {
-                    Ok(fvalue) => {
-                        match old_value {
-                            AggregatedValue::AvgCount(avg, count) => {
-                                let count = count+1.0;
-                                let avg = avg + (fvalue-avg)/count;
-                                AggregatedValue::AvgCount(avg, count)                                
-                            }
-                            _ => {
-                                AggregatedValue::AvgCount(fvalue, 1.0)                                
-                            }
+                    Ok(fvalue) => match old_value {
+                        AggregatedValue::AvgCount(avg, count) => {
+                            let count = count + 1.0;
+                            let avg = avg + (fvalue - avg) / count;
+                            AggregatedValue::AvgCount(avg, count)
                         }
-                    }
+                        _ => AggregatedValue::AvgCount(fvalue, 1.0),
+                    },
                     Err(_) => {
                         // fallback float
                         old_value
                     }
-                }   
+                }
             }
-
         }
     }
 
     pub fn final_value(&self, value: AggregatedValue) -> AggregatedValue {
         match self {
-            AggregationType::Avg => {
-                match value {
-                    AggregatedValue::AvgCount(avg, count) => {
-                        if count>0.0 {
-                            AggregatedValue::Float(avg)
-                        } else {
-                            AggregatedValue::Empty
-                        }
-                    }
-                    _ => {
-                        value
+            AggregationType::Avg => match value {
+                AggregatedValue::AvgCount(avg, count) => {
+                    if count > 0.0 {
+                        AggregatedValue::Float(avg)
+                    } else {
+                        AggregatedValue::Empty
                     }
                 }
-            }
-            _ => {
-                value
-            }
+                _ => value,
+            },
+            _ => value,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{domain::{NodeData, prefix_manager::PrefixManager}, integration::rdfwrap::RDFWrap};
+    use crate::{
+        domain::{NodeData, prefix_manager::PrefixManager},
+        integration::rdfwrap::RDFWrap,
+    };
 
     use super::*;
 
@@ -1000,12 +1052,12 @@ mod tests {
             ..Default::default()
         }
     }
-    
+
     #[test]
     fn test_table_query_iterator() {
         let table_query = table_query();
         for t in table_query.iter_tables() {
-            println!("t iri {}",t.type_iri)
+            println!("t iri {}", t.type_iri)
         }
 
         let mut iter = table_query.iter_tables();
@@ -1030,20 +1082,19 @@ mod tests {
 
     #[test]
     fn test_visual_query() -> std::io::Result<()> {
-        
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/programming_languages.ttl".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/programming_languages.ttl".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         let mut type_instance_index = TypeInstanceIndex::default();
         type_instance_index.update(&rdf_data.node_data);
@@ -1066,7 +1117,7 @@ mod tests {
         let label_idx = rdf_data.node_data.get_predicate_index("rdfs:label");
         assert!(type_data.properties.get(&label_idx).is_some());
 
-        table_query.aggregations.push(PredicateAggregation { 
+        table_query.aggregations.push(PredicateAggregation {
             predicate_iri: label_idx,
             aggregation_type: AggregationType::Count,
             ..PredicateAggregation::default()
@@ -1082,29 +1133,27 @@ mod tests {
         let AggregatedValue::Int(count) = *agg_value else {
             panic!("aggregated value is not int")
         };
-        assert!(count>1);
-        assert!(count<instances.len() as i64);
-
+        assert!(count > 1);
+        assert!(count < instances.len() as i64);
 
         Ok(())
     }
 
-
     #[test]
     fn test_visual_query_agg() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/chinook.ttl".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/chinook.ttl".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         let mut type_instance_index = TypeInstanceIndex::default();
         type_instance_index.update(&rdf_data.node_data);
@@ -1151,18 +1200,18 @@ mod tests {
     #[test]
     fn test_visual_query_agg3() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/chinook.ttl".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/chinook.ttl".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         let mut type_instance_index = TypeInstanceIndex::default();
         type_instance_index.update(&rdf_data.node_data);
@@ -1183,7 +1232,7 @@ mod tests {
             type_iri: artist_index,
             ..Default::default()
         };
-        
+
         let mut album_query = TableQuery {
             type_iri: album_index,
             aggregations: vec![PredicateAggregation {
@@ -1223,9 +1272,9 @@ mod tests {
         let instances = artist_desc.query_instances_for_table_query(&artist_query, &rdf_data);
         let (result_instances, result_aggregation) = artist_query.compute_instances(&rdf_data, &instances);
 
-        assert!(instances.len()>=result_instances.len());
-        assert!(result_instances.len()>0);
-        assert_eq!(result_instances.len()*2, result_aggregation.len());
+        assert!(instances.len() >= result_instances.len());
+        assert!(result_instances.len() > 0);
+        assert_eq!(result_instances.len() * 2, result_aggregation.len());
 
         if let AggregatedValue::Empty = result_aggregation[1] {
             panic!("No aggregation value for track");
@@ -1233,6 +1282,4 @@ mod tests {
 
         Ok(())
     }
-
-
 }

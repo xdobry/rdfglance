@@ -1,7 +1,7 @@
 use std::io::BufReader;
 
-use crate::domain::{NObject, NodeData};
 use super::rdfwrap::{RDFAdapter, RDFWrap};
+use crate::domain::{NObject, NodeData};
 use oxttl::TurtleParser;
 use reqwest::blocking::Client;
 
@@ -23,13 +23,7 @@ impl SparqlAdapter {
         let mut encoded = String::with_capacity(value.len());
         for b in value.bytes() {
             match b {
-                b'A'..=b'Z'
-                | b'a'..=b'z'
-                | b'0'..=b'9'
-                | b'-'
-                | b'_'
-                | b'.'
-                | b'~' => encoded.push(b as char),
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => encoded.push(b as char),
                 b' ' => encoded.push('+'),
                 _ => encoded.push_str(&format!("%{:02X}", b)),
             }
@@ -59,12 +53,10 @@ where {{
                     SparqlAdapter::encode_form_component(&query)
                 );
                 // println!("Query: {}", query);
-                match self.client
+                match self
+                    .client
                     .post(&self.endpoint)
-                    .header(
-                        "Content-Type",
-                        "application/x-www-form-urlencoded;charset=UTF-8",
-                    )
+                    .header("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
                     .header("Accept", "text/turtle")
                     .body(form_body)
                     .send()

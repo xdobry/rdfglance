@@ -11,20 +11,18 @@ pub fn hierarchical_layout(
     hidden_predicates: &SortedVec,
     layout_orientation: LayoutOrientation,
 ) {
-    let node_indexes: Vec<(u32,(f64,f64))> = if let Ok(nodes) = visible_nodes.nodes.read() {
+    let node_indexes: Vec<(u32, (f64, f64))> = if let Ok(nodes) = visible_nodes.nodes.read() {
         if selected_nodes.len() < 2 {
             if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
-                node_shapes.iter().enumerate()
+                node_shapes
+                    .iter()
+                    .enumerate()
                     .map(|(idx, node_shape)| {
                         let size = match layout_orientation {
-                            LayoutOrientation::Horizontal => {
-                                (node_shape.size.x as f64,node_shape.size.y as f64)
-                            },
-                            LayoutOrientation::Vertical => {
-                                (node_shape.size.y as f64,node_shape.size.x as f64)
-                            }
+                            LayoutOrientation::Horizontal => (node_shape.size.x as f64, node_shape.size.y as f64),
+                            LayoutOrientation::Vertical => (node_shape.size.y as f64, node_shape.size.x as f64),
                         };
-                        (idx as u32,size)
+                        (idx as u32, size)
                     })
                     .collect()
             } else {
@@ -34,22 +32,22 @@ pub fn hierarchical_layout(
             if let Ok(node_shapes) = visible_nodes.node_shapes.read() {
                 selected_nodes
                     .iter()
-                    .filter_map(|selected_node| {
-                        match nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)) {
+                    .filter_map(
+                        |selected_node| match nodes.binary_search_by(|e| e.node_index.cmp(&selected_node)) {
                             Ok(idx) => {
                                 let size = match layout_orientation {
                                     LayoutOrientation::Horizontal => {
-                                        (node_shapes[idx].size.x as f64,node_shapes[idx].size.y as f64)
-                                    },
+                                        (node_shapes[idx].size.x as f64, node_shapes[idx].size.y as f64)
+                                    }
                                     LayoutOrientation::Vertical => {
-                                        (node_shapes[idx].size.y as f64,node_shapes[idx].size.x as f64)
+                                        (node_shapes[idx].size.y as f64, node_shapes[idx].size.x as f64)
                                     }
                                 };
-                                Some((idx as u32,size))
-                            },
+                                Some((idx as u32, size))
+                            }
                             Err(_) => None,
-                        }
-                    })
+                        },
+                    )
                     .collect()
             } else {
                 return;
@@ -58,14 +56,17 @@ pub fn hierarchical_layout(
     } else {
         return;
     };
-    let edges: Vec<(u32,u32)> = if let Ok(edges) = visible_nodes.edges.read() {
+    let edges: Vec<(u32, u32)> = if let Ok(edges) = visible_nodes.edges.read() {
         edges
             .iter()
             .filter(|e| {
                 !hidden_predicates.contains(e.predicate)
-                    && (node_indexes.iter().find(|(idx,_)| *idx as usize == e.from || *idx as usize == e.to).is_some())
+                    && (node_indexes
+                        .iter()
+                        .find(|(idx, _)| *idx as usize == e.from || *idx as usize == e.to)
+                        .is_some())
             })
-            .map(|e| (e.from as u32,e.to as u32))
+            .map(|e| (e.from as u32, e.to as u32))
             .collect()
     } else {
         return;
@@ -82,12 +83,8 @@ pub fn hierarchical_layout(
         if let Ok(mut positions) = visible_nodes.positions.write() {
             for (node_index, (x, y)) in layout {
                 let position = match layout_orientation {
-                    LayoutOrientation::Horizontal => {
-                        Pos2::new(x as f32, -y as f32)
-                    },
-                    LayoutOrientation::Vertical => {
-                        Pos2::new(-y as f32, x as f32)
-                    }
+                    LayoutOrientation::Horizontal => Pos2::new(x as f32, -y as f32),
+                    LayoutOrientation::Vertical => Pos2::new(-y as f32, x as f32),
                 };
                 positions[node_index].pos = position;
             }

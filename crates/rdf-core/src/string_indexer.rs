@@ -23,6 +23,11 @@ impl StringIndexer {
         index.to_usize() as IriIndex
     }
 
+    pub fn get_index_opt(&self, s: &str) -> Option<IriIndex> {
+        let index = self.map.get(s);
+        index.map(|s| s.to_usize() as IriIndex)
+    }
+
     /// Retrieves a string from an index
     pub fn index_to_str(&self, index: IriIndex) -> Option<&str> {
         self.map.resolve(SymbolU32::try_from_usize(index as usize).unwrap())

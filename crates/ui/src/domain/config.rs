@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 pub use rdf_core::IriDisplay;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {

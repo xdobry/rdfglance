@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use egui::Color32;
 
 use crate::{
-    IriIndex, domain::{StringIndexer, type_index::TypeInstanceIndex}, support::distinct_colors::next_distinct_color,
+    IriIndex,
+    domain::{StringIndexer, type_index::TypeInstanceIndex},
+    support::distinct_colors::next_distinct_color,
 };
 
 impl rdf_core::NodeStyleCatalog for GVisualizationStyle {
@@ -287,7 +289,12 @@ pub struct GVisualizationStyle {
 }
 
 impl GVisualizationStyle {
-    pub fn preset_styles(&mut self, type_instance_index: &TypeInstanceIndex, predicate_indexer: &StringIndexer, is_dark_mode: bool) {
+    pub fn preset_styles(
+        &mut self,
+        type_instance_index: &TypeInstanceIndex,
+        predicate_indexer: &StringIndexer,
+        is_dark_mode: bool,
+    ) {
         for (type_index, type_desc) in type_instance_index.types.iter() {
             let type_style = self.node_styles.get(type_index);
             if type_style.is_none() {
@@ -303,7 +310,10 @@ impl GVisualizationStyle {
                     for (prop_index, prop_desc) in type_desc.properties.iter() {
                         if prop_desc.min_cardinality >= 1 {
                             if let Some(label_str) = predicate_indexer.index_to_str(*prop_index) {
-                                if label_str.contains("label") || label_str.contains("name") || label_str.contains("Name") {
+                                if label_str.contains("label")
+                                    || label_str.contains("name")
+                                    || label_str.contains("Name")
+                                {
                                     selected_label_index = Some(*prop_index);
                                     break;
                                 }
@@ -341,7 +351,7 @@ impl GVisualizationStyle {
                     style.max_lines = 0;
                     style.label_max_width = 0.0;
                 }
-            }            
+            }
         }
     }
 
@@ -402,4 +412,3 @@ impl GVisualizationStyle {
         self.edge_styles.clear();
     }
 }
-

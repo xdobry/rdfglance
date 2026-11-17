@@ -1,16 +1,16 @@
-use oxrdf::{NamedOrBlankNode, NamedNodeRef, Term, Triple, vocab::rdf};
+use oxrdf::{NamedNodeRef, NamedOrBlankNode, Term, Triple, vocab::rdf};
 use oxrdfxml::RdfXmlParser;
 use oxttl::TurtleParser;
 
-use crate::domain::{Literal, NObject, NodeData};
 use crate::domain::RdfData;
+use crate::domain::{Literal, NObject, NodeData};
 use crate::uistate::{DataLoading, ImportFormat};
 pub use rdf_core::ingest::{IndexCache, add_triple};
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Context, Result};
 use std::time::Instant;
@@ -28,10 +28,7 @@ pub struct CountingReader<R> {
 
 impl<R: Read> CountingReader<R> {
     pub fn new(inner: R, bytes_read: Arc<AtomicUsize>) -> Self {
-        CountingReader {
-            inner,
-            bytes_read,
-        }
+        CountingReader { inner, bytes_read }
     }
 }
 
@@ -62,12 +59,12 @@ fn collect_rdf_files(dir_name: &str, files: &mut Vec<String>) -> Result<()> {
                 if path.is_dir() {
                     collect_rdf_files(path_name, files)?;
                 } else if let Some(extension) = path.extension() {
-                    if ["ttl", "rdf", "xml", "nt", "nq", "trig","jsonld"].contains(&extension.to_str().unwrap()) {
+                    if ["ttl", "rdf", "xml", "nt", "nq", "trig", "jsonld"].contains(&extension.to_str().unwrap()) {
                         files.push(path_name.to_string());
                     }
                 }
             }
-        }  
+        }
     }
     Ok(())
 }
@@ -77,18 +74,26 @@ impl RDFWrap {
         RDFWrap {}
     }
 
-    pub fn load_from_dir(dir_name: &str, rdf_data: &mut RdfData, language_filter: &[String], data_loading: Option<&DataLoading>) -> Result<u32> {
+    pub fn load_from_dir(
+        dir_name: &str,
+        rdf_data: &mut RdfData,
+        language_filter: &[String],
+        data_loading: Option<&DataLoading>,
+    ) -> Result<u32> {
         let mut total_triples = 0;
         let mut files = Vec::new();
         collect_rdf_files(dir_name, &mut files)?;
         if let Some(data_loading) = data_loading {
             let mut size_total = 0;
             for file in &files {
-                let metadata = fs::metadata(file).with_context(|| format!("Failed to get metadata for file {}", file))?;
+                let metadata =
+                    fs::metadata(file).with_context(|| format!("Failed to get metadata for file {}", file))?;
                 size_total += metadata.len() as usize;
             }
-            data_loading.total_size.store(size_total, std::sync::atomic::Ordering::Relaxed);
-        }   
+            data_loading
+                .total_size
+                .store(size_total, std::sync::atomic::Ordering::Relaxed);
+        }
         for file in &files {
             match RDFWrap::load_file(file, rdf_data, language_filter, data_loading) {
                 Ok(triples) => {
@@ -127,10 +132,15 @@ impl RDFWrap {
 
         let reader = BufReader::new(file);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        let file_base_name = file_name.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("data");
-        Self::load_file_reader(file_extension, file_base_name, reader, rdf_data, language_filter, data_loading)
+        let file_base_name = file_name.file_stem().and_then(|s| s.to_str()).unwrap_or("data");
+        Self::load_file_reader(
+            file_extension,
+            file_base_name,
+            reader,
+            rdf_data,
+            language_filter,
+            data_loading,
+        )
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -171,9 +181,17 @@ impl RDFWrap {
         let url = Url::parse(url).unwrap();
         let last_segment = url
             .path_segments()
-            .and_then(|segments| segments.last()).unwrap_or("url");
+            .and_then(|segments| segments.last())
+            .unwrap_or("url");
 
-        Self::load_file_reader(format.file_extension(),last_segment, reader, rdf_data, language_filter, data_loading)
+        Self::load_file_reader(
+            format.file_extension(),
+            last_segment,
+            reader,
+            rdf_data,
+            language_filter,
+            data_loading,
+        )
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -197,9 +215,7 @@ impl RDFWrap {
         let file_name = Path::new(file_name);
         let reader = io::Cursor::new(data);
         let file_extension = file_name.extension().and_then(|s| s.to_str()).unwrap_or("");
-        let file_base_name = file_name.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("data");
+        let file_base_name = file_name.file_stem().and_then(|s| s.to_str()).unwrap_or("data");
         Self::load_file_reader(file_extension, file_base_name, reader, rdf_data, language_filter, None)
     }
 
@@ -399,7 +415,7 @@ impl RDFWrap {
             }
             "jsonld" => {
                 let parser = oxjsonld::JsonLdParser::new().for_reader(counting_reader);
-                                for quad in parser {
+                for quad in parser {
                     if let Some(data_loading) = data_loading {
                         if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
                             break;
@@ -428,7 +444,7 @@ impl RDFWrap {
                         }
                     }
                 }
-            },
+            }
             "csv" => {
                 use crate::integration::csv2rdf::CSVRDFParser;
                 let parser = CSVRDFParser::for_reader(counting_reader, file_base.to_string());
@@ -461,117 +477,93 @@ impl RDFWrap {
                         }
                     }
                 }
-            },
+            }
             "json" => {
                 use crate::integration::json2rdf::JsonRdfParser;
                 let mut parser = JsonRdfParser::for_reader(counting_reader, file_base.to_string());
-                let res = parser.parse(| parse_item | {
-                    match parse_item {
-                        ParseItem::Triple(triple) => {
-                            match triple {
-                                Ok(triple) => {
-                                    add_triple(
-                                        &mut triples_count,
-                                        indexer,
-                                        cache,
-                                        triple,
-                                        &mut index_cache,
-                                        language_filter,
-                                        &rdf_data.prefix_manager,
-                                    );
-                                }
-                                Err(e) => {
-                                    eprintln!("Error parsing json: {}", e);
-                                }
-                            }
+                let res = parser.parse(|parse_item| match parse_item {
+                    ParseItem::Triple(triple) => match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
                         }
-                        _ => {
-
-                        }         
-                    }
+                        Err(e) => {
+                            eprintln!("Error parsing json: {}", e);
+                        }
+                    },
+                    _ => {}
                 });
                 match res {
                     Err(e) => {
                         eprintln!("Error parsing json: {}", e);
                     }
-                    Ok(_) => {
-
-                    }
+                    Ok(_) => {}
                 }
-            },
+            }
             "xml" => {
                 use crate::integration::xml2rdf::XmlRdfParser;
                 let buf_reader = BufReader::new(counting_reader);
                 let mut parser = XmlRdfParser::for_reader(buf_reader, file_base.to_string());
-                let res = parser.parse(| parse_item | {
-                    match parse_item {
-                        ParseItem::Triple(triple) => {
-                            match triple {
-                                Ok(triple) => {
-                                    add_triple(
-                                        &mut triples_count,
-                                        indexer,
-                                        cache,
-                                        triple,
-                                        &mut index_cache,
-                                        language_filter,
-                                        &rdf_data.prefix_manager,
-                                    );
-                                }
-                                Err(e) => {
-                                    eprintln!("Error parsing json: {}", e);
-                                }
-                            }
+                let res = parser.parse(|parse_item| match parse_item {
+                    ParseItem::Triple(triple) => match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
                         }
-                        _ => {
-
-                        }         
-                    }
+                        Err(e) => {
+                            eprintln!("Error parsing json: {}", e);
+                        }
+                    },
+                    _ => {}
                 });
                 match res {
                     Err(e) => {
                         eprintln!("Error parsing xml: {}", e);
                     }
-                    Ok(_) => {
-
-                    }
+                    Ok(_) => {}
                 }
-            },
+            }
             "ndjson" => {
                 use crate::integration::json2rdf::NdJsonRdfParser;
                 let mut parser = NdJsonRdfParser::for_reader(counting_reader, file_base.to_string());
-                let res = parser.parse(| parse_item | {
-                    match parse_item {
-                        ParseItem::Triple(triple) => {
-                            match triple {
-                                Ok(triple) => {
-                                    add_triple(
-                                        &mut triples_count,
-                                        indexer,
-                                        cache,
-                                        triple,
-                                        &mut index_cache,
-                                        language_filter,
-                                        &rdf_data.prefix_manager,
-                                    );
-                                }
-                                Err(e) => {
-                                    eprintln!("Error parsing json: {}", e);
-                                }
-                            }
+                let res = parser.parse(|parse_item| match parse_item {
+                    ParseItem::Triple(triple) => match triple {
+                        Ok(triple) => {
+                            add_triple(
+                                &mut triples_count,
+                                indexer,
+                                cache,
+                                triple,
+                                &mut index_cache,
+                                language_filter,
+                                &rdf_data.prefix_manager,
+                            );
                         }
-                        _ => {
-
-                        }         
-                    }
+                        Err(e) => {
+                            eprintln!("Error parsing json: {}", e);
+                        }
+                    },
+                    _ => {}
                 });
                 match res {
                     Err(e) => {
                         eprintln!("Error parsing ndjson: {}", e);
                     }
-                    Ok(_) => {
-
-                    }
+                    Ok(_) => {}
                 }
             }
             _ => {
@@ -606,7 +598,6 @@ impl RDFWrap {
         // The parsing is done in a separate thread and parse items are send to main thread via a channel.
         use std::{sync::mpsc, thread};
 
-
         let mut triples_count: u32 = 0;
         let (indexer, cache) = rdf_data.node_data.split_mut();
         let start = Instant::now();
@@ -614,7 +605,7 @@ impl RDFWrap {
             index: 0,
             iri: String::with_capacity(100),
         };
-        let bytes_read= Arc::new(AtomicUsize::new(if let Some(data_loading) = data_loading {
+        let bytes_read = Arc::new(AtomicUsize::new(if let Some(data_loading) = data_loading {
             data_loading.read_pos.load(std::sync::atomic::Ordering::Relaxed)
         } else {
             0
@@ -657,7 +648,7 @@ impl RDFWrap {
                             }
                         }
                     }
-                },
+                }
                 "rdf" => {
                     let mut parser = RdfXmlParser::new().for_reader(counting_reader);
                     let mut prefix_read = false;
@@ -743,7 +734,7 @@ impl RDFWrap {
                             }
                         }
                     }
-                },
+                }
                 "jsonld" => {
                     let parser = oxjsonld::JsonLdParser::new().for_reader(counting_reader);
                     for quad in parser {
@@ -760,7 +751,7 @@ impl RDFWrap {
                             }
                         }
                     }
-                },
+                }
                 "csv" => {
                     use crate::integration::csv2rdf::CSVRDFParser;
                     let parser = CSVRDFParser::for_reader(counting_reader, file_base);
@@ -778,51 +769,45 @@ impl RDFWrap {
                             }
                         }
                     }
-                },
+                }
                 "json" => {
                     use crate::integration::json2rdf::JsonRdfParser;
                     let mut parser = JsonRdfParser::for_reader(counting_reader, file_base);
-                    let res = parser.parse(| parse_item | {
+                    let res = parser.parse(|parse_item| {
                         let _r = tx.send(parse_item);
                     });
                     match res {
                         Err(e) => {
-                            let _r =  tx.send(ParseItem::Triple(Err(e.into()))).is_err();
+                            let _r = tx.send(ParseItem::Triple(Err(e.into()))).is_err();
                         }
-                        Ok(_) => {
-
-                        }
+                        Ok(_) => {}
                     }
-                },
+                }
                 "xml" => {
                     use crate::integration::xml2rdf::XmlRdfParser;
                     let buf_reader = BufReader::new(counting_reader);
                     let mut parser = XmlRdfParser::for_reader(buf_reader, file_base);
-                    let res = parser.parse(| parse_item | {
+                    let res = parser.parse(|parse_item| {
                         let _r = tx.send(parse_item);
                     });
                     match res {
                         Err(e) => {
-                            let _r =  tx.send(ParseItem::Triple(Err(e.into()))).is_err();
+                            let _r = tx.send(ParseItem::Triple(Err(e.into()))).is_err();
                         }
-                        Ok(_) => {
-
-                        }
+                        Ok(_) => {}
                     }
-                },
+                }
                 "ndjson" => {
                     use crate::integration::json2rdf::NdJsonRdfParser;
                     let mut parser = NdJsonRdfParser::for_reader(counting_reader, file_base);
-                    let res = parser.parse(| parse_item | {
+                    let res = parser.parse(|parse_item| {
                         let _r = tx.send(parse_item);
                     });
                     match res {
                         Err(e) => {
-                            let _r =  tx.send(ParseItem::Triple(Err(e.into()))).is_err();
+                            let _r = tx.send(ParseItem::Triple(Err(e.into()))).is_err();
                         }
-                        Ok(_) => {
-
-                        }
+                        Ok(_) => {}
                     }
                 }
                 _ => {
@@ -835,7 +820,7 @@ impl RDFWrap {
             Ok(())
         });
 
-        // let mut i  = 0;        
+        // let mut i  = 0;
         for parse_item in rx {
             /*
             queue_size.fetch_sub(1, Ordering::Relaxed);
@@ -861,24 +846,22 @@ impl RDFWrap {
                 ParseItem::Prefix(prefix, iri) => {
                     rdf_data.prefix_manager.add_prefix(&prefix, &iri);
                 }
-                ParseItem::Triple(triple) => {
-                    match triple {
-                        Ok(triple) => {
-                            add_triple(
-                                &mut triples_count,
-                                indexer,
-                                cache,
-                                triple,
-                                &mut index_cache,
-                                language_filter,
-                                &rdf_data.prefix_manager,
-                            );
-                        }
-                        Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
-                        }
+                ParseItem::Triple(triple) => match triple {
+                    Ok(triple) => {
+                        add_triple(
+                            &mut triples_count,
+                            indexer,
+                            cache,
+                            triple,
+                            &mut index_cache,
+                            language_filter,
+                            &rdf_data.prefix_manager,
+                        );
                     }
-                }
+                    Err(e) => {
+                        eprintln!("Error parsing triple: {}", e);
+                    }
+                },
             }
         }
         let thread_res = handle.join();
@@ -980,89 +963,97 @@ impl RDFAdapter for RDFWrap {
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::type_index::TypeInstanceIndex;
     use crate::domain::prefix_manager::PrefixManager;
+    use crate::domain::type_index::TypeInstanceIndex;
 
-use super::*;
+    use super::*;
 
     #[test]
     fn test_load_ttl() -> std::io::Result<()> {
-        
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/programming_languages.ttl".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/programming_languages.ttl".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         Ok(())
     }
 
     #[test]
     fn test_load_ttl_data_check() -> std::io::Result<()> {
-        
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/uni.ttl".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/uni.ttl".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
         let student_type_index = rdf_data.node_data.indexers.get_type_index("ex:Student");
         let name_pred = rdf_data.node_data.indexers.get_predicate_index("ex:name");
         let member_pred = rdf_data.node_data.indexers.get_predicate_index("ex:memberOf");
         let bob_node_idx = rdf_data.node_data.get_node_index("ex:Bob").unwrap();
         let bob_node = rdf_data.node_data.get_node_by_index(bob_node_idx).unwrap().1;
         let types = vec![student_type_index];
-        assert_eq!(1,bob_node.types.len());
+        assert_eq!(1, bob_node.types.len());
         assert!(bob_node.match_types(&types));
         // Test Properties
         let Some(literal) = bob_node.get_property(name_pred, 0) else {
             panic!("property name not found");
         };
         let name_str = literal.as_str_ref(&rdf_data.node_data.indexers);
-        assert_eq!("Bob Davis",name_str);
+        assert_eq!("Bob Davis", name_str);
         // Test references and reverse references
         let comp_science_idx = rdf_data.node_data.get_node_index("ex:ComputerScience").unwrap();
-        let comp_science_idx_ref = bob_node.references.iter().find(| (pred,ref_node) | *pred == member_pred).unwrap().1;
+        let comp_science_idx_ref = bob_node
+            .references
+            .iter()
+            .find(|(pred, ref_node)| *pred == member_pred)
+            .unwrap()
+            .1;
         assert_eq!(comp_science_idx, comp_science_idx_ref);
-        let Some((_,comp_science_node)) = rdf_data.node_data.get_node_by_index(comp_science_idx) else {
+        let Some((_, comp_science_node)) = rdf_data.node_data.get_node_by_index(comp_science_idx) else {
             panic!("comp science node not found")
         };
-        assert!(comp_science_node.reverse_references.iter().find(| (pred, ref_node)| *pred == member_pred && *ref_node==bob_node_idx).is_some());
+        assert!(
+            comp_science_node
+                .reverse_references
+                .iter()
+                .find(|(pred, ref_node)| *pred == member_pred && *ref_node == bob_node_idx)
+                .is_some()
+        );
 
         Ok(())
     }
 
     #[test]
     fn test_load_jsonld() -> std::io::Result<()> {
-        
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/systemlandschaft.jsonld".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/systemlandschaft.jsonld".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         Ok(())
     }
@@ -1070,18 +1061,18 @@ use super::*;
     #[test]
     fn test_load_csv() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/visual_query.csv".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/visual_query.csv".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         Ok(())
     }
@@ -1089,18 +1080,18 @@ use super::*;
     #[test]
     fn test_load_json() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/nobel-prize-winners-by-year.json".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/nobel-prize-winners-by-year.json".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
 
         Ok(())
     }
@@ -1108,23 +1099,23 @@ use super::*;
     #[test]
     fn test_load_xml() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/sample.xml".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/sample.xml".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         // println!("result {}",load_result.err().unwrap());
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
         let mut t = TypeInstanceIndex::new();
         t.update(&rdf_data.node_data);
-        assert_eq!(t.unique_types,2);
-        assert_eq!(t.nodes,4);
+        assert_eq!(t.unique_types, 2);
+        assert_eq!(t.nodes, 4);
 
         Ok(())
     }
@@ -1132,23 +1123,23 @@ use super::*;
     #[test]
     fn test_load_ndjson() -> std::io::Result<()> {
         let mut rdf_data = RdfData {
-                node_data: NodeData::new(),
-                prefix_manager: PrefixManager::new(),
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
         };
         let language_filter: Vec<String> = Vec::new();
         let load_result = RDFWrap::load_file(
-                        "../../sample-rdf-data/sample.ndjson".to_string(),
-                        &mut rdf_data,
-                        &language_filter,
-                        None,
-                    );
+            "../../sample-rdf-data/sample.ndjson".to_string(),
+            &mut rdf_data,
+            &language_filter,
+            None,
+        );
         // println!("result {}",load_result.err().unwrap());
         assert!(load_result.is_ok());
-        assert!(load_result.unwrap()>0);
+        assert!(load_result.unwrap() > 0);
         let mut t = TypeInstanceIndex::new();
         t.update(&rdf_data.node_data);
-        assert_eq!(t.unique_types,1);
-        assert_eq!(t.nodes,3);
+        assert_eq!(t.unique_types, 1);
+        assert_eq!(t.nodes, 3);
 
         Ok(())
     }

@@ -1,10 +1,9 @@
 use crate::{
     support::{
-        SortedVec, quad_tree::{BHQuadtree, WeightedPoint}
-    }, 
-    uistate::{
-        layout::{Edge, LayoutConfig, NodeLayout, NodePosition, NodeShapeData}
-    }
+        SortedVec,
+        quad_tree::{BHQuadtree, WeightedPoint},
+    },
+    uistate::layout::{Edge, LayoutConfig, NodeLayout, NodePosition, NodeShapeData},
 };
 use atomic_float::AtomicF32;
 use eframe::egui::Vec2;

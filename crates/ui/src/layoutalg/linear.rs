@@ -1,6 +1,4 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-};
+use std::collections::{BTreeSet, HashMap};
 
 use egui::{Pos2, Rect};
 
@@ -108,7 +106,7 @@ pub fn linear_layout(
                     match layout_orientation {
                         LayoutOrientation::Horizontal => {
                             let node_size = node_shapes[*node_idx].size.x;
-                            pos.pos = Pos2::new(start_pos + node_size*0.5, center.y);
+                            pos.pos = Pos2::new(start_pos + node_size * 0.5, center.y);
                             start_pos += node_size + spacing;
                         }
                         LayoutOrientation::Vertical => {

@@ -1,8 +1,7 @@
-use std::io::{self, BufRead};
 use oxrdf::{Literal, NamedNode, Triple};
-use slug::slugify;
-use json_event_parser::{ReaderJsonParser, JsonEvent};
 use quick_xml::{Reader, XmlVersion, escape::resolve_xml_entity, events::Event};
+use slug::slugify;
+use std::io::{self, BufRead};
 
 use crate::integration::{csv2rdf::hash_string, rdfwrap::ParseItem};
 
@@ -36,7 +35,7 @@ impl<R: BufRead> XmlRdfParser<R> {
     where
         F: FnMut(ParseItem),
     {
-        let mut buf = Vec::new();        
+        let mut buf = Vec::new();
         loop {
             let event = self.reader.read_event_into(&mut buf);
             match event {
@@ -48,24 +47,58 @@ impl<R: BufRead> XmlRdfParser<R> {
                                 if let Ok(attr) = attr {
                                     if obj_iri.is_none() {
                                         if let Some(pending_tag) = self.pending_tag.take() {
-                                            let type_iri = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,pending_tag));
-                                            let obj_iri_c = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,self.obj_count));
+                                            let type_iri = NamedNode::new_unchecked(format!(
+                                                "urn:xml:{}#{}",
+                                                self.file_hash, pending_tag
+                                            ));
+                                            let obj_iri_c = NamedNode::new_unchecked(format!(
+                                                "urn:xml:{}#{}",
+                                                self.file_hash, self.obj_count
+                                            ));
                                             self.obj_count += 1;
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), oxrdf::vocab::rdf::TYPE, type_iri))));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri_c.clone(),
+                                                oxrdf::vocab::rdf::TYPE,
+                                                type_iri,
+                                            ))));
                                             if let Some(parent_obj) = self.obj_path.last() {
-                                                let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,pending_tag));
-                                                f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), pred, parent_obj.clone()))));
+                                                let pred = NamedNode::new_unchecked(format!(
+                                                    "urn:xml:pred:{}#{}",
+                                                    self.file_hash, pending_tag
+                                                ));
+                                                f(ParseItem::Triple(Ok(Triple::new(
+                                                    obj_iri_c.clone(),
+                                                    pred,
+                                                    parent_obj.clone(),
+                                                ))));
                                             }
                                             self.obj_path.push(obj_iri_c);
-                                        }                                       
+                                        }
                                         let tag_name = slugify(String::from_utf8_lossy(s.local_name().as_ref()));
-                                        let type_iri = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,tag_name));
-                                        let obj_iri_c = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,self.obj_count));
+                                        let type_iri = NamedNode::new_unchecked(format!(
+                                            "urn:xml:{}#{}",
+                                            self.file_hash, tag_name
+                                        ));
+                                        let obj_iri_c = NamedNode::new_unchecked(format!(
+                                            "urn:xml:{}#{}",
+                                            self.file_hash, self.obj_count
+                                        ));
                                         self.obj_count += 1;
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), oxrdf::vocab::rdf::TYPE, type_iri))));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri_c.clone(),
+                                            oxrdf::vocab::rdf::TYPE,
+                                            type_iri,
+                                        ))));
                                         if let Some(parent_obj) = self.obj_path.last() {
-                                            let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,tag_name));
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), pred, parent_obj.clone()))));
+                                            let pred = NamedNode::new_unchecked(format!(
+                                                "urn:xml:pred:{}#{}",
+                                                self.file_hash, tag_name
+                                            ));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri_c.clone(),
+                                                pred,
+                                                parent_obj.clone(),
+                                            ))));
                                         }
                                         obj_iri = Some(obj_iri_c);
                                     }
@@ -73,8 +106,16 @@ impl<R: BufRead> XmlRdfParser<R> {
                                         let key = attr.key.as_ref();
                                         let value = attr.normalized_value(XmlVersion::Implicit1_0);
                                         if let Ok(value) = value {
-                                            let pred = NamedNode::new_unchecked(format!("urn:xml:attr:{}#{}",self.file_hash,String::from_utf8_lossy(key)));
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(),pred, Literal::new_simple_literal(value)))));
+                                            let pred = NamedNode::new_unchecked(format!(
+                                                "urn:xml:attr:{}#{}",
+                                                self.file_hash,
+                                                String::from_utf8_lossy(key)
+                                            ));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri.clone(),
+                                                pred,
+                                                Literal::new_simple_literal(value),
+                                            ))));
                                         }
                                     }
                                 }
@@ -83,16 +124,31 @@ impl<R: BufRead> XmlRdfParser<R> {
                                 self.obj_path.push(obj_iri);
                             } else {
                                 if let Some(pending_tag) = self.pending_tag.take() {
-                                    let type_iri = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,pending_tag));
-                                    let obj_iri_c = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,self.obj_count));
+                                    let type_iri =
+                                        NamedNode::new_unchecked(format!("urn:xml:{}#{}", self.file_hash, pending_tag));
+                                    let obj_iri_c = NamedNode::new_unchecked(format!(
+                                        "urn:xml:{}#{}",
+                                        self.file_hash, self.obj_count
+                                    ));
                                     self.obj_count += 1;
-                                    f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), oxrdf::vocab::rdf::TYPE, type_iri))));
+                                    f(ParseItem::Triple(Ok(Triple::new(
+                                        obj_iri_c.clone(),
+                                        oxrdf::vocab::rdf::TYPE,
+                                        type_iri,
+                                    ))));
                                     if let Some(parent_obj) = self.obj_path.last() {
-                                        let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,pending_tag));
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), pred, parent_obj.clone()))));
-                                    }    
+                                        let pred = NamedNode::new_unchecked(format!(
+                                            "urn:xml:pred:{}#{}",
+                                            self.file_hash, pending_tag
+                                        ));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri_c.clone(),
+                                            pred,
+                                            parent_obj.clone(),
+                                        ))));
+                                    }
                                     self.obj_path.push(obj_iri_c);
-                                } 
+                                }
                                 self.pending_tag = Some(slugify(String::from_utf8_lossy(s.local_name().as_ref())));
                                 self.was_pred_tag = false;
                             }
@@ -101,12 +157,23 @@ impl<R: BufRead> XmlRdfParser<R> {
                             if !self.text.is_empty() {
                                 if let Some(obj_iri) = self.obj_path.last() {
                                     if let Some(pending_tag) = self.pending_tag.take() {
-                                        let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,pending_tag));
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(),pred, Literal::new_simple_literal(&self.text)))));
+                                        let pred = NamedNode::new_unchecked(format!(
+                                            "urn:xml:pred:{}#{}",
+                                            self.file_hash, pending_tag
+                                        ));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri.clone(),
+                                            pred,
+                                            Literal::new_simple_literal(&self.text),
+                                        ))));
                                         self.was_pred_tag = true;
                                     } else {
                                         let pred = NamedNode::new_unchecked("urn:xml:text");
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(),pred, Literal::new_simple_literal(&self.text)))));
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri.clone(),
+                                            pred,
+                                            Literal::new_simple_literal(&self.text),
+                                        ))));
                                     }
                                 }
                                 self.text.clear();
@@ -116,12 +183,12 @@ impl<R: BufRead> XmlRdfParser<R> {
                                 self.was_pred_tag = true;
                             }
                             if !self.was_pred_tag {
-                                if self.obj_path.len()>0 {
+                                if self.obj_path.len() > 0 {
                                     let _s = self.obj_path.pop();
                                 }
                             }
                             self.was_pred_tag = false;
-                            self.pending_tag = None;                                                     
+                            self.pending_tag = None;
                         }
                         Event::Empty(s) => {
                             let mut obj_iri: Option<NamedNode> = None;
@@ -129,24 +196,58 @@ impl<R: BufRead> XmlRdfParser<R> {
                                 if let Ok(attr) = attr {
                                     if obj_iri.is_none() {
                                         if let Some(pending_tag) = self.pending_tag.take() {
-                                            let type_iri = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,pending_tag));
-                                            let obj_iri_c = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,self.obj_count));
+                                            let type_iri = NamedNode::new_unchecked(format!(
+                                                "urn:xml:{}#{}",
+                                                self.file_hash, pending_tag
+                                            ));
+                                            let obj_iri_c = NamedNode::new_unchecked(format!(
+                                                "urn:xml:{}#{}",
+                                                self.file_hash, self.obj_count
+                                            ));
                                             self.obj_count += 1;
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), oxrdf::vocab::rdf::TYPE, type_iri))));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri_c.clone(),
+                                                oxrdf::vocab::rdf::TYPE,
+                                                type_iri,
+                                            ))));
                                             if let Some(parent_obj) = self.obj_path.last() {
-                                                let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,pending_tag));
-                                                f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), pred, parent_obj.clone()))));
+                                                let pred = NamedNode::new_unchecked(format!(
+                                                    "urn:xml:pred:{}#{}",
+                                                    self.file_hash, pending_tag
+                                                ));
+                                                f(ParseItem::Triple(Ok(Triple::new(
+                                                    obj_iri_c.clone(),
+                                                    pred,
+                                                    parent_obj.clone(),
+                                                ))));
                                             }
                                             self.obj_path.push(obj_iri_c);
                                         }
                                         let tag_name = slugify(String::from_utf8_lossy(s.local_name().as_ref()));
-                                        let type_iri = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,tag_name));
-                                        let obj_iri_c = NamedNode::new_unchecked(format!("urn:xml:{}#{}",self.file_hash,self.obj_count));
+                                        let type_iri = NamedNode::new_unchecked(format!(
+                                            "urn:xml:{}#{}",
+                                            self.file_hash, tag_name
+                                        ));
+                                        let obj_iri_c = NamedNode::new_unchecked(format!(
+                                            "urn:xml:{}#{}",
+                                            self.file_hash, self.obj_count
+                                        ));
                                         self.obj_count += 1;
-                                        f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), oxrdf::vocab::rdf::TYPE, type_iri))));      
+                                        f(ParseItem::Triple(Ok(Triple::new(
+                                            obj_iri_c.clone(),
+                                            oxrdf::vocab::rdf::TYPE,
+                                            type_iri,
+                                        ))));
                                         if let Some(parent_obj) = self.obj_path.last() {
-                                            let pred = NamedNode::new_unchecked(format!("urn:xml:pred:{}#{}",self.file_hash,tag_name));
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri_c.clone(), pred, parent_obj.clone()))));
+                                            let pred = NamedNode::new_unchecked(format!(
+                                                "urn:xml:pred:{}#{}",
+                                                self.file_hash, tag_name
+                                            ));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri_c.clone(),
+                                                pred,
+                                                parent_obj.clone(),
+                                            ))));
                                         }
                                         obj_iri = Some(obj_iri_c);
                                     }
@@ -154,8 +255,16 @@ impl<R: BufRead> XmlRdfParser<R> {
                                         let key = attr.key.as_ref();
                                         let value = attr.normalized_value(XmlVersion::Implicit1_0);
                                         if let Ok(value) = value {
-                                            let pred = NamedNode::new_unchecked(format!("urn:xml:attr:{}#{}",self.file_hash,String::from_utf8_lossy(key)));
-                                            f(ParseItem::Triple(Ok(Triple::new(obj_iri.clone(),pred, Literal::new_simple_literal(value)))));
+                                            let pred = NamedNode::new_unchecked(format!(
+                                                "urn:xml:attr:{}#{}",
+                                                self.file_hash,
+                                                String::from_utf8_lossy(key)
+                                            ));
+                                            f(ParseItem::Triple(Ok(Triple::new(
+                                                obj_iri.clone(),
+                                                pred,
+                                                Literal::new_simple_literal(value),
+                                            ))));
                                         }
                                     }
                                 }

@@ -1,6 +1,6 @@
 use crate::{
-    graph_algorithms::{GraphAlgorithm, StatisticValue}, 
     IriIndex,
+    graph_algorithms::{GraphAlgorithm, StatisticValue},
 };
 use rayon::prelude::*;
 
@@ -126,7 +126,9 @@ pub fn distribute_to_zoom_layers(values: &Vec<f32>) -> Vec<u8> {
                             continue;
                         } else {
                             // shrink previous range from the end
-                            while values_with_indices[last_end].0 == values_with_indices[start].0 && last_end > last_start {
+                            while values_with_indices[last_end].0 == values_with_indices[start].0
+                                && last_end > last_start
+                            {
                                 last_end -= 1;
                             }
                             corrected_ranges.last_mut().unwrap().1 = last_end;
@@ -192,15 +194,15 @@ fn compute_q(sum: f64, a: f64, n: usize, tol: f64, max_iter: usize) -> Result<f6
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap};
+    use std::collections::BTreeMap;
 
     use super::*;
     use rand::{Rng, RngExt, seq::SliceRandom};
-    
-    fn gen_test_data(desc: &Vec<(u32,f32,f32)>) -> Vec<f32> {
+
+    fn gen_test_data(desc: &Vec<(u32, f32, f32)>) -> Vec<f32> {
         let mut res = Vec::new();
         let mut start = 1.0;
-        for (count ,d,start_diff) in desc {
+        for (count, d, start_diff) in desc {
             start -= start_diff;
             for _ in 0..*count {
                 start -= *d;
@@ -210,18 +212,18 @@ mod tests {
         res
     }
 
-    fn prepare_dist(desc: &Vec<(u32,f32,f32)>) -> (Vec<u8>,BTreeMap<u8,u32>,u8,u8) {
+    fn prepare_dist(desc: &Vec<(u32, f32, f32)>) -> (Vec<u8>, BTreeMap<u8, u32>, u8, u8) {
         let test_data = gen_test_data(desc);
         prepare_dist_data(&test_data)
     }
 
-    fn prepare_dist_data(test_data: &Vec<f32>) -> (Vec<u8>,BTreeMap<u8,u32>,u8,u8) {
+    fn prepare_dist_data(test_data: &Vec<f32>) -> (Vec<u8>, BTreeMap<u8, u32>, u8, u8) {
         let layers = distribute_to_zoom_layers(&test_data);
         assert_eq!(test_data.len(), layers.len());
         let mut max = 0;
         let mut min = 10;
-        let mut hist: BTreeMap<u8,u32> = BTreeMap::new();
-        for (l,v) in layers.iter().zip(test_data.iter()) {
+        let mut hist: BTreeMap<u8, u32> = BTreeMap::new();
+        for (l, v) in layers.iter().zip(test_data.iter()) {
             // println!("Layer: {} {}", l,v);
             if *l > max {
                 max = *l;
@@ -233,7 +235,7 @@ mod tests {
         }
         (layers, hist, min, max)
     }
-    
+
     #[test]
     fn test_distriute_to_zoo_layers() {
         // cargo test test_distriute_to_zoo_layers -- --nocapture
@@ -263,13 +265,13 @@ mod tests {
             assert!(w[0] >= w[1]);
         });
 
-        let data = vec![(5,0.0, 0.0)];
+        let data = vec![(5, 0.0, 0.0)];
         let (_layers, hist, min, max) = prepare_dist(&data);
         assert_eq!(max, 10);
         assert_eq!(min, 10);
         assert_eq!(1, hist.len());
 
-        let data = vec![(1,0.0, 0.0),(5,0.0, 0.1)];
+        let data = vec![(1, 0.0, 0.0), (5, 0.0, 0.1)];
         let (layers, hist, min, max) = prepare_dist(&data);
         assert_eq!(max, 10);
         assert_eq!(min, 9);
@@ -280,7 +282,7 @@ mod tests {
             assert!(w[0] >= w[1]);
         });
 
-        let data = vec![(5,0.0, 0.0),(1,0.1, 0.0)];
+        let data = vec![(5, 0.0, 0.0), (1, 0.1, 0.0)];
         let (layers, hist, min, max) = prepare_dist(&data);
         assert_eq!(max, 10);
         assert_eq!(min, 9);
@@ -302,12 +304,18 @@ mod tests {
         assert_eq!(max, 10);
         assert_eq!(min, 1);
         assert_eq!(10, hist.len());
-        let mut test_data_with_index = test_data.iter().enumerate().map(|(i,v)| (v,i)).collect::<Vec<(&f32,usize)>>();
-        test_data_with_index.sort_by(|a,b| b.0.partial_cmp(a.0).unwrap());
-        let layers_sorted = test_data_with_index.iter().map(|(_v,i)| layers[*i]).collect::<Vec<u8>>();
+        let mut test_data_with_index = test_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (v, i))
+            .collect::<Vec<(&f32, usize)>>();
+        test_data_with_index.sort_by(|a, b| b.0.partial_cmp(a.0).unwrap());
+        let layers_sorted = test_data_with_index
+            .iter()
+            .map(|(_v, i)| layers[*i])
+            .collect::<Vec<u8>>();
         layers_sorted.windows(2).for_each(|w| {
             assert!(w[0] >= w[1]);
         });
-
     }
 }

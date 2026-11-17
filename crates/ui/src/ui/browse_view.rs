@@ -3,16 +3,14 @@ use egui::Key;
 use egui_extras::{Column, StripBuilder, TableBuilder};
 
 use crate::{
-    IriIndex, uistate::actions::NodeAction, RdfGlanceApp, 
-    uistate::ref_selection::RefSelection, 
-    uistate::UIState, 
-    domain::{
-        LabelContext, Literal, NObject, NodeData,
-        graph_styles::GVisualizationStyle,
-    }, 
-    support::uitools::primary_color, 
-    ui::style::{ICON_FILTER, ICON_GRAPH}, 
-    uistate::actions::ReferenceAction
+    IriIndex, RdfGlanceApp,
+    domain::{LabelContext, Literal, NObject, NodeData, graph_styles::GVisualizationStyle},
+    support::uitools::primary_color,
+    ui::style::{ICON_FILTER, ICON_GRAPH},
+    uistate::UIState,
+    uistate::actions::NodeAction,
+    uistate::actions::ReferenceAction,
+    uistate::ref_selection::RefSelection,
 };
 
 impl RdfGlanceApp {
@@ -30,16 +28,20 @@ impl RdfGlanceApp {
                         self.show_object_by_index(object_iri_index, false);
                     }
                 });
-                ui.add_enabled_ui(self.nav_history.len()>0 && self.nav_pos < self.nav_history.len() - 1, |ui| {
-                    if (ui.button("\u{27a1}").clicked()
-                        || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)))
-                        && self.nav_history.len()>0 && self.nav_pos < self.nav_history.len() - 1
-                    {
-                        self.nav_pos += 1;
-                        let object_iri_index = self.nav_history[self.nav_pos];
-                        self.show_object_by_index(object_iri_index, false);
-                    }
-                });
+                ui.add_enabled_ui(
+                    self.nav_history.len() > 0 && self.nav_pos < self.nav_history.len() - 1,
+                    |ui| {
+                        if (ui.button("\u{27a1}").clicked()
+                            || ui.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)))
+                            && self.nav_history.len() > 0
+                            && self.nav_pos < self.nav_history.len() - 1
+                        {
+                            self.nav_pos += 1;
+                            let object_iri_index = self.nav_history[self.nav_pos];
+                            self.show_object_by_index(object_iri_index, false);
+                        }
+                    },
+                );
             });
             egui::TextEdit::singleline(&mut self.object_iri).show(ui);
             if ui.button("Load Object").clicked() {
@@ -284,7 +286,6 @@ pub fn show_references(
             .column(Column::exact(20.0))
             .min_scrolled_height(height)
             .max_scroll_height(height);
-
 
         table
             .header(20.0, |mut header| {

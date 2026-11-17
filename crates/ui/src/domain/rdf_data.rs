@@ -1,9 +1,15 @@
 use fixedbitset::FixedBitSet;
-use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashSet}};
+use std::{
+    cmp::Reverse,
+    collections::{BTreeSet, BinaryHeap, HashSet},
+};
 
-use crate::{IriIndex, domain::{NodeData, config::Config, prefix_manager::PrefixManager}, 
-    integration::rdfwrap::RDFAdapter, support::SortedVec, 
-    ui::graph_view::{NeighborPos, update_layout_edges}, 
+use crate::{
+    IriIndex,
+    domain::{NodeData, config::Config, prefix_manager::PrefixManager},
+    integration::rdfwrap::RDFAdapter,
+    support::SortedVec,
+    ui::graph_view::{NeighborPos, update_layout_edges},
     uistate::layout::SortedNodeLayout,
 };
 
@@ -32,7 +38,7 @@ impl RdfData {
         node_change_context: &mut NodeChangeContext,
         hidden_predicates: &SortedVec,
     ) -> bool {
-        let mut refs_to_expand: Vec<(IriIndex,IriIndex)> = Vec::new();  
+        let mut refs_to_expand: Vec<(IriIndex, IriIndex)> = Vec::new();
         for iri_index in iri_indexes.iter() {
             let nnode = self.node_data.get_node_by_index(*iri_index);
             if let Some((_, nnode)) = nnode {
@@ -57,7 +63,7 @@ impl RdfData {
                     _ => {}
                 }
             }
-        };
+        }
         if refs_to_expand.is_empty() {
             return false;
         }
@@ -139,24 +145,24 @@ impl RdfData {
         node_change_context: &mut NodeChangeContext,
         hidden_predicates: &SortedVec,
     ) -> bool {
-        let max_node = self.node_data.iter().enumerate().max_by_key(|(_index, (_str,node)) | 
+        let max_node = self.node_data.iter().enumerate().max_by_key(|(_index, (_str, node))| {
             if node.has_subject {
-                node.references.len()+node.reverse_references.len()
+                node.references.len() + node.reverse_references.len()
             } else {
                 0
             }
-        );
+        });
         let mut nodes_to_expand: Vec<IriIndex> = Vec::new();
-        if let Some((index, (_node_iri,_node))) = max_node {
+        if let Some((index, (_node_iri, _node))) = max_node {
             node_change_context.visible_nodes.add_by_index(index as IriIndex);
             nodes_to_expand.push(index as IriIndex);
         }
         if nodes_to_expand.is_empty() {
             false
         } else {
-            let mut parent_ref: Vec<(IriIndex,IriIndex)> = Vec::new();
+            let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
             // So we should have max 1 + 5 + 20 nodes at the end
-            let expand_levels : Vec<usize> = vec![5,20];
+            let expand_levels: Vec<usize> = vec![5, 20];
             for n in expand_levels {
                 let mut heap = BinaryHeap::with_capacity(n);
                 for node_index in nodes_to_expand.iter() {
@@ -164,7 +170,7 @@ impl RdfData {
                     if let Some((_, nnode)) = self.node_data.get_node_by_index(*node_index) {
                         for (predicate, ref_iri) in nnode.references.iter().chain(nnode.reverse_references.iter()) {
                             if !hidden_predicates.contains(*predicate) {
-                                if let Some((_,ref_node)) = self.node_data.get_node_by_index(*ref_iri) {
+                                if let Some((_, ref_node)) = self.node_data.get_node_by_index(*ref_iri) {
                                     let ref_count = if ref_node.has_subject {
                                         (ref_node.references.len() + ref_node.reverse_references.len()) as u32
                                     } else {

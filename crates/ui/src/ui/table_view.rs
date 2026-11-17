@@ -1,5 +1,5 @@
-use std::io;
 use std::cmp::min;
+use std::io;
 
 use const_format::concatcp;
 use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Popup, Pos2, Rect, Sense, Slider, Stroke, Vec2};
@@ -9,21 +9,23 @@ use rayon::prelude::*;
 const IMMADIATE_FILTER_COUNT: usize = 20000;
 
 use super::style::ICON_EXPORT;
-use crate::domain::type_index::{ColumnDesc, InstanceColumnResize, TableContextMenu, TypeCellAction, TypeData, TypeInstanceIndex};
+use crate::domain::type_index::{
+    ColumnDesc, InstanceColumnResize, TableContextMenu, TypeCellAction, TypeData, TypeInstanceIndex,
+};
 use crate::{
+    IriIndex,
+    domain::RdfData,
+    domain::config::IriDisplay,
+    domain::graph_styles::GVisualizationStyle,
+    domain::prefix_manager::PrefixManager,
+    domain::{LabelContext, LangIndex, NodeData},
+    support::uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
+    ui::browse_view::show_references,
+    ui::style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
+    uistate::UIState,
+    uistate::actions::NodeAction,
     uistate::actions::ReferenceAction,
     uistate::ref_selection::RefSelection,
-    uistate::actions::NodeAction, 
-    domain::graph_styles::GVisualizationStyle,
-    domain::RdfData, 
-    uistate::UIState,
-    ui::browse_view::{show_references},
-    domain::config::IriDisplay,
-    IriIndex,
-    domain::{LabelContext, LangIndex, NodeData},
-    domain::prefix_manager::PrefixManager,
-    ui::style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
-    support::uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
 };
 
 impl TableContextMenu {
@@ -35,7 +37,7 @@ impl TableContextMenu {
             TableContextMenu::RefColumnMenu(pos) => *pos,
             TableContextMenu::IriColumnMenu(pos) => *pos,
             TableContextMenu::None => Pos2::new(0.0, 0.0),
-            TableContextMenu::QueryColumnMenu(pos,_ ,_ ) => *pos,
+            TableContextMenu::QueryColumnMenu(pos, _, _) => *pos,
             TableContextMenu::AggregationColumnMenu(pos, _) => *pos,
         }
     }
@@ -45,9 +47,7 @@ pub const ROW_HIGHT: f32 = 17.0;
 pub const CHAR_WIDTH: f32 = 8.0;
 pub const COLUMN_GAP: f32 = 2.0;
 
-
 impl TypeData {
-
     pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
@@ -226,9 +226,7 @@ impl TypeData {
                         self.instance_view.ref_count_width = width;
                     }
                 }
-                InstanceColumnResize::QueryPredicate(_, _, _) | InstanceColumnResize::QueryAggregation(_, _) => {
-
-                }
+                InstanceColumnResize::QueryPredicate(_, _, _) | InstanceColumnResize::QueryAggregation(_, _) => {}
             }
         }
 
@@ -591,8 +589,7 @@ impl TypeData {
             popup_id,
             self.instance_view.context_menu.pos(),
             width,
-            |ui| 
-            match self.instance_view.context_menu {
+            |ui| match self.instance_view.context_menu {
                 TableContextMenu::IriColumnMenu(_pos) => {
                     let mut close_menu: bool = false;
                     if ui.button("Sort Asc").clicked() {
@@ -650,7 +647,8 @@ impl TypeData {
                         close_menu = true;
                     }
                     if ui.button("Show Value Statistics").clicked() {
-                        *table_action = TableAction::ValueStatistics(column_predicate, self.instance_view.context_menu.pos());
+                        *table_action =
+                            TableAction::ValueStatistics(column_predicate, self.instance_view.context_menu.pos());
                         close_menu = true;
                     }
                     let hidden_columns: Vec<&ColumnDesc> = self
@@ -889,7 +887,6 @@ impl TypeData {
         }
     }
 
-
     fn export_csv_writer<W: io::Write>(
         &self,
         rdf_data: &RdfData,
@@ -1006,7 +1003,6 @@ pub fn text_wrapped_link(
 }
 
 impl TypeInstanceIndex {
-
     pub fn display(
         &mut self,
         ui: &mut egui::Ui,
@@ -1198,7 +1194,10 @@ impl TypeInstanceIndex {
                         text_edit_response.request_focus();
                     }
                     #[cfg(target_arch = "wasm32")]
-                    if ui.ctx().input(|i| i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::F)) {
+                    if ui
+                        .ctx()
+                        .input(|i| i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::F))
+                    {
                         text_edit_response.request_focus();
                     }
                     text_has_focus = text_has_focus || text_edit_response.has_focus();
@@ -1247,7 +1246,12 @@ impl TypeInstanceIndex {
                             .save_file()
                         {
                             let mut wtr = csv::Writer::from_path(path).unwrap();
-                            let _ = type_data.export_csv_writer(&rdf_data, &mut wtr, iri_display, layout_data.display_language);
+                            let _ = type_data.export_csv_writer(
+                                &rdf_data,
+                                &mut wtr,
+                                iri_display,
+                                layout_data.display_language,
+                            );
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
@@ -1255,9 +1259,14 @@ impl TypeInstanceIndex {
 
                             let buf = Vec::new();
                             let mut wtr = csv::Writer::from_writer(buf);
-                            let _ = type_data.export_csv_writer(&rdf_data, &mut wtr, iri_display, layout_data.display_language);
+                            let _ = type_data.export_csv_writer(
+                                &rdf_data,
+                                &mut wtr,
+                                iri_display,
+                                layout_data.display_language,
+                            );
                             let buf = wtr.into_inner().unwrap();
-                            let _ = web_download("table.csv",&buf);
+                            let _ = web_download("table.csv", &buf);
                         }
                     }
                 });
@@ -1470,9 +1479,10 @@ impl TypeInstanceIndex {
                         type_data.update_selected_index();
                     }
                     TableAction::ValueStatistics(predicate, mouse_pos) => {
-                       self.value_statistics = Some(type_data.calculate_value_statistics(predicate, &rdf_data.node_data));
-                       self.type_cell_action = TypeCellAction::ShowValueStatistics(mouse_pos);
-                       Popup::open_id(ui.ctx(), popup_id);
+                        self.value_statistics =
+                            Some(type_data.calculate_value_statistics(predicate, &rdf_data.node_data));
+                        self.type_cell_action = TypeCellAction::ShowValueStatistics(mouse_pos);
+                        Popup::open_id(ui.ctx(), popup_id);
                     }
                     TableAction::None => {}
                 }
@@ -1610,8 +1620,6 @@ impl TypeInstanceIndex {
         (selected_type, type_table_action)
     }
 }
-
-
 
 pub enum TableAction {
     None,

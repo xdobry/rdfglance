@@ -1,6 +1,5 @@
-
 pub const ICON_TABLE: &str = "\u{1f5b9}";
-pub const ICON_GRAPH : &str = "\u{1f578}";
+pub const ICON_GRAPH: &str = "\u{1f578}";
 pub const ICON_BROWSE: &str = "\u{2638}";
 pub const ICON_PREFIX: &str = "\u{1f0cf}";
 pub const ICON_CONFIG: &str = "\u{26ed}";
@@ -12,9 +11,9 @@ pub const ICON_FILTER: &str = "\u{1f50d}";
 pub const ICON_WRENCH: &str = "\u{1f527}";
 pub const ICON_METADATA: &str = "\u{24c2}";
 pub const ICON_STATISTICS: &str = "\u{1f4c8}";
-pub const ICON_EXPAND : &str = "\u{2795}";
-pub const ICON_UNEXPAND : &str = "\u{2796}";
-pub const ICON_CENTER : &str = "\u{2316}";
+pub const ICON_EXPAND: &str = "\u{2795}";
+pub const ICON_UNEXPAND: &str = "\u{2796}";
+pub const ICON_CENTER: &str = "\u{2316}";
 pub const ICON_REFRESH: &str = "\u{1f504}";
 pub const ICON_STOP: &str = "\u{23f9}";
 pub const ICON_LABEL: &str = "\u{1F3F7}";

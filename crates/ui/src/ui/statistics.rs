@@ -6,11 +6,20 @@ use egui_extras::StripBuilder;
 use rayon::prelude::*;
 
 use crate::{
-    RdfGlanceApp, domain::{LabelContext, LangIndex, RdfData, config::{Config, IriDisplay}, graph_styles::GVisualizationStyle, statistics::StatisticsData, type_index::ValueStatistics
-    }, support::uitools::{ScrollBar, primary_color}, ui::{
-        style::{ICON_CLOSE, ICON_EXPORT}, 
-        table_view::{text_wrapped, text_wrapped_link}
-    }, uistate::{UIState, actions::NodeAction}
+    RdfGlanceApp,
+    domain::{
+        LabelContext, LangIndex, RdfData,
+        config::{Config, IriDisplay},
+        graph_styles::GVisualizationStyle,
+        statistics::StatisticsData,
+        type_index::ValueStatistics,
+    },
+    support::uitools::{ScrollBar, primary_color},
+    ui::{
+        style::{ICON_CLOSE, ICON_EXPORT},
+        table_view::{text_wrapped, text_wrapped_link},
+    },
+    uistate::{UIState, actions::NodeAction},
 };
 
 const ROW_HIGHT: f32 = 17.0;
@@ -51,7 +60,8 @@ impl RdfGlanceApp {
                             );
                             match store_res {
                                 Err(e) => {
-                                    self.system_message = crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
+                                    self.system_message =
+                                        crate::SystemMessage::Error(format!("Can not save statistics: {}", e));
                                 }
                                 Ok(_) => {}
                             }
@@ -61,13 +71,15 @@ impl RdfGlanceApp {
                             use crate::support::uitools::web_download;
                             let buf = Vec::new();
                             let mut wtr = csv::Writer::from_writer(buf);
-                            let _ = self.statistics_data.as_ref().unwrap().export_csv_writer(&rdf_data,
+                            let _ = self.statistics_data.as_ref().unwrap().export_csv_writer(
+                                &rdf_data,
                                 &mut wtr,
                                 self.persistent_data.config_data.iri_display,
                                 &self.visualization_style,
-                                self.ui_state.display_language);
+                                self.ui_state.display_language,
+                            );
                             let buf = wtr.into_inner().unwrap();
-                            let _ = web_download("statistics.csv",&buf);
+                            let _ = web_download("statistics.csv", &buf);
                         }
                     }
                 }
@@ -471,11 +483,14 @@ impl StatisticsData {
         }
     }
 
-    fn export_csv_writer<W: io::Write>(&self, rdf_data: &RdfData, wtr: &mut csv::Writer<W>,
+    fn export_csv_writer<W: io::Write>(
+        &self,
+        rdf_data: &RdfData,
+        wtr: &mut csv::Writer<W>,
         iri_display: IriDisplay,
         styles: &GVisualizationStyle,
         lang_index: LangIndex,
-        ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for title in vec!["iri", "label", "type"] {
             wtr.write_field(title)?;
         }
@@ -485,23 +500,17 @@ impl StatisticsData {
         }
         wtr.write_record(None::<&[u8]>)?;
         for (idx, (iri_index, _pos)) in self.nodes.iter().enumerate() {
-            if let Some((iri,node)) = rdf_data.node_data.get_node_by_index(*iri_index) {
+            if let Some((iri, node)) = rdf_data.node_data.get_node_by_index(*iri_index) {
                 let iri_ref: &str = iri;
                 wtr.write_field(iri_ref)?;
-                let label = node.node_label(
-                    iri,
-                    styles,
-                    false,
-                    lang_index,
-                    &rdf_data.node_data.indexers,
-                );
+                let label = node.node_label(iri, styles, false, lang_index, &rdf_data.node_data.indexers);
                 wtr.write_field(label)?;
                 let types = node.highest_priority_types(styles);
                 if types.is_empty() {
                     wtr.write_field("")?;
                 } else {
                     for type_index in types.iter() {
-                         wtr.write_field(
+                        wtr.write_field(
                             rdf_data
                                 .node_data
                                 .type_display(*type_index, &label_context, &rdf_data.node_data.indexers)
@@ -549,22 +558,22 @@ impl ValueStatistics {
                 .spacing([40.0, 4.0])
                 .striped(true)
                 .show(ui, |ui| {
-                ui.strong("Count:");
-                ui.label(format!("{}", num_statistics.count));
-                ui.end_row();
-                ui.strong("Min:");
-                ui.label(format!("{}", num_statistics.min));
-                ui.end_row();
-                ui.strong("Max:");
-                ui.label(format!("{}", num_statistics.max));
-                ui.end_row();
-                ui.strong("Sum:");
-                ui.label(format!("{:.3}", num_statistics.sum));
-                ui.end_row();
-                ui.strong("Average:");
-                ui.label(format!("{:.3}", num_statistics.avg));
-                ui.end_row();
-            });
+                    ui.strong("Count:");
+                    ui.label(format!("{}", num_statistics.count));
+                    ui.end_row();
+                    ui.strong("Min:");
+                    ui.label(format!("{}", num_statistics.min));
+                    ui.end_row();
+                    ui.strong("Max:");
+                    ui.label(format!("{}", num_statistics.max));
+                    ui.end_row();
+                    ui.strong("Sum:");
+                    ui.label(format!("{:.3}", num_statistics.sum));
+                    ui.end_row();
+                    ui.strong("Average:");
+                    ui.label(format!("{:.3}", num_statistics.avg));
+                    ui.end_row();
+                });
         }
         let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
         let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
@@ -572,4 +581,3 @@ impl ValueStatistics {
         b_resp.clicked()
     }
 }
-

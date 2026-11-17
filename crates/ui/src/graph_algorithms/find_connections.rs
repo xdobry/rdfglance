@@ -1,5 +1,8 @@
 use crate::{
-    ui::graph_view::{update_layout_edges, NeighborPos}, IriIndex, RdfData, RdfGlanceApp, support::SortedVec};
+    IriIndex, RdfData, RdfGlanceApp,
+    support::SortedVec,
+    ui::graph_view::{NeighborPos, update_layout_edges},
+};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 fn bfs_distances(rdf_data: &RdfData, start: IriIndex, hidden_predicates: &SortedVec) -> HashMap<IriIndex, IriIndex> {
@@ -28,7 +31,12 @@ fn bfs_distances(rdf_data: &RdfData, start: IriIndex, hidden_predicates: &Sorted
     dist
 }
 
-fn nodes_on_shortest_paths(rdf_data: &RdfData, start: IriIndex, goal: IriIndex, hidden_predicates: &SortedVec) -> HashSet<IriIndex> {
+fn nodes_on_shortest_paths(
+    rdf_data: &RdfData,
+    start: IriIndex,
+    goal: IriIndex,
+    hidden_predicates: &SortedVec,
+) -> HashSet<IriIndex> {
     let dist_from_start = bfs_distances(rdf_data, start, hidden_predicates);
     let dist_from_goal = bfs_distances(rdf_data, goal, hidden_predicates);
 
@@ -54,7 +62,8 @@ impl RdfGlanceApp {
             let goal = iter.nth(0).unwrap();
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let nodes_to_add = nodes_on_shortest_paths(&rdf_data, *start, *goal, &self.ui_state.hidden_predicates);
-                let nodes_to_add: Vec<(IriIndex,IriIndex)> = nodes_to_add.iter().map(|iri_index| (*start,*iri_index)).collect();
+                let nodes_to_add: Vec<(IriIndex, IriIndex)> =
+                    nodes_to_add.iter().map(|iri_index| (*start, *iri_index)).collect();
                 let mut npos = NeighborPos::new();
                 npos.add_many(
                     &mut self.visible_nodes,

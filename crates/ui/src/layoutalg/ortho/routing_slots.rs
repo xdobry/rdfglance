@@ -2,25 +2,33 @@ use std::ops::Range;
 
 use egui::{Pos2, Rect as ERect};
 
-use crate::{dbgorth, layoutalg::ortho::{channels::ChannelPortType, route_sorting::TopologyRouting, routing::{BendDirection, NodePort}}, uistate::layout::Edge};
+use crate::{
+    dbgorth,
+    layoutalg::ortho::{
+        channels::ChannelPortType,
+        route_sorting::TopologyRouting,
+        routing::{BendDirection, NodePort},
+    },
+    uistate::layout::Edge,
+};
 
-use super::routing::{Orientation, Side, RoutingGraph, RNodeType, AbstractEdgeRoute, RNode};
+use super::routing::{AbstractEdgeRoute, Orientation, RNode, RNodeType, RoutingGraph, Side};
 
 // Channel connector can be either port or bend (right and left for vertical, top and bottom for horizontal)
-// The connector are ordered along the channel. I have index to compute circular gab between connectors 
+// The connector are ordered along the channel. I have index to compute circular gab between connectors
 // The is needed to compute ordering of edges
 //
 //    AL     PL2    BL  PL3  CL
 //    -------------------------
 //    AR     PR0    BR       CR
-// 
+//
 //    AL - Left Bend with Channel A
-//    PR0 - Port Right with Node 0  
-// 
+//    PR0 - Port Right with Node 0
+//
 //    Circular order: CR, BR, PR0, AR, AL, PL2, BL, CL, PR3
 //    Order CR, CL, PL3, BR, BL, PR0, PL2, AR, AL (Right has priority)
-//    
-//    All leg (segment of edge that are in middle of channel, parallel to channel) 
+//
+//    All leg (segment of edge that are in middle of channel, parallel to channel)
 //    has start end end point to channel connector and are assigned to edge
 #[derive(Debug)]
 pub struct ChannelConnector {
@@ -64,8 +72,8 @@ impl ChannelConnectors {
         let circular_idx_from = connectors[from_idx].circular_index;
         let circular_idx_to = connectors[to_idx].circular_index;
         let diff = circular_idx_from.abs_diff(circular_idx_to);
-        if diff > connectors.len()/2 {
-            (connectors.len()-diff) as u16
+        if diff > connectors.len() / 2 {
+            (connectors.len() - diff) as u16
         } else {
             diff as u16
         }
@@ -78,7 +86,7 @@ enum ChannelConnectorType {
     Bend(usize), // crossing channel id
 }
 
-#[derive(Debug,PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 enum ChannelConnectorSide {
     RightOrButton,
     LeftOrTop,
@@ -117,48 +125,49 @@ impl Ord for ChannelLeg {
      *     +--------+
      *     | +---+  |
      *     | |   |  |
-     *     0 1 
+     *     0 1
      * Consider vertical channel. In local order is 1 before 0 because it takes slots from right range (so it takes 1 first)
      * In global order is 0 above 1. Because 0 is more towards 0.
      */
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.port_sides.cmp(&other.port_sides)
-            .then(
-                match self.port_sides {
-                    PortSides::BothLeftOrTop | PortSides::BothRightOrBottom  => self.circular_distance.cmp(&other.circular_distance),
-                    PortSides::ChangeUp => {
-                        let (self_min,self_max) = if self.start_connector < self.end_connector {
-                            (self.start_connector, self.end_connector)
-                        } else {
-                            (self.end_connector, self.start_connector)
-                        };
-                        let (other_min,other_max) = if other.start_connector < other.end_connector {
-                            (other.start_connector, other.end_connector)
-                        } else {
-                            (other.end_connector, other.start_connector)
-                        };
-                        self_min.cmp(&other_min).then(self_max.cmp(&other_max))
-                    },
-                    PortSides::ChangeDown => {
-                        let (self_min,self_max) = if self.start_connector < self.end_connector {
-                            (self.start_connector, self.end_connector)
-                        } else {
-                            (self.end_connector, self.start_connector)
-                        };
-                        let (other_min,other_max) = if other.start_connector < other.end_connector {
-                            (other.start_connector, other.end_connector)
-                        } else {
-                            (other.end_connector, other.start_connector)
-                        };
-                        other_max.cmp(&self_max).then(other_min.cmp(&self_min))
-                    }
-                }               
-            .then(
-                match self.port_sides {
-                    PortSides::BothLeftOrTop | PortSides::ChangeUp | PortSides::ChangeDown => self.route_order.cmp(&other.route_order),
-                    PortSides::BothRightOrBottom => other.route_order.cmp(&self.route_order),
+        self.port_sides.cmp(&other.port_sides).then(
+            match self.port_sides {
+                PortSides::BothLeftOrTop | PortSides::BothRightOrBottom => {
+                    self.circular_distance.cmp(&other.circular_distance)
                 }
-            )
+                PortSides::ChangeUp => {
+                    let (self_min, self_max) = if self.start_connector < self.end_connector {
+                        (self.start_connector, self.end_connector)
+                    } else {
+                        (self.end_connector, self.start_connector)
+                    };
+                    let (other_min, other_max) = if other.start_connector < other.end_connector {
+                        (other.start_connector, other.end_connector)
+                    } else {
+                        (other.end_connector, other.start_connector)
+                    };
+                    self_min.cmp(&other_min).then(self_max.cmp(&other_max))
+                }
+                PortSides::ChangeDown => {
+                    let (self_min, self_max) = if self.start_connector < self.end_connector {
+                        (self.start_connector, self.end_connector)
+                    } else {
+                        (self.end_connector, self.start_connector)
+                    };
+                    let (other_min, other_max) = if other.start_connector < other.end_connector {
+                        (other.start_connector, other.end_connector)
+                    } else {
+                        (other.end_connector, other.start_connector)
+                    };
+                    other_max.cmp(&self_max).then(other_min.cmp(&self_min))
+                }
+            }
+            .then(match self.port_sides {
+                PortSides::BothLeftOrTop | PortSides::ChangeUp | PortSides::ChangeDown => {
+                    self.route_order.cmp(&other.route_order)
+                }
+                PortSides::BothRightOrBottom => other.route_order.cmp(&self.route_order),
+            }),
         )
     }
 }
@@ -180,10 +189,8 @@ impl ChannelLeg {
                 PortSides::BothRightOrBottom => {
                     // Here the exception see picture in cmp method trait
                     self.cmp(other).reverse()
-                },
-                _ => {
-                    self.cmp(other)
                 }
+                _ => self.cmp(other),
             }
         } else {
             self.port_sides.stack_order().cmp(&other.port_sides.stack_order())
@@ -210,20 +217,20 @@ impl LegOrderState {
         }
     }
     // gives the ordering of current leg according to new bend direction
-    // 
-    //      +--------0 
+    //
+    //      +--------0
     //      |  +-----1
     //      |  |
     //      0  1
     //  It is the DownRight bend. For this bend the order is not changing. So if is was global (toward 0,0) it still stay this
     //  The orientation or direction of the route is not important for order changing
-    // 
+    //
     //   0-----+
     //   1--+  |
     //      |  |
     //      0  1
     //  For DownLeft the order is changing
-    // 
+    //
     //  We need canonize the route direction and flip the values if the route is going against the global direction (so we will start with negative ordering)
     //  It depends of start and end point of route
     //  The standard direction is left to right (and down)
@@ -248,7 +255,7 @@ impl LegOrderState {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 enum PortSides {
     BothLeftOrTop,
-    ChangeUp, // Ports change the sites and the direction is Up when you go from left to right side (or top to down, always +) 
+    ChangeUp, // Ports change the sites and the direction is Up when you go from left to right side (or top to down, always +)
     ChangeDown, // Order of ChangeUp and ChangeDown legs is not important for crossing to each other, so they are separated
     BothRightOrBottom,
 }
@@ -262,9 +269,13 @@ impl PortSides {
             PortSides::BothRightOrBottom => 3,
         }
     }
-    
+
     fn from_sides(side_a: Side, side_b: Side, connector_a: usize, connector_b: usize) -> Self {
-        assert_eq!(side_a.orientation(), side_b.orientation(), "sides must have same orientation");
+        assert_eq!(
+            side_a.orientation(),
+            side_b.orientation(),
+            "sides must have same orientation"
+        );
         if side_a == side_b {
             match side_a {
                 Side::Right | Side::Bottom => PortSides::BothRightOrBottom,
@@ -278,14 +289,14 @@ impl PortSides {
                     } else {
                         PortSides::ChangeUp
                     }
-                },
+                }
                 (Side::Right, Side::Left) | (Side::Bottom, Side::Top) => {
                     if connector_a > connector_b {
                         PortSides::ChangeDown
                     } else {
                         PortSides::ChangeUp
                     }
-                },
+                }
                 _ => panic!("invalid side combination"),
             }
         }
@@ -293,7 +304,7 @@ impl PortSides {
     fn pack_order(&self) -> ChannelConnectorSide {
         match self {
             PortSides::BothLeftOrTop | PortSides::ChangeDown | PortSides::ChangeUp => ChannelConnectorSide::LeftOrTop,
-            PortSides::BothRightOrBottom  => ChannelConnectorSide::RightOrButton,
+            PortSides::BothRightOrBottom => ChannelConnectorSide::RightOrButton,
         }
     }
 }
@@ -315,19 +326,16 @@ pub struct GraphEdgeRouting {
 
 struct RouteIterator<'a> {
     pos: usize,
-    route_ids: &'a Vec<usize>
+    route_ids: &'a Vec<usize>,
 }
 
 impl<'a> RouteIterator<'a> {
     fn from_route(route_ids: &'a Vec<usize>) -> Self {
-        Self {
-            pos: 0,
-            route_ids
-        }
+        Self { pos: 0, route_ids }
     }
 }
 
-impl RouteIterator<'_> {   
+impl RouteIterator<'_> {
     fn next_route<'a>(&mut self, routing_graph: &'a RoutingGraph) -> &'a RNode {
         let route_id = self.route_ids[self.pos];
         self.pos += 1;
@@ -343,7 +351,7 @@ impl RouteIterator<'_> {
         }
     }
     fn last_bend_channel(&self, routing_graph: &RoutingGraph, orientation: Orientation) -> usize {
-        let bend_pos = self.pos-2;
+        let bend_pos = self.pos - 2;
         let route_id = self.route_ids[bend_pos];
         let route = &routing_graph.nodes[route_id];
         match route.node_type {
@@ -353,7 +361,7 @@ impl RouteIterator<'_> {
                 } else {
                     vchannel_id
                 }
-            },
+            }
             _ => {
                 panic!("expect bend point node in route");
             }
@@ -387,10 +395,10 @@ impl RouteIterator<'_> {
 //  The legs are sorted to be assign to slots this way that the crossing are minimized.
 //  First there are 4 types of legs depending of port sides (See PortSides).
 //  Each leg type has the side that the ports are assigned.
-//  For example for vertical channel. The slot are numbered from left to right. 
+//  For example for vertical channel. The slot are numbered from left to right.
 //  If the channel has 5 slots. The slots are assigned from 0 to 4 from left. End from 4 to 0 from right.
 //  If leg type is (Ports BothLeft) the assignments is from left. The legs with smallest circular distance is assigned first.
-//   
+//
 //  The order for legs that change the ports side (RBtoLT and LTtoRB) the order is calculated depending the change direction to top (left to right) and
 //  to bottom (left to right). If direction is top the leg with minimum port number is assigned first.
 //      +----0
@@ -403,11 +411,13 @@ impl RouteIterator<'_> {
 //   The leg (2-0) is before (3-1) because 0<1
 //   For direction to bottom the leg with maximum port number is assigned first
 //   For legs with different directions the order is not important they can cross or not (independent on the order anyway)
-pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
+pub fn calculate_edge_routes(
+    routing_graph: &RoutingGraph,
     channel_connectors: &mut ChannelConnectors,
-    edges: &[Edge], 
+    edges: &[Edge],
     routes: &[AbstractEdgeRoute],
-    boxes: &[ERect]) -> GraphEdgeRouting {
+    boxes: &[ERect],
+) -> GraphEdgeRouting {
     let mut port_slots = vec![0u16; routing_graph.nodes_len * 4];
     let channels_count = routing_graph.vchannels.len() + routing_graph.hchannels.len();
     let mut channels_legs: Vec<Vec<ChannelLeg>> = (0..channels_count).map(|_| Vec::new()).collect();
@@ -420,77 +430,108 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
     // }
 
     for (edge_id, edge) in edges.iter().enumerate() {
-        let (node_min, node_max)  = if edge.from < edge.to { (edge.from, edge.to) } else { (edge.to, edge.from) };
-        let route_idx = routes.binary_search_by(|r| {
-            r.from.cmp(&node_min).then(r.to.cmp(&node_max))
-        });
+        let (node_min, node_max) = if edge.from < edge.to {
+            (edge.from, edge.to)
+        } else {
+            (edge.to, edge.from)
+        };
+        let route_idx = routes.binary_search_by(|r| r.from.cmp(&node_min).then(r.to.cmp(&node_max)));
         if let Ok(route_idx) = route_idx {
             let route = &routes[route_idx];
-            assert!(route.route.len()>=2,"route needs at least 2 elements");
+            assert!(route.route.len() >= 2, "route needs at least 2 elements");
             let mut r_iter = RouteIterator::from_route(&route.route);
             // Each route start and end with port node.
             // So this is grammar of the route
             // port + bend* + port)
-            // We need to transfer it to channel legs 
+            // We need to transfer it to channel legs
             // There is at least 1 leg + n legs for each bend
             let mut bend_point_idx = 0;
-            let mut leg_order_state = LegOrderState::new(
-                boxes[edge.from].center(),
-                boxes[edge.to].center(),
-            );
-            let (start_node_id, channel_id, side_start) = r_iter.next_port(&routing_graph);  
-            port_slots[start_node_id *4 + (side_start as usize)] += 1;
+            let mut leg_order_state = LegOrderState::new(boxes[edge.from].center(), boxes[edge.to].center());
+            let (start_node_id, channel_id, side_start) = r_iter.next_port(&routing_graph);
+            port_slots[start_node_id * 4 + (side_start as usize)] += 1;
             let mut last_orientation = side_start.orientation();
             let node = r_iter.next_route(&routing_graph);
             match node.node_type {
-                RNodeType::Port(end_node_id, channel_id, side_end ) => {
+                RNodeType::Port(end_node_id, channel_id, side_end) => {
                     // Case there is only 2 port (1 leg)
-                    port_slots[end_node_id *4 + (side_end as usize)] += 1;
+                    port_slots[end_node_id * 4 + (side_end as usize)] += 1;
                     let orientation = side_end.orientation();
                     let channel_gid = routing_graph.channel_idx(channel_id, orientation);
-                    dbgorth!("Port2 side={:?} orientation={:?} channel_id={} channel_gid={}", side_end, orientation, channel_id, channel_gid);
+                    dbgorth!(
+                        "Port2 side={:?} orientation={:?} channel_id={} channel_gid={}",
+                        side_end,
+                        orientation,
+                        channel_id,
+                        channel_gid
+                    );
                     let connectors = channel_connectors.connector_range_mut(channel_gid);
                     let start_connector = connector_port_position(connectors, start_node_id);
                     let end_connector = connector_port_position(connectors, end_node_id);
                     connectors[start_connector].slots += 1;
                     connectors[end_connector].slots += 1;
-                    channels_legs[channel_gid].push(ChannelLeg { 
-                        start_connector, end_connector, 
+                    channels_legs[channel_gid].push(ChannelLeg {
+                        start_connector,
+                        end_connector,
                         route_start_idx: 0,
                         route_channel_idx: 0,
                         route_end_idx: 1,
-                        edge_idx: edge_id, 
-                        circular_distance: ChannelConnectors::circular_distance(start_connector, end_connector, &connectors), 
-                        port_sides: PortSides::from_sides(side_start.opposite(), side_end.opposite(), start_connector, end_connector),
+                        edge_idx: edge_id,
+                        circular_distance: ChannelConnectors::circular_distance(
+                            start_connector,
+                            end_connector,
+                            &connectors,
+                        ),
+                        port_sides: PortSides::from_sides(
+                            side_start.opposite(),
+                            side_end.opposite(),
+                            start_connector,
+                            end_connector,
+                        ),
                         route_order: 0,
                         is_global_order: true,
                     });
-                },
+                }
                 RNodeType::BendPoint(vchannel_id, hchannel_id) => {
                     // There can be another bends or channel and port
                     let channel_gid = routing_graph.channel_idx(channel_id, last_orientation);
                     let connectors = channel_connectors.connector_range(channel_gid);
                     let start_connector = connector_port_position(connectors, start_node_id);
-                        // Now the need to find bend connector 
+                    // Now the need to find bend connector
                     let crossing_channel_id = if last_orientation == Orientation::Vertical {
                         hchannel_id
                     } else {
                         vchannel_id
                     };
                     let side_end = route.bend_directions[bend_point_idx].side_for_orientation(last_orientation);
-                    dbgorth!("Bend3 v: {} h: {} channel: {} orientation: {:?}",vchannel_id, hchannel_id, channel_id, last_orientation);
+                    dbgorth!(
+                        "Bend3 v: {} h: {} channel: {} orientation: {:?}",
+                        vchannel_id,
+                        hchannel_id,
+                        channel_id,
+                        last_orientation
+                    );
                     let end_connector = connector_bend_position(connectors, crossing_channel_id, side_end);
                     let connectors = channel_connectors.connector_range_mut(channel_gid);
                     connectors[start_connector].slots += 1;
                     connectors[end_connector].slots += 1;
-                    channels_legs[channel_gid].push(ChannelLeg { 
-                        start_connector, end_connector, 
+                    channels_legs[channel_gid].push(ChannelLeg {
+                        start_connector,
+                        end_connector,
                         route_start_idx: 0,
                         route_channel_idx: 0,
                         route_end_idx: 1,
-                        edge_idx: edge_id, 
-                        circular_distance: ChannelConnectors::circular_distance(start_connector, end_connector, &connectors), 
-                        port_sides: PortSides::from_sides(side_start.opposite(), side_end, start_connector, end_connector),
+                        edge_idx: edge_id,
+                        circular_distance: ChannelConnectors::circular_distance(
+                            start_connector,
+                            end_connector,
+                            &connectors,
+                        ),
+                        port_sides: PortSides::from_sides(
+                            side_start.opposite(),
+                            side_end,
+                            start_connector,
+                            end_connector,
+                        ),
                         route_order: 0,
                         is_global_order: leg_order_state.is_global_order(route.bend_directions[bend_point_idx]),
                     });
@@ -502,30 +543,49 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
                         let node = r_iter.next_route(&routing_graph);
                         match node.node_type {
                             RNodeType::Port(end_node_id, channel_id, side_end) => {
-                                port_slots[end_node_id *4 + (side_end as usize)] += 1;
+                                port_slots[end_node_id * 4 + (side_end as usize)] += 1;
                                 let channel_gid = routing_graph.channel_idx(channel_id, side_end.orientation());
                                 let connectors = channel_connectors.connector_range_mut(channel_gid);
-                                dbgorth!("Bend1 channel: {} orientation: {:?} last-channel-id {}",channel_id, side_end.orientation(), last_channel_id);
+                                dbgorth!(
+                                    "Bend1 channel: {} orientation: {:?} last-channel-id {}",
+                                    channel_id,
+                                    side_end.orientation(),
+                                    last_channel_id
+                                );
                                 // last_channel_id is not needed bend input channel, because the last_channel_id is the same and current channel_id
                                 let last_bend_channel = r_iter.last_bend_channel(&routing_graph, last_orientation);
-                                let start_connector = connector_bend_position(connectors, last_bend_channel, last_bend_direction.side_for_orientation(last_orientation));
-                                let end_connector = connector_port_position(connectors,end_node_id);
+                                let start_connector = connector_bend_position(
+                                    connectors,
+                                    last_bend_channel,
+                                    last_bend_direction.side_for_orientation(last_orientation),
+                                );
+                                let end_connector = connector_port_position(connectors, end_node_id);
                                 connectors[start_connector].slots += 1;
                                 connectors[end_connector].slots += 1;
                                 let side_start = last_bend_direction.side_for_orientation(last_orientation);
-                                channels_legs[channel_gid].push(ChannelLeg { 
-                                    start_connector, end_connector, 
-                                    route_start_idx: r_iter.pos -2,
-                                    route_channel_idx: r_iter.pos -2,
-                                    route_end_idx: r_iter.pos -1,
-                                    edge_idx: edge_id, 
-                                    circular_distance: ChannelConnectors::circular_distance(start_connector, end_connector, &connectors), 
-                                    port_sides: PortSides::from_sides(side_start, side_end.opposite(), start_connector, end_connector),
+                                channels_legs[channel_gid].push(ChannelLeg {
+                                    start_connector,
+                                    end_connector,
+                                    route_start_idx: r_iter.pos - 2,
+                                    route_channel_idx: r_iter.pos - 2,
+                                    route_end_idx: r_iter.pos - 1,
+                                    edge_idx: edge_id,
+                                    circular_distance: ChannelConnectors::circular_distance(
+                                        start_connector,
+                                        end_connector,
+                                        &connectors,
+                                    ),
+                                    port_sides: PortSides::from_sides(
+                                        side_start,
+                                        side_end.opposite(),
+                                        start_connector,
+                                        end_connector,
+                                    ),
                                     route_order: 0,
                                     is_global_order: leg_order_state.is_current_global(),
                                 });
                                 break;
-                            },
+                            }
                             RNodeType::BendPoint(vchannel_id, hchannel_id) => {
                                 // Update last channel and orientation
                                 let crossing_channel_id = if last_orientation == Orientation::Vertical {
@@ -535,37 +595,61 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
                                 };
                                 let channel_gid = routing_graph.channel_idx(last_channel_id, last_orientation);
                                 let side_start = last_bend_direction.side_for_orientation(last_orientation);
-                                let side_end = route.bend_directions[bend_point_idx].side_for_orientation(last_orientation);
+                                let side_end =
+                                    route.bend_directions[bend_point_idx].side_for_orientation(last_orientation);
                                 let connectors = channel_connectors.connector_range_mut(channel_gid);
-                                dbgorth!("Bend v_a: {} h: {} channel: {} orientation: {:?}",vchannel_id, hchannel_id, last_channel_id, last_orientation);
+                                dbgorth!(
+                                    "Bend v_a: {} h: {} channel: {} orientation: {:?}",
+                                    vchannel_id,
+                                    hchannel_id,
+                                    last_channel_id,
+                                    last_orientation
+                                );
                                 let last_bend_channel = r_iter.last_bend_channel(&routing_graph, last_orientation);
-                                let start_connector = connector_bend_position(connectors, last_bend_channel, side_start);
-                                dbgorth!("Bend v_b: {} h: {} cross_channel: {}",vchannel_id, hchannel_id, crossing_channel_id);
+                                let start_connector =
+                                    connector_bend_position(connectors, last_bend_channel, side_start);
+                                dbgorth!(
+                                    "Bend v_b: {} h: {} cross_channel: {}",
+                                    vchannel_id,
+                                    hchannel_id,
+                                    crossing_channel_id
+                                );
                                 let end_connector = connector_bend_position(connectors, crossing_channel_id, side_end);
                                 connectors[start_connector].slots += 1;
                                 connectors[end_connector].slots += 1;
-                                channels_legs[channel_gid].push(ChannelLeg { 
-                                    start_connector, end_connector, 
+                                channels_legs[channel_gid].push(ChannelLeg {
+                                    start_connector,
+                                    end_connector,
                                     route_start_idx: r_iter.pos - 2,
-                                    route_channel_idx:  r_iter.pos - 2,
-                                    route_end_idx: r_iter.pos -1,
-                                    edge_idx: edge_id, 
-                                    circular_distance: ChannelConnectors::circular_distance(start_connector, end_connector, &connectors), 
-                                    port_sides: PortSides::from_sides(side_start, side_end, start_connector, end_connector),
+                                    route_channel_idx: r_iter.pos - 2,
+                                    route_end_idx: r_iter.pos - 1,
+                                    edge_idx: edge_id,
+                                    circular_distance: ChannelConnectors::circular_distance(
+                                        start_connector,
+                                        end_connector,
+                                        &connectors,
+                                    ),
+                                    port_sides: PortSides::from_sides(
+                                        side_start,
+                                        side_end,
+                                        start_connector,
+                                        end_connector,
+                                    ),
                                     route_order: 0,
-                                    is_global_order: leg_order_state.is_global_order(route.bend_directions[bend_point_idx]),
+                                    is_global_order: leg_order_state
+                                        .is_global_order(route.bend_directions[bend_point_idx]),
                                 });
                                 last_bend_direction = route.bend_directions[bend_point_idx];
                                 last_orientation = last_orientation.opposite();
                                 last_channel_id = crossing_channel_id;
                                 bend_point_idx += 1;
-                            },
+                            }
                             _ => {
                                 panic!("expect bend or port");
                             }
                         }
                     }
-                },
+                }
                 _ => {
                     panic!("expect bend or port")
                 }
@@ -574,7 +658,7 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
                 abstract_route: route_idx,
                 edge_idx: edge_id,
                 port_slots: vec![0; route.route.len()],
-                channel_slots: vec![0; route.route.len()]
+                channel_slots: vec![0; route.route.len()],
             });
         } else {
             panic!("No route found for edge from {}-{}", edge.from, edge.to);
@@ -583,9 +667,9 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
     // endregion: compute legs
 
     // region: Compute max slots for channel
-    let mut channel_slots = vec![0u16; routing_graph.vchannels.len()+routing_graph.hchannels.len()];
+    let mut channel_slots = vec![0u16; routing_graph.vchannels.len() + routing_graph.hchannels.len()];
 
-    // Compute max number of legs between each between area for channel connectors   
+    // Compute max number of legs between each between area for channel connectors
     // the max_slots between connectors
     // the 0 means between connector 0 and 1 (so there is one value less then connectors)
     // So legs (2-1) (1-0) does not overlap. So max slots is 1
@@ -593,14 +677,10 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
         let connectors = channel_connectors.connector_range(channel_gid);
         let mut max_slots_between_connectors: Vec<u16> = vec![0; connectors.len()];
         for channel_leg in channels_legs[channel_gid].iter() {
-            dbgorth!("gid {} leg {:?}",channel_gid,channel_leg);
+            dbgorth!("gid {} leg {:?}", channel_gid, channel_leg);
             let start = channel_leg.start_connector;
             let end = channel_leg.end_connector;
-            let (from, to) = if start < end {
-                (start, end)
-            } else {
-                (end, start)
-            };
+            let (from, to) = if start < end { (start, end) } else { (end, start) };
             for idx in from..to {
                 max_slots_between_connectors[idx] += 1;
             }
@@ -619,8 +699,8 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
         // Compute for each segments that have ordering the global route ordering
         // So the routes do not cross if possible
         if channel_legs.len() > 1 {
-            for i in 0..channel_legs.len()-1 {
-                for j in i+1..channel_legs.len() {
+            for i in 0..channel_legs.len() - 1 {
+                for j in i + 1..channel_legs.len() {
                     let ri = &channel_legs[i];
                     let rj = &channel_legs[j];
                     let mut is_order_ij: bool = match ri.leg_relative_order(&rj) {
@@ -645,8 +725,8 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
             }
         }
     }
-    
-    let mut route_order: Vec<i32> = vec![0;edges.len()];
+
+    let mut route_order: Vec<i32> = vec![0; edges.len()];
     let routes_ordered = route_sort.topological_sort();
     for (order, route_idx) in routes_ordered.iter().enumerate() {
         route_order[*route_idx] = order as i32;
@@ -679,75 +759,95 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
         let max_slots = channel_slots[channel_gid];
         // is could be that some ports has not slots so the range should be empty
         // if there are 3 slots the range should be 0..2 so there are 3 values (0,1,2) to consume from right or left
-        let mut slots_between_connectors: Vec<Range<u16>> = (0..connectors.len()).map(|_| 0..max_slots.saturating_sub(1)).collect();
+        let mut slots_between_connectors: Vec<Range<u16>> =
+            (0..connectors.len()).map(|_| 0..max_slots.saturating_sub(1)).collect();
         let mut connectors_slots: Vec<Range<u16>> = connectors.iter().map(|c| 0..c.slots.saturating_sub(1)).collect();
         dbgorth!("channel legs sorted gid={}", channel_gid);
         for channel_leg in channel_legs.iter() {
-            dbgorth!("{:?}",channel_leg);
+            dbgorth!("{:?}", channel_leg);
             let start = channel_leg.start_connector;
             let end = channel_leg.end_connector;
-            let (from, to) = if start < end {
-                (start, end)
-            } else {
-                (end, start)
-            };
+            let (from, to) = if start < end { (start, end) } else { (end, start) };
             let free_slot = match channel_leg.port_sides.pack_order() {
                 ChannelConnectorSide::LeftOrTop => {
-                    // find free slot in the range        
-                    let free_slot = slots_between_connectors[from..to].iter().map(|r | r.start).max().unwrap();
+                    // find free slot in the range
+                    let free_slot = slots_between_connectors[from..to]
+                        .iter()
+                        .map(|r| r.start)
+                        .max()
+                        .unwrap();
                     // update slots between connectors
                     for idx in from..to {
                         slots_between_connectors[idx].start = free_slot + 1;
                     }
                     free_slot
-                },
+                }
                 ChannelConnectorSide::RightOrButton => {
-                    // find free slot in the range        
-                    let free_slot = slots_between_connectors[from..to].iter().map(|r | r.end).min().unwrap();
+                    // find free slot in the range
+                    let free_slot = slots_between_connectors[from..to].iter().map(|r| r.end).min().unwrap();
                     // update slots between connectors
                     for idx in from..to {
                         slots_between_connectors[idx].end = free_slot.saturating_sub(1);
                     }
                     free_slot
-                },
+                }
             };
             // assign slot to edge route
             let edge_route = &mut edge_routes[channel_leg.edge_idx];
-            dbgorth!("  free slot git={} {} channel_idx: {} edge: {}",channel_gid, free_slot, channel_leg.route_channel_idx, channel_leg.edge_idx);
+            dbgorth!(
+                "  free slot git={} {} channel_idx: {} edge: {}",
+                channel_gid,
+                free_slot,
+                channel_leg.route_channel_idx,
+                channel_leg.edge_idx
+            );
             edge_route.channel_slots[channel_leg.route_channel_idx] = free_slot;
             match channel_leg.port_sides {
                 PortSides::BothLeftOrTop | PortSides::BothRightOrBottom => {
-                    let start_port_slot = consume_slot(&mut connectors_slots[start], end>start);
-                    dbgorth!("  port start slot:{} for connector:{} edge:{}", start_port_slot, start, channel_leg.edge_idx);
+                    let start_port_slot = consume_slot(&mut connectors_slots[start], end > start);
+                    dbgorth!(
+                        "  port start slot:{} for connector:{} edge:{}",
+                        start_port_slot,
+                        start,
+                        channel_leg.edge_idx
+                    );
                     edge_route.port_slots[channel_leg.route_start_idx] = start_port_slot;
 
-                    let end_port_slot = consume_slot(&mut connectors_slots[end], end<start);
+                    let end_port_slot = consume_slot(&mut connectors_slots[end], end < start);
                     edge_route.port_slots[channel_leg.route_end_idx] = end_port_slot;
-                },
+                }
                 PortSides::ChangeDown => {
                     if start > end {
                         // port on left side
-                        let end_port_slot = consume_slot(&mut connectors_slots[end], end<start);
+                        let end_port_slot = consume_slot(&mut connectors_slots[end], end < start);
                         edge_route.port_slots[channel_leg.route_end_idx] = end_port_slot;
                     } else {
-                        let start_port_slot = consume_slot(&mut connectors_slots[start], end>start);
-                        dbgorth!("  port start slot:{} for connector:{} edge:{}", start_port_slot, start, channel_leg.edge_idx);
+                        let start_port_slot = consume_slot(&mut connectors_slots[start], end > start);
+                        dbgorth!(
+                            "  port start slot:{} for connector:{} edge:{}",
+                            start_port_slot,
+                            start,
+                            channel_leg.edge_idx
+                        );
                         edge_route.port_slots[channel_leg.route_start_idx] = start_port_slot;
                     }
-                },
+                }
                 PortSides::ChangeUp => {
                     if start < end {
                         // port on left side
-                        let end_port_slot = consume_slot(&mut connectors_slots[end], end<start);
+                        let end_port_slot = consume_slot(&mut connectors_slots[end], end < start);
                         edge_route.port_slots[channel_leg.route_end_idx] = end_port_slot;
                     } else {
-                        let start_port_slot = consume_slot(&mut connectors_slots[start], end>start);
-                        dbgorth!("  port start slot:{} for connector:{} edge:{}", start_port_slot, start, channel_leg.edge_idx);
+                        let start_port_slot = consume_slot(&mut connectors_slots[start], end > start);
+                        dbgorth!(
+                            "  port start slot:{} for connector:{} edge:{}",
+                            start_port_slot,
+                            start,
+                            channel_leg.edge_idx
+                        );
                         edge_route.port_slots[channel_leg.route_start_idx] = start_port_slot;
                     }
-                },
-                _ => {
-                },                
+                }
             }
         }
         // For port side changing legs the order of right port is another so we need to assign them in reverse order
@@ -759,29 +859,38 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
                 PortSides::ChangeDown => {
                     if start < end {
                         // port on right side
-                        let end_port_slot = consume_slot(&mut connectors_slots[end], end<start);
+                        let end_port_slot = consume_slot(&mut connectors_slots[end], end < start);
                         edge_route.port_slots[channel_leg.route_end_idx] = end_port_slot;
                     } else {
-                        let start_port_slot = consume_slot(&mut connectors_slots[start], end>start);
-                        dbgorth!("  port start slot:{} for connector:{} edge:{}", start_port_slot, start, channel_leg.edge_idx);
+                        let start_port_slot = consume_slot(&mut connectors_slots[start], end > start);
+                        dbgorth!(
+                            "  port start slot:{} for connector:{} edge:{}",
+                            start_port_slot,
+                            start,
+                            channel_leg.edge_idx
+                        );
                         edge_route.port_slots[channel_leg.route_start_idx] = start_port_slot;
                     }
                 }
                 PortSides::ChangeUp => {
                     if start > end {
-                        let end_port_slot = consume_slot(&mut connectors_slots[end], end<start);
+                        let end_port_slot = consume_slot(&mut connectors_slots[end], end < start);
                         edge_route.port_slots[channel_leg.route_end_idx] = end_port_slot;
                     } else {
-                        let start_port_slot = consume_slot(&mut connectors_slots[start], end>start);
-                        dbgorth!("  port start slot:{} for connector:{} edge:{}", start_port_slot, start, channel_leg.edge_idx);
+                        let start_port_slot = consume_slot(&mut connectors_slots[start], end > start);
+                        dbgorth!(
+                            "  port start slot:{} for connector:{} edge:{}",
+                            start_port_slot,
+                            start,
+                            channel_leg.edge_idx
+                        );
                         edge_route.port_slots[channel_leg.route_start_idx] = start_port_slot;
                     }
-                },
-                _ => {
-                },                
+                }
+                _ => {}
             }
         }
-    }    
+    }
     // endregion: Assign slots for each bends in edge route
 
     GraphEdgeRouting {
@@ -792,41 +901,40 @@ pub fn calculate_edge_routes(routing_graph: &RoutingGraph,
 }
 
 fn connector_port_position(connectors: &[ChannelConnector], node_id: usize) -> usize {
-    let res = connectors.iter().position(|c| matches!(c.connector_type, ChannelConnectorType::Port(n_id) if n_id == node_id));
+    let res = connectors
+        .iter()
+        .position(|c| matches!(c.connector_type, ChannelConnectorType::Port(n_id) if n_id == node_id));
     match res {
-        Some(pos) => {
-            pos
-        },
+        Some(pos) => pos,
         None => {
             #[cfg(feature = "debug-orth")]
             for c in connectors.iter() {
                 println!("Connector: {:?}", c);
             }
-            panic!("can not find port {}",node_id);
+            panic!("can not find port {}", node_id);
         }
     }
 }
 
 fn connector_bend_position(connectors: &[ChannelConnector], crossing_channel_id: usize, side: Side) -> usize {
     let connector_side = ChannelConnectorSide::from_side(side);
-    let pos = connectors.iter().position(|c| 
-        c.connector_side == connector_side &&
-        matches!(c.connector_type, ChannelConnectorType::Bend(c_id) if c_id == crossing_channel_id));
+    let pos = connectors.iter().position(|c| {
+        c.connector_side == connector_side
+            && matches!(c.connector_type, ChannelConnectorType::Bend(c_id) if c_id == crossing_channel_id)
+    });
     match pos {
-        Some(pos) => {
-            pos
-        },
+        Some(pos) => pos,
         None => {
             #[cfg(feature = "debug-orth")]
             for c in connectors.iter() {
                 println!("Connector: {:?}", c);
             }
-            panic!("can not find pos {}",crossing_channel_id);
+            panic!("can not find pos {}", crossing_channel_id);
         }
     }
 }
 
-fn consume_slot(range: &mut Range<u16>,right_direction: bool) -> u16 {
+fn consume_slot(range: &mut Range<u16>, right_direction: bool) -> u16 {
     if right_direction {
         let slot = range.end;
         if range.end > 0 {
@@ -845,34 +953,36 @@ fn consume_slot(range: &mut Range<u16>,right_direction: bool) -> u16 {
 pub fn create_channel_connectors(routing_graph: &RoutingGraph, boxes: &[ERect]) -> ChannelConnectors {
     let mut all_channel_connectors = ChannelConnectors {
         connectors: Vec::new(),
-        channel_offsets: Vec::with_capacity(routing_graph.hchannels.len()+routing_graph.vchannels.len()),
+        channel_offsets: Vec::with_capacity(routing_graph.hchannels.len() + routing_graph.vchannels.len()),
     };
-    for (channel_id, channel) in routing_graph.vchannels.iter().chain(routing_graph.hchannels.iter()).enumerate() {
+    for (channel_id, channel) in routing_graph
+        .vchannels
+        .iter()
+        .chain(routing_graph.hchannels.iter())
+        .enumerate()
+    {
         let mut channel_connectors: Vec<ChannelConnector> = Vec::new();
         for port in channel.ports.iter() {
             match port.port_type {
-                ChannelPortType::NodePort{node_id, side} => {
+                ChannelPortType::NodePort { node_id, side } => {
                     let rect = &boxes[node_id];
-                    let node_port = NodePort {
-                        node_id,
-                        side,
-                    };
+                    let node_port = NodePort { node_id, side };
                     let pos = node_port.channel_position(rect);
-                    channel_connectors.push(ChannelConnector { 
-                        slots: 0, 
+                    channel_connectors.push(ChannelConnector {
+                        slots: 0,
                         connector_type: ChannelConnectorType::Port(node_id),
                         connector_side: ChannelConnectorSide::from_side(side),
-                        circular_index: 0, 
-                        pos : pos,
+                        circular_index: 0,
+                        pos: pos,
                     });
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
         // TODO build bend connectors from channel ports information
         let channel_idx = match channel.orientation {
             Orientation::Vertical => channel_id,
-            Orientation::Horizontal => channel_id - routing_graph.vchannels.len()
+            Orientation::Horizontal => channel_id - routing_graph.vchannels.len(),
         };
         let channel_rect = routing_graph.channel(channel_idx, channel.orientation).rect;
         let orientation = channel.orientation;
@@ -898,17 +1008,15 @@ pub fn create_channel_connectors(routing_graph: &RoutingGraph, boxes: &[ERect]) 
                 pos,
             });
         }
-        channel_connectors.sort_unstable_by(|a,b| a.pos.partial_cmp(&b.pos).unwrap());
+        channel_connectors.sort_unstable_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
         let mut circular_index = 0;
         for connector in channel_connectors.iter_mut() {
             match connector.connector_side {
                 ChannelConnectorSide::RightOrButton => {
                     connector.circular_index = circular_index;
                     circular_index += 1;
-                },
-                _ => {
-
                 }
+                _ => {}
             }
         }
         for connector in channel_connectors.iter_mut().rev() {
@@ -916,10 +1024,8 @@ pub fn create_channel_connectors(routing_graph: &RoutingGraph, boxes: &[ERect]) 
                 ChannelConnectorSide::LeftOrTop => {
                     connector.circular_index = circular_index;
                     circular_index += 1;
-                },
-                _ => {
-
                 }
+                _ => {}
             }
         }
 
@@ -933,14 +1039,18 @@ mod tests {
     use std::{fs, path::PathBuf, vec};
 
     use crate::layoutalg::ortho::{
-        routing::{BendDirection, create_routing_graph, map_abstract_routes, map_routes_to_segments, route_edges}, 
-        routing_slots::{calculate_edge_routes, create_channel_connectors}
+        routing::{BendDirection, create_routing_graph, map_abstract_routes, map_routes_to_segments, route_edges},
+        routing_slots::{calculate_edge_routes, create_channel_connectors},
     };
 
     use super::*;
     use plotters::{coord::Shift, prelude::*};
 
-    fn draw_rects(root: &DrawingArea<SVGBackend,Shift>,rects: &[ERect],color: &RGBColor) -> Result<(), Box<dyn std::error::Error>>{
+    fn draw_rects(
+        root: &DrawingArea<SVGBackend, Shift>,
+        rects: &[ERect],
+        color: &RGBColor,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for (r, rect) in rects.iter().enumerate() {
             let top_left = (rect.min.x as i32, rect.min.y as i32);
             let bottom_right = (rect.max.x as i32, rect.max.y as i32);
@@ -949,7 +1059,7 @@ mod tests {
                 ShapeStyle::from(color).stroke_width(1),
             ))?;
             let style = TextStyle::from(("sans-serif", 10).into_font()).color(color);
-            let text = format!("{}",r);
+            let text = format!("{}", r);
             root.draw_text(&text, &style, (rect.center().x as i32, rect.min.y as i32))?;
         }
         Ok(())
@@ -965,7 +1075,6 @@ mod tests {
         }
         panic!("No port node_id={} side={:?} found", node_id, side);
     }
-
 
     #[test]
     fn test_edge_route_slots() -> Result<(), Box<dyn std::error::Error>> {
@@ -990,41 +1099,59 @@ mod tests {
         // We build own abstract routes that only use one channel to better test
         // slot sorting and assignment
         let abstract_routes: Vec<AbstractEdgeRoute> = vec![
-            AbstractEdgeRoute { 
-                from: 0, to: 1, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 1,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     port_node_idx(&routing_graph, 1, Side::Bottom),
-                ], bend_directions: vec![]
+                ],
+                bend_directions: vec![],
             },
-            AbstractEdgeRoute { 
-                from: 0, to: 2, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 2,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     port_node_idx(&routing_graph, 2, Side::Bottom),
-                ], bend_directions: vec![]
+                ],
+                bend_directions: vec![],
             },
-            AbstractEdgeRoute { 
-                from: 0, to: 3, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 3,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     port_node_idx(&routing_graph, 3, Side::Top),
-                ], bend_directions: vec![] 
+                ],
+                bend_directions: vec![],
             },
-            AbstractEdgeRoute { 
-                from: 1, to: 2, route: vec![
+            AbstractEdgeRoute {
+                from: 1,
+                to: 2,
+                route: vec![
                     port_node_idx(&routing_graph, 1, Side::Bottom),
                     port_node_idx(&routing_graph, 2, Side::Bottom),
-                ], bend_directions: vec![] 
+                ],
+                bend_directions: vec![],
             },
-            AbstractEdgeRoute { 
-                from: 2, to: 4, route: vec![
+            AbstractEdgeRoute {
+                from: 2,
+                to: 4,
+                route: vec![
                     port_node_idx(&routing_graph, 2, Side::Bottom),
                     port_node_idx(&routing_graph, 4, Side::Top),
-                ], bend_directions: vec![] 
-            },            
-            AbstractEdgeRoute { 
-                from: 3, to: 4, route: vec![
+                ],
+                bend_directions: vec![],
+            },
+            AbstractEdgeRoute {
+                from: 3,
+                to: 4,
+                route: vec![
                     port_node_idx(&routing_graph, 3, Side::Top),
                     port_node_idx(&routing_graph, 4, Side::Top),
-                ], bend_directions: vec![] 
+                ],
+                bend_directions: vec![],
             },
         ];
 
@@ -1032,26 +1159,27 @@ mod tests {
 
         for segments in segmetns.iter() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&YELLOW).stroke_width(1),
-                )
-            )?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&YELLOW).stroke_width(1)))?;
         }
 
-        let edges = vec![
-            (0,1),
-            (0,2),
-            (0,2),
-            (1,2),
-            (0,3),
-            (3,4),
-            (2,4),
-        ].iter().map(|(from,to)| Edge{from:*from, to:*to, predicate: 0, bezier_distance: 0.0}).collect::<Vec<_>>();
+        let edges = vec![(0, 1), (0, 2), (0, 2), (1, 2), (0, 3), (3, 4), (2, 4)]
+            .iter()
+            .map(|(from, to)| Edge {
+                from: *from,
+                to: *to,
+                predicate: 0,
+                bezier_distance: 0.0,
+            })
+            .collect::<Vec<_>>();
 
         let mut channel_connectors = create_channel_connectors(&routing_graph, &rects);
-        let graph_edge_routes = calculate_edge_routes(&routing_graph, &mut channel_connectors, 
-            &edges, &abstract_routes, &rects);
+        let graph_edge_routes = calculate_edge_routes(
+            &routing_graph,
+            &mut channel_connectors,
+            &edges,
+            &abstract_routes,
+            &rects,
+        );
         assert_eq!(graph_edge_routes.edge_routes.len(), edges.len());
 
         let route_segments = map_routes_to_segments(&routing_graph, &rects, &abstract_routes, &graph_edge_routes);
@@ -1059,16 +1187,12 @@ mod tests {
 
         for segments in route_segments.iter() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&RED).stroke_width(1),
-                )
-            )?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&RED).stroke_width(1)))?;
         }
 
         let channel_idx = routing_graph.channel_idx(1, Orientation::Horizontal);
         for channel_connector in channel_connectors.connector_range(channel_idx).iter() {
-            println!("Channel Connector: {:?}", channel_connector);   
+            println!("Channel Connector: {:?}", channel_connector);
         }
         Ok(())
     }
@@ -1081,9 +1205,11 @@ mod tests {
                 }
             }
         }
-        panic!("No bend point found for vchannel {} and hchannel {}", vchannel_id, hchannel_id);
+        panic!(
+            "No bend point found for vchannel {} and hchannel {}",
+            vchannel_id, hchannel_id
+        );
     }
-
 
     #[test]
     fn test_edge_route_bend_slots() -> Result<(), Box<dyn std::error::Error>> {
@@ -1105,66 +1231,85 @@ mod tests {
         let routing_graph = create_routing_graph(&rects);
 
         let abstract_routes: Vec<AbstractEdgeRoute> = vec![
-            AbstractEdgeRoute { 
-                from: 0, to: 1, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 1,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     bending_point_node_idx(&routing_graph, 1, 1),
                     port_node_idx(&routing_graph, 1, Side::Left),
-                ], bend_directions: vec![BendDirection::UpLeft] 
+                ],
+                bend_directions: vec![BendDirection::UpLeft],
             },
-            AbstractEdgeRoute { 
-                from: 0, to: 2, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 2,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     bending_point_node_idx(&routing_graph, 1, 1),
                     bending_point_node_idx(&routing_graph, 0, 1),
                     port_node_idx(&routing_graph, 2, Side::Top),
-                ], bend_directions: vec![BendDirection::UpLeft, BendDirection::DownRight] 
+                ],
+                bend_directions: vec![BendDirection::UpLeft, BendDirection::DownRight],
             },
-            AbstractEdgeRoute { 
-                from: 0, to: 3, route: vec![
+            AbstractEdgeRoute {
+                from: 0,
+                to: 3,
+                route: vec![
                     port_node_idx(&routing_graph, 0, Side::Bottom),
                     port_node_idx(&routing_graph, 3, Side::Top),
-                ], bend_directions: vec![] 
+                ],
+                bend_directions: vec![],
             },
-            AbstractEdgeRoute { 
-                from: 1, to: 2, route: vec![
+            AbstractEdgeRoute {
+                from: 1,
+                to: 2,
+                route: vec![
                     port_node_idx(&routing_graph, 1, Side::Left),
                     bending_point_node_idx(&routing_graph, 0, 1),
                     port_node_idx(&routing_graph, 2, Side::Top),
-                ], bend_directions: vec![BendDirection::DownRight] 
-            }
+                ],
+                bend_directions: vec![BendDirection::DownRight],
+            },
         ];
 
         let segments = map_abstract_routes(&routing_graph, &rects, &abstract_routes);
 
         for segments in segments.iter() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&YELLOW).stroke_width(1),
-                )
-            )?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&YELLOW).stroke_width(1)))?;
         }
 
-        let edges = vec![
-            (0,1),
-            (0,2),
-            (0,3),
-            (1,2),
-        ].iter().map(|(from,to)| Edge{from:*from, to:*to, predicate: 0, bezier_distance: 0.0}).collect::<Vec<_>>();
+        let edges = vec![(0, 1), (0, 2), (0, 3), (1, 2)]
+            .iter()
+            .map(|(from, to)| Edge {
+                from: *from,
+                to: *to,
+                predicate: 0,
+                bezier_distance: 0.0,
+            })
+            .collect::<Vec<_>>();
 
         let mut channel_connectors = create_channel_connectors(&routing_graph, &rects);
-        let graph_edge_routes = calculate_edge_routes(&routing_graph, &mut channel_connectors, 
-            &edges, &abstract_routes, &rects);
+        let graph_edge_routes = calculate_edge_routes(
+            &routing_graph,
+            &mut channel_connectors,
+            &edges,
+            &abstract_routes,
+            &rects,
+        );
         assert_eq!(graph_edge_routes.edge_routes.len(), edges.len());
 
         graph_edge_routes.edge_routes.iter().for_each(|er| {
             let abstract_route = &abstract_routes[er.abstract_route];
-            println!("Edge Route: abstract_route {} {}-{}, port_slots {:?}, channel_slots {:?}", er.abstract_route, abstract_route.from, abstract_route.to, er.port_slots, er.channel_slots);
+            println!(
+                "Edge Route: abstract_route {} {}-{}, port_slots {:?}, channel_slots {:?}",
+                er.abstract_route, abstract_route.from, abstract_route.to, er.port_slots, er.channel_slots
+            );
         });
 
-        println!("channel slots {:?}",graph_edge_routes.channel_slots);
-        println!("port slots {:?}",graph_edge_routes.port_slots);
+        println!("channel slots {:?}", graph_edge_routes.channel_slots);
+        println!("port slots {:?}", graph_edge_routes.port_slots);
 
         let route_segments = map_routes_to_segments(&routing_graph, &rects, &abstract_routes, &graph_edge_routes);
         assert_eq!(route_segments.len(), edges.len());
@@ -1172,9 +1317,13 @@ mod tests {
         let small_red_font = TextStyle::from(("sans-serif", 5).into_font()).color(&RED);
         for (r_id, segments) in route_segments.iter().enumerate() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            let arr: [(i32, i32); 2] = points.iter().take(2).cloned().collect::<Vec<_>>()
-                    .try_into()
-                    .expect("vector must have exactly 2 elements");
+            let arr: [(i32, i32); 2] = points
+                .iter()
+                .take(2)
+                .cloned()
+                .collect::<Vec<_>>()
+                .try_into()
+                .expect("vector must have exactly 2 elements");
             let label_pos = if arr[0].0 > arr[1].1 {
                 (arr[0].0 + 1, arr[0].1 - 2)
             } else if arr[0].0 == arr[1].0 {
@@ -1186,16 +1335,8 @@ mod tests {
             } else {
                 (arr[0].0 - 4, arr[0].1 - 2)
             };
-            root.draw_text(
-                &format!("{}", r_id),
-                &small_red_font,
-                label_pos,
-            )?;
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&RED).stroke_width(1),           
-                )
-            )?;
+            root.draw_text(&format!("{}", r_id), &small_red_font, label_pos)?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&RED).stroke_width(1)))?;
         }
 
         Ok(())
@@ -1207,36 +1348,40 @@ mod tests {
             ERect::from_min_max(egui::pos2(20.0, 10.0), egui::pos2(40.0, 40.0)),
             ERect::from_min_max(egui::pos2(20.0, 45.0), egui::pos2(40.0, 75.0)),
             ERect::from_min_max(egui::pos2(20.0, 80.0), egui::pos2(40.0, 110.0)),
-            
             ERect::from_min_max(egui::pos2(60.0, 30.0), egui::pos2(100.0, 90.0)),
-            
             ERect::from_min_max(egui::pos2(120.0, 0.0), egui::pos2(140.0, 31.0)),
             ERect::from_min_max(egui::pos2(120.0, 40.0), egui::pos2(140.0, 50.0)),
             ERect::from_min_max(egui::pos2(120.0, 100.0), egui::pos2(140.0, 120.0)),
-            
             ERect::from_min_max(egui::pos2(160.0, 25.0), egui::pos2(180.0, 55.0)),
             ERect::from_min_max(egui::pos2(120.0, 60.0), egui::pos2(140.0, 75.0)),
-
             ERect::from_min_max(egui::pos2(60.0, 2.0), egui::pos2(100.0, 20.0)),
             ERect::from_min_max(egui::pos2(60.0, 100.0), egui::pos2(100.0, 140.0)),
         ];
 
         let edges = vec![
-            (1,5),
-            (1,5),
-            (1,4),
-            (1,4),
-            (1,6),
-            (1,6),
-            (1,8),
-            (1,8),
-            (1,9),
-            (1,10),
+            (1, 5),
+            (1, 5),
+            (1, 4),
+            (1, 4),
+            (1, 6),
+            (1, 6),
+            (1, 8),
+            (1, 8),
+            (1, 9),
+            (1, 10),
             // (1,10),
             // (2,5),
             // (0,5),
             // (3,7),
-        ].iter().map(|(from,to)| Edge{from:*from, to:*to, predicate: 0, bezier_distance: 0.0}).collect::<Vec<_>>();
+        ]
+        .iter()
+        .map(|(from, to)| Edge {
+            from: *from,
+            to: *to,
+            predicate: 0,
+            bezier_distance: 0.0,
+        })
+        .collect::<Vec<_>>();
 
         draw_graph(&rects, &edges, "routes_bends.svg")?;
 
@@ -1249,42 +1394,47 @@ mod tests {
             ERect::from_min_max(egui::pos2(120.0, 0.0), egui::pos2(140.0, 31.0)),
             ERect::from_min_max(egui::pos2(120.0, 40.0), egui::pos2(140.0, 50.0)),
             ERect::from_min_max(egui::pos2(120.0, 60.0), egui::pos2(140.0, 75.0)),
-            
             ERect::from_min_max(egui::pos2(60.0, 30.0), egui::pos2(100.0, 90.0)),
-            
             ERect::from_min_max(egui::pos2(20.0, 10.0), egui::pos2(40.0, 40.0)),
             ERect::from_min_max(egui::pos2(20.0, 45.0), egui::pos2(40.0, 75.0)),
             ERect::from_min_max(egui::pos2(20.0, 80.0), egui::pos2(40.0, 110.0)),
-            
-            ERect::from_min_max(egui::pos2(120.0, 100.0), egui::pos2(140.0, 120.0)), 
+            ERect::from_min_max(egui::pos2(120.0, 100.0), egui::pos2(140.0, 120.0)),
             ERect::from_min_max(egui::pos2(160.0, 25.0), egui::pos2(180.0, 55.0)),
-
             ERect::from_min_max(egui::pos2(60.0, 2.0), egui::pos2(100.0, 20.0)),
-
             ERect::from_min_max(egui::pos2(60.0, 100.0), egui::pos2(100.0, 140.0)),
         ];
 
-
         let edges = vec![
-            (0,5),
-            (0,5),
-            (1,5),
-            (1,5),
-            (2,5),
-            (2,5),
-            (5,7),
-            (5,7),
-            (5,9),
-            (5,10),
-        ].iter().map(|(from,to)| Edge{from:*from, to:*to, predicate: 0, bezier_distance: 0.0}).collect::<Vec<_>>();
+            (0, 5),
+            (0, 5),
+            (1, 5),
+            (1, 5),
+            (2, 5),
+            (2, 5),
+            (5, 7),
+            (5, 7),
+            (5, 9),
+            (5, 10),
+        ]
+        .iter()
+        .map(|(from, to)| Edge {
+            from: *from,
+            to: *to,
+            predicate: 0,
+            bezier_distance: 0.0,
+        })
+        .collect::<Vec<_>>();
 
         draw_graph(&rects, &edges, "routes_bends2.svg")?;
 
         Ok(())
     }
 
-    fn draw_graph(rects: &Vec<egui::Rect>, edges: &Vec<Edge>, out_file: &str)  -> Result<(), Box<dyn std::error::Error>> {
-
+    fn draw_graph(
+        rects: &Vec<egui::Rect>,
+        edges: &Vec<Edge>,
+        out_file: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let out_dir = PathBuf::from("target/test-output");
         fs::create_dir_all(&out_dir)?;
         let svg_path = out_dir.join(out_file);
@@ -1293,23 +1443,23 @@ mod tests {
 
         draw_rects(&root, &rects, &BLACK)?;
 
-
-
-        let routing_graph = create_routing_graph(&rects);                
+        let routing_graph = create_routing_graph(&rects);
         let mut channel_connectors = create_channel_connectors(&routing_graph, &rects);
         let abstract_routes = route_edges(&routing_graph, &edges, &rects);
 
         let segments = map_abstract_routes(&routing_graph, &rects, &abstract_routes);
         for segments in segments.iter() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&YELLOW).stroke_width(1),
-                )
-            )?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&YELLOW).stroke_width(1)))?;
         }
 
-        let graph_edge_routes = calculate_edge_routes(&routing_graph, &mut channel_connectors, &edges, &abstract_routes, &rects);
+        let graph_edge_routes = calculate_edge_routes(
+            &routing_graph,
+            &mut channel_connectors,
+            &edges,
+            &abstract_routes,
+            &rects,
+        );
 
         let route_segments = map_routes_to_segments(&routing_graph, &rects, &abstract_routes, &graph_edge_routes);
         assert_eq!(route_segments.len(), edges.len());
@@ -1317,92 +1467,97 @@ mod tests {
         let small_red_font = TextStyle::from(("sans-serif", 5).into_font()).color(&RED);
         for (r_id, segments) in route_segments.iter().enumerate() {
             let points = segments.iter().map(|p| (p.x as i32, p.y as i32)).collect::<Vec<_>>();
-            let arr: [(i32, i32); 2] = points.iter().take(2).cloned().collect::<Vec<_>>()
-                    .try_into()
-                    .expect("vector must have exactly 2 elements");
+            let arr: [(i32, i32); 2] = points
+                .iter()
+                .take(2)
+                .cloned()
+                .collect::<Vec<_>>()
+                .try_into()
+                .expect("vector must have exactly 2 elements");
             let label_pos = if arr[0].0 > arr[1].0 {
                 (arr[0].0 + 1, arr[0].1 - 2)
             } else {
                 (arr[0].0 - 4, arr[0].1 - 2)
             };
-            root.draw_text(
-                &format!("{}", r_id),
-           &small_red_font,
-                label_pos,
-            )?;
-            root.draw(&PathElement::new(
-                    points,
-                    ShapeStyle::from(&RED).stroke_width(1),           
-                )
-            )?;
+            root.draw_text(&format!("{}", r_id), &small_red_font, label_pos)?;
+            root.draw(&PathElement::new(points, ShapeStyle::from(&RED).stroke_width(1)))?;
         }
 
         for abstract_route in abstract_routes.iter() {
-            println!("Abstract Route: from {} to {} bends {:?}", 
-                abstract_route.from, abstract_route.to, abstract_route.bend_directions);
+            println!(
+                "Abstract Route: from {} to {} bends {:?}",
+                abstract_route.from, abstract_route.to, abstract_route.bend_directions
+            );
             for node_idx in abstract_route.route.iter() {
-                println!("  Node idx: {} type {:?}", node_idx, routing_graph.nodes[*node_idx].node_type);
+                println!(
+                    "  Node idx: {} type {:?}",
+                    node_idx, routing_graph.nodes[*node_idx].node_type
+                );
             }
         }
 
-        for (channel_id,&slot) in graph_edge_routes.channel_slots.iter().enumerate() {
-            if slot>0 {
+        for (channel_id, &slot) in graph_edge_routes.channel_slots.iter().enumerate() {
+            if slot > 0 {
                 println!("Channel {} slots {}", channel_id, slot);
             }
         }
 
-        for g_route in  graph_edge_routes.edge_routes.iter() {
+        for g_route in graph_edge_routes.edge_routes.iter() {
             let aroute = &abstract_routes[g_route.abstract_route];
-            println!("Edge Route: abstract_route {}:{}-{}, port_slots {:?}, channel_slots {:?}", g_route.abstract_route, aroute.from, aroute.to, g_route.port_slots, g_route.channel_slots);
+            println!(
+                "Edge Route: abstract_route {}:{}-{}, port_slots {:?}, channel_slots {:?}",
+                g_route.abstract_route, aroute.from, aroute.to, g_route.port_slots, g_route.channel_slots
+            );
         }
-
 
         Ok(())
     }
 
     #[test]
-    fn test_bend_edges3() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_bend_edges3() -> Result<(), Box<dyn std::error::Error>> {
         let rects = vec![
             // central source element
-
             ERect::from_min_max(egui::pos2(70.0, 80.0), egui::pos2(80.0, 140.0)),
             ERect::from_min_max(egui::pos2(140.0, 80.0), egui::pos2(150.0, 140.0)),
-
             ERect::from_min_max(egui::pos2(40.0, 100.0), egui::pos2(60.0, 120.0)),
             ERect::from_min_max(egui::pos2(40.0, 80.0), egui::pos2(60.0, 90.0)),
             ERect::from_min_max(egui::pos2(160.0, 125.0), egui::pos2(180.0, 135.0)),
-
             ERect::from_min_max(egui::pos2(100.0, 100.0), egui::pos2(120.0, 120.0)),
             ERect::from_min_max(egui::pos2(100.0, 80.0), egui::pos2(120.0, 90.0)),
             ERect::from_min_max(egui::pos2(100.0, 130.0), egui::pos2(120.0, 140.0)),
-
             ERect::from_min_max(egui::pos2(160.0, 100.0), egui::pos2(180.0, 120.0)),
             ERect::from_min_max(egui::pos2(160.0, 80.0), egui::pos2(180.0, 90.0)),
             ERect::from_min_max(egui::pos2(40.0, 125.0), egui::pos2(60.0, 135.0)),
-
             ERect::from_min_max(egui::pos2(160.0, 138.0), egui::pos2(180.0, 150.0)),
             ERect::from_min_max(egui::pos2(40.0, 138.0), egui::pos2(60.0, 150.0)),
-
         ];
 
         let edges = vec![
-            (2,5),
-            (2,5),
-            (3,5),
-            (3,6),
-            (4,5),
-            (4,5),
-            (5,8),
-            (5,8),
-            (5,9),
-            (5,10),
-            (5,10),
-            (5,11),
-            (5,12),
-            (6,9),
-            (7,11),
-            (7,12),
-        ].iter().map(|(from,to)| Edge{from:*from, to:*to, predicate: 0, bezier_distance: 0.0}).collect::<Vec<_>>();
+            (2, 5),
+            (2, 5),
+            (3, 5),
+            (3, 6),
+            (4, 5),
+            (4, 5),
+            (5, 8),
+            (5, 8),
+            (5, 9),
+            (5, 10),
+            (5, 10),
+            (5, 11),
+            (5, 12),
+            (6, 9),
+            (7, 11),
+            (7, 12),
+        ]
+        .iter()
+        .map(|(from, to)| Edge {
+            from: *from,
+            to: *to,
+            predicate: 0,
+            bezier_distance: 0.0,
+        })
+        .collect::<Vec<_>>();
 
         draw_graph(&rects, &edges, "routes_bends3.svg")?;
 
@@ -1412,18 +1567,18 @@ mod tests {
     #[test]
     fn test_leg_ordering_state() {
         //DRight +---------------------------+0  DownLeft
-        //       |  +-------------------+1   |  
+        //       |  +-------------------+1   |
         //       |  |                   |    |
         //       |  |                   |    |
         //       0  1                   0    1
         //   0 - is global order
         //   We follow the route DownRight and DownLeft
-        let mut order_state = LegOrderState::new(Pos2::new(0.0,0.0), Pos2::new(20.0,0.0));
+        let mut order_state = LegOrderState::new(Pos2::new(0.0, 0.0), Pos2::new(20.0, 0.0));
         assert!(order_state.is_global_order(BendDirection::DownRight));
         assert!(order_state.is_global_order(BendDirection::DownLeft));
         assert!(!order_state.current_is_global);
 
-        let mut order_state = LegOrderState::new(Pos2::new(20.0,0.0), Pos2::new(0.0,0.0));
+        let mut order_state = LegOrderState::new(Pos2::new(20.0, 0.0), Pos2::new(0.0, 0.0));
         assert!(!order_state.is_global_order(BendDirection::DownLeft));
         assert!(order_state.is_global_order(BendDirection::DownRight));
         assert!(order_state.current_is_global);
@@ -1431,7 +1586,12 @@ mod tests {
 
     #[test]
     fn test_channel_leg_cmp() {
-        fn test_leg(start_connector: usize, end_connector: usize, circular_distance: u16, port_sides: PortSides) -> ChannelLeg {
+        fn test_leg(
+            start_connector: usize,
+            end_connector: usize,
+            circular_distance: u16,
+            port_sides: PortSides,
+        ) -> ChannelLeg {
             ChannelLeg {
                 start_connector,
                 end_connector,
@@ -1445,44 +1605,43 @@ mod tests {
                 is_global_order: true,
             }
         }
-        let leg1 = test_leg(0,2,2,PortSides::BothLeftOrTop);
-        let leg2 = test_leg(1,3,3,PortSides::BothLeftOrTop);
-        let leg3 = test_leg(1,3,1,PortSides::BothRightOrBottom);
-        let leg4 = test_leg(1,3,1,PortSides::BothRightOrBottom);
+        let leg1 = test_leg(0, 2, 2, PortSides::BothLeftOrTop);
+        let leg2 = test_leg(1, 3, 3, PortSides::BothLeftOrTop);
+        let leg3 = test_leg(1, 3, 1, PortSides::BothRightOrBottom);
+        let leg4 = test_leg(1, 3, 1, PortSides::BothRightOrBottom);
         assert!(leg1 < leg2);
         assert!(leg2 < leg3);
         assert!(leg1 < leg3);
         assert!(leg3 == leg4);
-        let leg5 = test_leg(3,1,1,PortSides::ChangeUp);
-        let leg6 = test_leg(3,2,1,PortSides::ChangeUp);
+        let leg5 = test_leg(3, 1, 1, PortSides::ChangeUp);
+        let leg6 = test_leg(3, 2, 1, PortSides::ChangeUp);
         // leg5 is more left as leg6 because the connector orders 1<2
         assert!(leg5 < leg6);
         println!("Leg5 vs Leg6: {:?}", leg5.leg_relative_order(&leg6));
-        assert_eq!(leg5.leg_relative_order(&leg6),std::cmp::Ordering::Less);
+        assert_eq!(leg5.leg_relative_order(&leg6), std::cmp::Ordering::Less);
 
-        let leg7 = test_leg(4,2,1,PortSides::ChangeUp);
+        let leg7 = test_leg(4, 2, 1, PortSides::ChangeUp);
         assert!(leg6 < leg7);
-        let leg8 = test_leg(2,8,1,PortSides::ChangeUp);
-        let leg9 = test_leg(2,9,1,PortSides::ChangeUp);
+        let leg8 = test_leg(2, 8, 1, PortSides::ChangeUp);
+        let leg9 = test_leg(2, 9, 1, PortSides::ChangeUp);
         assert!(leg9 > leg8);
 
-        let leg10 = test_leg(3,1,1,PortSides::ChangeDown);
-        let leg11 = test_leg(3,2,1,PortSides::ChangeDown);
+        let leg10 = test_leg(3, 1, 1, PortSides::ChangeDown);
+        let leg11 = test_leg(3, 2, 1, PortSides::ChangeDown);
         assert!(leg10 > leg11);
 
-        let leg12 = test_leg(9,14,1,PortSides::ChangeDown);
-        let leg13 = test_leg(9,15,1,PortSides::ChangeDown);
-        let leg14 = test_leg(10,15,1,PortSides::ChangeDown);
+        let leg12 = test_leg(9, 14, 1, PortSides::ChangeDown);
+        let leg13 = test_leg(9, 15, 1, PortSides::ChangeDown);
+        let leg14 = test_leg(10, 15, 1, PortSides::ChangeDown);
         assert!(leg13 < leg12);
         assert!(leg14 < leg13);
         assert!(leg14 < leg12);
 
-        let leg15 = test_leg(1,3,2,PortSides::BothRightOrBottom);
-        let leg16 = test_leg(1,4,3,PortSides::BothRightOrBottom);
-        assert!(leg15<leg16);
+        let leg15 = test_leg(1, 3, 2, PortSides::BothRightOrBottom);
+        let leg16 = test_leg(1, 4, 3, PortSides::BothRightOrBottom);
+        assert!(leg15 < leg16);
         // Exception local order is not global order
-        assert_eq!(leg15.leg_relative_order(&leg16),std::cmp::Ordering::Greater);
-
+        assert_eq!(leg15.leg_relative_order(&leg16), std::cmp::Ordering::Greater);
     }
 
     #[test]
@@ -1500,5 +1659,4 @@ mod tests {
         let ps6 = PortSides::from_sides(Side::Right, Side::Left, 0, 1);
         assert_eq!(ps6, PortSides::ChangeUp);
     }
-
 }

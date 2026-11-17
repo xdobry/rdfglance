@@ -5,10 +5,12 @@ use std::{
 
 use egui::{Pos2, Rect};
 use rand::{
-    RngExt, rngs::ThreadRng, seq::{SliceRandom, index::sample}
+    RngExt,
+    rngs::ThreadRng,
+    seq::{SliceRandom, index::sample},
 };
 
-use crate::{support::SortedVec, uistate::layout::SortedNodeLayout, IriIndex};
+use crate::{IriIndex, support::SortedVec, uistate::layout::SortedNodeLayout};
 
 pub struct GEdge {
     pub from: usize,
@@ -62,8 +64,12 @@ pub fn circular_layout(
     let mut order: Vec<usize> = Vec::with_capacity(node_indexes.len());
     let components = find_components(&edges, &node_indexes);
     for component in components.iter() {
-        if component.len()>2 {
-            let comp_edges = edges.iter().filter(|e| component.contains(&e.from) || component.contains(&e.to)).map(|e| GEdge { from: e.from, to: e.to }).collect();
+        if component.len() > 2 {
+            let comp_edges = edges
+                .iter()
+                .filter(|e| component.contains(&e.from) || component.contains(&e.to))
+                .map(|e| GEdge { from: e.from, to: e.to })
+                .collect();
             let best_order = genetic_opt(&comp_edges, 50, 100, 0.5, 0.01);
             order.extend(best_order);
         } else {
@@ -179,18 +185,21 @@ fn circular_cost_crossing_sweepline(order: &[usize], edges: &[GEdge], n: usize) 
 
     for iv in intervals {
         // all active intervals with end > iv.start are crossing with iv
-        crossings += active_ends.iter().filter(| i | {
-            let crossing = i.start<iv.start && iv.start<i.end && iv.end>i.end;
-            /*
-            if crossing {
-                println!("crossing iv={}-{} i={}-{}",iv.start,iv.end,i.start,i.end)
-            }
-             */
-            crossing
-        }).count();
+        crossings += active_ends
+            .iter()
+            .filter(|i| {
+                let crossing = i.start < iv.start && iv.start < i.end && iv.end > i.end;
+                /*
+                if crossing {
+                    println!("crossing iv={}-{} i={}-{}",iv.start,iv.end,i.start,i.end)
+                }
+                 */
+                crossing
+            })
+            .count();
         active_ends.push(iv);
 
-        active_ends.retain(|i |  i.end>=iv.start);
+        active_ends.retain(|i| i.end >= iv.start);
     }
 
     total + crossings as f64
@@ -258,7 +267,7 @@ fn genetic_opt(
         .collect();
 
     let mut best_fitness = f64::INFINITY;
-    let mut best_generation : Vec<usize> = (0..n).collect();
+    let mut best_generation: Vec<usize> = (0..n).collect();
     let mut stagnation = 0;
     let max_stagnation = 15;
 
@@ -298,7 +307,6 @@ fn genetic_opt(
         if current_best < best_fitness {
             best_fitness = current_best;
             stagnation = 0; // reset counter
-
         } else {
             stagnation += 1;
         }

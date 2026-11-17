@@ -3,7 +3,7 @@ use std::io;
 use crate::{
     RdfGlanceApp,
     domain::{
-        Indexers, LabelContext, NObject, NodeData,
+        Indexers, NObject, NodeData,
         config::Config,
         graph_styles::{ArrowLocation, EdgeStyle, GVisualizationStyle, LabelPosition, NodeShape, NodeSize, NodeStyle},
     },
@@ -17,12 +17,7 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 const POS_SPACE: f32 = 3.0;
 
 impl RdfGlanceApp {
-    pub fn export_svg<W: io::Write>(
-        &self,
-        wtr: &mut W,
-        node_data: &NodeData,
-        label_context: &LabelContext,
-    ) -> std::io::Result<()> {
+    pub fn export_svg<W: io::Write>(&self, wtr: &mut W, node_data: &NodeData) -> std::io::Result<()> {
         if let Ok(positions) = self.visible_nodes.positions.read() {
             if let Ok(nodes) = self.visible_nodes.nodes.read() {
                 if let Ok(individual_node_style) = self.visible_nodes.individual_node_styles.read() {
@@ -121,14 +116,6 @@ impl RdfGlanceApp {
                                     }
                                 }
 
-                                let node_label = || {
-                                    let reference_label = node_data.predicate_display(
-                                        edge.predicate,
-                                        &label_context,
-                                        &node_data.indexers,
-                                    );
-                                    reference_label.as_str().to_owned()
-                                };
                                 let pos1 = positions[edge.from].pos;
                                 if edge.from != edge.to {
                                     let node_shape_from = &node_shapes[edge.from];
@@ -146,7 +133,6 @@ impl RdfGlanceApp {
                                             .edge_styles
                                             .get(&edge.predicate)
                                             .unwrap_or(&default_edge_style),
-                                        node_label,
                                         edge.bezier_distance,
                                     )?;
                                 } else {
@@ -161,7 +147,6 @@ impl RdfGlanceApp {
                                             .edge_styles
                                             .get(&edge.predicate)
                                             .unwrap_or(&default_edge_style),
-                                        node_label,
                                     )?;
                                 }
                             }
@@ -407,12 +392,7 @@ fn add_color(xml_node: &mut BytesStart, attr: &str, color: Color32) {
     }
 }
 
-fn color_to_hex4(color: Color32) -> String {
-    let col = color.to_array();
-    format!("#{:02X}{:02X}{:02X}{:02X}", col[0], col[1], col[2], col[3])
-}
-
-fn draw_edge_svg<F, W>(
+fn draw_edge_svg<W>(
     writer: &mut Writer<W>,
     point_from: Pos2,
     size_from: Vec2,
@@ -421,11 +401,9 @@ fn draw_edge_svg<F, W>(
     size_to: Vec2,
     shape_to: NodeShape,
     edge_style: &EdgeStyle,
-    label_cb: F,
     bezier_distance: f32,
 ) -> std::io::Result<()>
 where
-    F: Fn() -> String,
     W: io::Write,
 {
     let dir = point_to - point_from;
@@ -523,17 +501,15 @@ where
     Ok(())
 }
 
-fn draw_self_edge_svg<F, W>(
+fn draw_self_edge_svg<W>(
     writer: &mut Writer<W>,
     point: Pos2,
     size: Vec2,
     rotation: f32,
     _shape: NodeShape,
     edge_style: &EdgeStyle,
-    _label_cb: F,
 ) -> std::io::Result<()>
 where
-    F: Fn() -> String,
     W: io::Write,
 {
     let radius = size.x / 2.0;
@@ -570,7 +546,6 @@ fn draw_orth_edge_svg<W: io::Write>(
     edge_style: &EdgeStyle,
     control_points: &[Pos2],
 ) -> std::io::Result<()> {
-    
     let mut polyline = BytesStart::new("polyline");
     let points = control_points
         .iter()

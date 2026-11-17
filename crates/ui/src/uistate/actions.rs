@@ -32,7 +32,5 @@ pub enum NodeAction {
     ShowType(IriIndex),
     ShowTypeInstances(IriIndex, Vec<IriIndex>),
     ShowVisual(IriIndex),
-    AddVisual(IriIndex)
+    AddVisual(IriIndex),
 }
-
-

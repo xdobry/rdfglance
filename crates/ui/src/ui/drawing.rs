@@ -1,13 +1,15 @@
 use eframe::egui::{Color32, Painter, Pos2, Stroke};
 use egui::{
-    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape}, text::LayoutJob, Align2, FontId, Rect, Shape, StrokeKind, Vec2
+    Align2, FontId, Rect, Shape, StrokeKind, Vec2,
+    epaint::{CubicBezierShape, EllipseShape, QuadraticBezierShape, TextShape},
+    text::LayoutJob,
 };
 
-use crate::{
-    EdgeStyle, NodeStyle,
-};
+use crate::{EdgeStyle, NodeStyle};
 
-use crate::domain::graph_styles::{ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize};
+use crate::domain::graph_styles::{
+    ArrowLocation, ArrowStyle, IconPosition, LabelPosition, LineStyle, NodeShape, NodeSize,
+};
 
 const POS_SPACE: f32 = 3.0;
 
@@ -34,7 +36,9 @@ pub fn draw_edge<F>(
     let radius_to = size_to.x / 2.0;
     let radius_from = size_from.x / 2.0;
 
-    if !matches!(shape_to, NodeShape::Rect) && !matches!(shape_from, NodeShape::Rect) && length <= radius_to + radius_from
+    if !matches!(shape_to, NodeShape::Rect)
+        && !matches!(shape_from, NodeShape::Rect)
+        && length <= radius_to + radius_from
     {
         // nodes are non rect (so handle as circles) overlapping, no edge needed
         return;
@@ -91,18 +95,16 @@ pub fn draw_edge<F>(
     // Draw arrow (line + head)
     let stroke = Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
     match edge_style.line_style {
-        LineStyle::Solid =>{
+        LineStyle::Solid => {
             if bezier_distance != 0.0 {
                 let middle = (edge_from + edge_to.to_vec2()) / 2.0;
                 let ctrl_pos = middle + unit.rot90() * bezier_distance;
-                painter.add(Shape::QuadraticBezier(
-                    QuadraticBezierShape::from_points_stroke(
-                        [edge_from, ctrl_pos, edge_to],
-                        false,
-                        Color32::TRANSPARENT,
-                        stroke,
-                    ),
-                ));
+                painter.add(Shape::QuadraticBezier(QuadraticBezierShape::from_points_stroke(
+                    [edge_from, ctrl_pos, edge_to],
+                    false,
+                    Color32::TRANSPARENT,
+                    stroke,
+                )));
                 arrow_unit = (edge_to - ctrl_pos).normalized();
             } else {
                 painter.line_segment([edge_from, edge_to], stroke);
@@ -165,7 +167,11 @@ pub fn draw_edge<F>(
                 painter.line_segment([left, right], stroke);
             }
             ArrowStyle::ArrorFilled => {
-                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], fade_color(edge_style.color, faded), Stroke::NONE);
+                let shape = Shape::convex_polygon(
+                    vec![arrow_pos, left, right],
+                    fade_color(edge_style.color, faded),
+                    Stroke::NONE,
+                );
                 painter.add(shape);
             }
         }
@@ -174,7 +180,7 @@ pub fn draw_edge<F>(
     if let Some(edge_font) = &edge_style.edge_font {
         let line_midle = (edge_from + edge_to.to_vec2()) / 2.0;
         let label_font = FontId::proportional(edge_font.font_size);
-        let unit_ort = -unit.rot90() * (edge_font.font_size + bezier_distance/2.0);
+        let unit_ort = -unit.rot90() * (edge_font.font_size + bezier_distance / 2.0);
         let label_pos = line_midle + unit_ort;
         let label = label_cb();
         let mut job = LayoutJob::default();
@@ -183,17 +189,13 @@ pub fn draw_edge<F>(
             0.0,
             egui::TextFormat {
                 font_id: label_font,
-                color: fade_color(fg_color_mode(edge_font.font_color,visuals), faded),
+                color: fade_color(fg_color_mode(edge_font.font_color, visuals), faded),
                 ..Default::default()
             },
         );
         let galley = painter.layout_job(job);
         // change the direction if pointing to left side to ensure the text is left to right
-        let unit_adapted = if unit.x < 0.0 {
-            -unit
-        } else {
-            unit
-        };
+        let unit_adapted = if unit.x < 0.0 { -unit } else { unit };
         let angle = unit_adapted.angle();
         let gallay_center = galley.rect.center();
         let gallay_center = Vec2::new(
@@ -215,7 +217,7 @@ pub fn draw_edge<F>(
             Align2::CENTER_CENTER,
             icon_style.icon_character.to_string(),
             icon_font,
-            fade_color(fg_color_mode(icon_style.icon_color,visuals), faded),
+            fade_color(fg_color_mode(icon_style.icon_color, visuals), faded),
         );
     }
 }
@@ -231,7 +233,7 @@ pub fn draw_self_edge<F>(
     label_cb: F,
     visuals: &egui::Visuals,
 ) where
-F: Fn() -> String,
+    F: Fn() -> String,
 {
     let stroke = Stroke::new(edge_style.width, fade_color(edge_style.color, faded));
     let radius = size.x / 2.0;
@@ -243,10 +245,13 @@ F: Fn() -> String,
     let pos2 = point + (direction_2 * radius);
     let ctrl_pos_distance = 100.0;
     let ctrl_pos1 = point + direction_1 * (radius + ctrl_pos_distance);
-    let ctrl_pos2 = point +direction_2 * (radius + ctrl_pos_distance);
-    painter.add(Shape::CubicBezier(
-        CubicBezierShape::from_points_stroke([pos1, ctrl_pos1, ctrl_pos2, pos2], false, Color32::TRANSPARENT, stroke),
-    ));
+    let ctrl_pos2 = point + direction_2 * (radius + ctrl_pos_distance);
+    painter.add(Shape::CubicBezier(CubicBezierShape::from_points_stroke(
+        [pos1, ctrl_pos1, ctrl_pos2, pos2],
+        false,
+        Color32::TRANSPARENT,
+        stroke,
+    )));
 
     if !matches!(edge_style.arrow_location, ArrowLocation::None) {
         // Draw arrowhead
@@ -289,7 +294,11 @@ F: Fn() -> String,
                 painter.line_segment([left, right], stroke);
             }
             ArrowStyle::ArrorFilled => {
-                let shape = Shape::convex_polygon(vec![arrow_pos, left, right], fade_color(edge_style.color, faded), Stroke::NONE);
+                let shape = Shape::convex_polygon(
+                    vec![arrow_pos, left, right],
+                    fade_color(edge_style.color, faded),
+                    Stroke::NONE,
+                );
                 painter.add(shape);
             }
         }
@@ -305,15 +314,13 @@ F: Fn() -> String,
             0.0,
             egui::TextFormat {
                 font_id: label_font,
-                color: fade_color(fg_color_mode(edge_font.font_color,visuals), faded),
+                color: fade_color(fg_color_mode(edge_font.font_color, visuals), faded),
                 ..Default::default()
             },
         );
         let galley = painter.layout_job(job);
         // change the direction if pointing to left side to ensure the text is left to right
-        painter.add(Shape::Text(
-            TextShape::new(curve_midle, galley, Color32::BLACK),
-        ));
+        painter.add(Shape::Text(TextShape::new(curve_midle, galley, Color32::BLACK)));
     }
 }
 
@@ -331,11 +338,7 @@ pub fn bezier_middle_point(pos1: Pos2, ctrl_pos1: Pos2, ctrl_pos2: Pos2, pos2: P
 
 #[inline]
 pub fn fade_color(color: Color32, fade: bool) -> Color32 {
-    if fade {
-        color.gamma_multiply_u8(60)
-    } else {
-        color
-    }
+    if fade { color.gamma_multiply_u8(60) } else { color }
 }
 
 pub fn fg_color_mode(color: Color32, visuals: &egui::Visuals) -> Color32 {
@@ -372,7 +375,7 @@ pub fn draw_node_label(
             color: if highlighted {
                 visuals.selection.stroke.color
             } else {
-                fade_color(fg_color_mode(type_style.label_color,visuals), faded)
+                fade_color(fg_color_mode(type_style.label_color, visuals), faded)
             },
             ..Default::default()
         },
@@ -406,7 +409,7 @@ pub fn draw_node_label(
     };
     let node_rect = {
         let stroke = if type_style.border_width > 0.0 {
-            Stroke::new(type_style.border_width, fade_color(type_style.border_color,faded))
+            Stroke::new(type_style.border_width, fade_color(type_style.border_color, faded))
         } else {
             Stroke::NONE
         };
@@ -431,15 +434,16 @@ pub fn draw_node_label(
             } else {
                 egui::Color32::from_rgba_premultiplied(255, 157, 0, 200)
             };
-            painter.rect_filled(
-                select_rec,
-                3.0,
-                selection_bg,
-            );
+            painter.rect_filled(select_rec, 3.0, selection_bg);
         }
         match type_style.node_shape {
             NodeShape::Circle => {
-                painter.circle(pos, node_rect.width() / 2.0, fade_color(type_style.color, faded), stroke);
+                painter.circle(
+                    pos,
+                    node_rect.width() / 2.0,
+                    fade_color(type_style.color, faded),
+                    stroke,
+                );
             }
             NodeShape::Ellipse => {
                 painter.add(egui::Shape::Ellipse(EllipseShape {
@@ -493,16 +497,16 @@ pub fn draw_node_label(
             );
         }
     }
-    if num_hidden_references>0 {
+    if num_hidden_references > 0 {
         let (num_pos, anchor) = if matches!(type_style.label_position, LabelPosition::Right) {
-            let num_pos = node_rect.right_bottom() + Vec2::new(node_rect.width()*-0.5,3.0);
+            let num_pos = node_rect.right_bottom() + Vec2::new(node_rect.width() * -0.5, 3.0);
             (num_pos, Align2::CENTER_TOP)
         } else {
-            let num_pos = node_rect.right_top() + Vec2::new(3.0,0.0);
+            let num_pos = node_rect.right_top() + Vec2::new(3.0, 0.0);
             (num_pos, Align2::LEFT_TOP)
         };
         let num_text = num_hidden_references.to_string();
-        painter.text(num_pos, anchor, num_text, egui::FontId::default() , visuals.text_color());
+        painter.text(num_pos, anchor, num_text, egui::FontId::default(), visuals.text_color());
     }
     if type_style.node_shape == NodeShape::Circle {
         (

@@ -1,5 +1,6 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet}, sync::{Arc, RwLock}
+    collections::{BTreeSet, HashMap, HashSet},
+    sync::{Arc, RwLock},
 };
 
 use egui::{Pos2, Rect};
@@ -37,7 +38,7 @@ pub fn multipartite_layout(
     if let Ok(edges) = visible_nodes.edges.read() {
         edges
             .iter()
-            .filter(| e| {
+            .filter(|e| {
                 !hidden_predicates.contains(e.predicate)
                     && (node_indexes.contains(&e.from) || node_indexes.contains(&e.to))
             })
@@ -110,7 +111,7 @@ pub fn multipartite_layout(
                         let node_size = node_shapes[*node_idx].size.y;
                         let node_xpos = if type_pos == 0 {
                             xpos - node_shapes[*node_idx].size.x * 0.5
-                        } else if type_pos == type_order.len() -1 {
+                        } else if type_pos == type_order.len() - 1 {
                             xpos + node_shapes[*node_idx].size.x * 0.5
                         } else {
                             xpos
@@ -131,21 +132,26 @@ pub fn multipartite_layout(
     // Versuche die Gruppen zentral auszurichten, allign so dass die zu der Partner ausgerichtet sind (allso nach innen)
 }
 
-fn optimize_order(nodes: &mut HashMap<IriIndex, Vec<usize>>, adj_map: &HashMap<usize,Vec<usize>>) -> Vec<IriIndex> {
+fn optimize_order(nodes: &mut HashMap<IriIndex, Vec<usize>>, adj_map: &HashMap<usize, Vec<usize>>) -> Vec<IriIndex> {
     assert!(nodes.len() >= 2);
     let mut order = nodes.keys().cloned().collect::<Vec<IriIndex>>();
-    order.sort_unstable_by(|a,b| nodes[a].len().cmp(&nodes[b].len()));
+    order.sort_unstable_by(|a, b| nodes[a].len().cmp(&nodes[b].len()));
     let first_type = order.first().unwrap();
     if let Some(nodes) = nodes.get_mut(first_type) {
-        nodes.sort_unstable_by(|a,b| adj_map.get(a).map_or(0, |v| v.len()).cmp(&adj_map.get(b).map_or(0, |v| v.len())));
+        nodes.sort_unstable_by(|a, b| {
+            adj_map
+                .get(a)
+                .map_or(0, |v| v.len())
+                .cmp(&adj_map.get(b).map_or(0, |v| v.len()))
+        });
         mountain_order(nodes);
-    }   
+    }
     for types_arr in order.windows(2) {
         let out_order = nodes.get_mut(&types_arr[1]).unwrap();
         let mut all_nodes: HashSet<usize> = HashSet::<usize>::from_iter(out_order.iter().cloned());
         let mut out_order_new: Vec<usize> = Vec::with_capacity(out_order.len());
         if let Some(in_order) = nodes.get(&types_arr[0]) {
-            for (node_pos, in_node) in in_order.iter().enumerate() {               
+            for (node_pos, in_node) in in_order.iter().enumerate() {
                 let mut connected_nodes: Vec<usize> = Vec::new();
                 if let Some(adj_nodes) = adj_map.get(in_node) {
                     for adj_node in adj_nodes.iter() {
@@ -156,9 +162,20 @@ fn optimize_order(nodes: &mut HashMap<IriIndex, Vec<usize>>, adj_map: &HashMap<u
                     }
                 }
                 if node_pos < in_order.len() / 2 {
-                    connected_nodes.sort_unstable_by(|a,b| adj_map.get(a).map_or(0, |v| v.len()).cmp(&adj_map.get(b).map_or(0, |v| v.len())));
+                    connected_nodes.sort_unstable_by(|a, b| {
+                        adj_map
+                            .get(a)
+                            .map_or(0, |v| v.len())
+                            .cmp(&adj_map.get(b).map_or(0, |v| v.len()))
+                    });
                 } else {
-                    connected_nodes.sort_unstable_by(|a,b| adj_map.get(b).map_or(0, |v| v.len()).cmp(&adj_map.get(a).map_or(0, |v| v.len())).reverse());
+                    connected_nodes.sort_unstable_by(|a, b| {
+                        adj_map
+                            .get(b)
+                            .map_or(0, |v| v.len())
+                            .cmp(&adj_map.get(a).map_or(0, |v| v.len()))
+                            .reverse()
+                    });
                 }
                 out_order_new.extend(connected_nodes.iter().cloned());
             }
