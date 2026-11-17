@@ -46,7 +46,7 @@ fn start_mcp(ctx: egui::Context) -> (mpsc::Receiver<UiCommand>, Arc<RwLock<Datas
     let server_profile = Arc::clone(&dataset_profile);
 
     thread::spawn(move || {
-        println!("starting mcp");
+        eprintln!("starting mcp");
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()

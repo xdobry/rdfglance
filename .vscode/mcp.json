@@ -1,9 +1,0 @@
-{
-	"servers": {
-		"rdfglance-mcp": {
-			"type": "stdio",
-			"command": "target/debug/rdf-glance-mcp.exe",
-		}
-	},
-	"inputs": []
-}

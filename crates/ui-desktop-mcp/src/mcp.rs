@@ -59,6 +59,16 @@ impl MyMcpServer {
 
 #[tool_router]
 impl MyMcpServer {
+    #[tool(description = "Get the current dataset profile as JSON, matching dataset://current/profile")]
+    async fn get_dataset_profile(&self) -> Result<Json<DatasetProfile>, McpError> {
+        let profile = self
+            .dataset_profile
+            .read()
+            .map_err(|_| McpError::internal_error("Dataset profile lock is poisoned", None))?;
+
+        Ok(Json(profile.clone()))
+    }
+
     #[tool(description = "Show filtered instances of type in table")]
     async fn show_type_instances(
         &self,

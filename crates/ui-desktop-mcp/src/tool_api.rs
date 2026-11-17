@@ -12,7 +12,7 @@ use rmcp::schemars::JsonSchema;
 
 pub const DATASET_PROFILE_RESOURCE_URI: &str = "dataset://current/profile";
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 pub struct DatasetProfile {
     pub nodes: usize,
     pub unique_predicates: usize,
@@ -27,24 +27,23 @@ pub struct DatasetProfile {
     pub types: Vec<TypeProfile>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PredicateProfile {
     pub iri: String,
     pub label: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TypeProfile {
     pub iri: String,
     pub label: String,
     pub instance_count: usize,
-    pub instances: Vec<String>,
     pub properties: Vec<PropertyProfile>,
     pub references: Vec<ReferenceProfile>,
     pub reverse_references: Vec<ReferenceProfile>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PropertyProfile {
     pub iri: String,
     pub label: String,
@@ -55,7 +54,7 @@ pub struct PropertyProfile {
     pub value_types: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ReferenceProfile {
     pub iri: String,
     pub label: String,
@@ -85,16 +84,6 @@ pub fn dataset_profile_from_index(rdf_data: &RdfData, type_index: &TypeInstanceI
         .iter()
         .filter_map(|(type_index, type_data)| {
             let iri = node_data.get_type(*type_index)?;
-            let instances = type_data
-                .instances
-                .iter()
-                .filter_map(|instance_index| {
-                    node_data
-                        .get_node_by_index(*instance_index)
-                        .map(|(instance_iri, _)| instance_iri.to_string())
-                })
-                .collect();
-
             let mut properties: Vec<PropertyProfile> = type_data
                 .properties
                 .iter()
@@ -117,7 +106,6 @@ pub fn dataset_profile_from_index(rdf_data: &RdfData, type_index: &TypeInstanceI
                 iri: iri.to_string(),
                 label: short_iri(iri).to_string(),
                 instance_count: type_data.instances.len(),
-                instances,
                 properties,
                 references: reference_profiles(node_data, &type_data.references),
                 reverse_references: reference_profiles(node_data, &type_data.rev_references),
