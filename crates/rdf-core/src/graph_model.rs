@@ -367,6 +367,8 @@ impl Indexers {
         self.datatype_indexer = StringIndexer::new();
         self.language_indexer.get_index("en");
         self.predicate_indexer.get_index("rdfs:label");
+        // Here we unsure the untyped index is 0
+        self.type_indexer.get_index("_untyped");
         self.value_type_idx.clear();
     }
 }

@@ -18,6 +18,7 @@ use rayon::prelude::*;
 pub const IRI_WIDTH: f32 = 300.0;
 pub const REF_COUNT_WIDTH: f32 = 80.0;
 const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
+const UNTYPED_TYPE_INDEX: IriIndex = 0;
 
 pub struct TypeInstanceIndex {
     pub nodes: usize,
@@ -572,7 +573,12 @@ impl TypesWorkload {
         if node.is_blank_node {
             self.blank_nodes += 1;
         }
-        for type_index in &node.types {
+        let types: &[IriIndex] = if node.types.is_empty() && node.has_subject {
+            &[UNTYPED_TYPE_INDEX]
+        } else {
+            &node.types
+        };
+        for type_index in types {
             let type_data = self
                 .types
                 .entry(*type_index)
