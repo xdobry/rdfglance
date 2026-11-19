@@ -128,6 +128,9 @@ pub struct DataLoading {
     pub total_triples: Arc<AtomicUsize>,
     pub read_pos: Arc<AtomicUsize>,
     pub total_size: Arc<AtomicUsize>,
+    pub current_file: Arc<AtomicUsize>,
+    pub total_files: Arc<AtomicUsize>,
+    pub completed_files: Arc<AtomicUsize>,
     pub finished: Arc<AtomicBool>,
 }
 

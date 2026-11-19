@@ -45,7 +45,7 @@ impl RdfGlanceApp {
             });
             egui::TextEdit::singleline(&mut self.object_iri).show(ui);
             if ui.button("Load Object").clicked() {
-                println!("load object: {}", self.object_iri);
+                tracing::info!("load object: {}", self.object_iri);
                 self.show_object();
             }
         });

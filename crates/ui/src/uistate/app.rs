@@ -276,6 +276,9 @@ impl RdfGlanceApp {
             total_triples: Arc::new(AtomicUsize::new(0)),
             read_pos: Arc::new(AtomicUsize::new(0)),
             total_size: Arc::new(AtomicUsize::new(0)),
+            current_file: Arc::new(AtomicUsize::new(0)),
+            total_files: Arc::new(AtomicUsize::new(0)),
+            completed_files: Arc::new(AtomicUsize::new(0)),
             finished: Arc::new(AtomicBool::new(false)),
         });
         let data_loading_clone = Arc::clone(&data_loading);
@@ -323,6 +326,9 @@ impl RdfGlanceApp {
             total_triples: Arc::new(AtomicUsize::new(0)),
             read_pos: Arc::new(AtomicUsize::new(0)),
             total_size: Arc::new(AtomicUsize::new(0)),
+            current_file: Arc::new(AtomicUsize::new(0)),
+            total_files: Arc::new(AtomicUsize::new(0)),
+            completed_files: Arc::new(AtomicUsize::new(0)),
             finished: Arc::new(AtomicBool::new(false)),
         });
         let data_loading_clone = Arc::clone(&data_loading);
@@ -380,7 +386,18 @@ impl RdfGlanceApp {
         if let Some(handle) = self.load_handle.take() {
             match handle.join() {
                 Ok(Some(Ok(load_result))) => {
-                    self.set_status_message(&format!("Loaded {} triples", load_result.triples_count));
+                    let stopped = self
+                        .data_loading
+                        .as_ref()
+                        .is_some_and(|data_loading| data_loading.stop_loading.load(Ordering::Relaxed));
+                    if stopped {
+                        self.set_status_message(&format!(
+                            "Stopped loading after {} triples",
+                            load_result.triples_count
+                        ));
+                    } else {
+                        self.set_status_message(&format!("Loaded {} triples", load_result.triples_count));
+                    }
                     self.update_data_indexes(is_dark_mode);
                     if let Some(file_name) = load_result.file_name {
                         let file_name_cpy = file_name.into_boxed_str();
@@ -436,7 +453,7 @@ impl RdfGlanceApp {
     }
 
     pub fn load_ttl_dir(&mut self, dir_name: &str) {
-        if self.load_handle.is_some() {
+        if self.load_handle.is_some() || self.data_loading.is_some() {
             self.system_message = SystemMessage::Info("Loading in progress".to_string());
             return;
         }
@@ -449,6 +466,9 @@ impl RdfGlanceApp {
             total_triples: Arc::new(AtomicUsize::new(0)),
             read_pos: Arc::new(AtomicUsize::new(0)),
             total_size: Arc::new(AtomicUsize::new(0)),
+            current_file: Arc::new(AtomicUsize::new(0)),
+            total_files: Arc::new(AtomicUsize::new(0)),
+            completed_files: Arc::new(AtomicUsize::new(0)),
             finished: Arc::new(AtomicBool::new(false)),
         });
         let data_loading_clone = Arc::clone(&data_loading);
@@ -752,11 +772,33 @@ impl eframe::App for RdfGlanceApp {
             if let Some(data_loading) = &self.data_loading {
                 if !data_loading.finished.load(Ordering::Relaxed) {
                     ui.label("RDF data is currently being loaded. Please wait...");
+                    let total_files = data_loading.total_files.load(Ordering::Relaxed);
+                    if total_files > 0 {
+                        let completed_files = data_loading.completed_files.load(Ordering::Relaxed);
+                        let file_progress = (completed_files as f32 / total_files as f32).clamp(0.0, 1.0);
+                        ui.label(format!("Files completed: {} of {}", completed_files, total_files));
+                        ui.add(
+                            egui::ProgressBar::new(file_progress)
+                                .desired_width(300.0)
+                                .show_percentage(),
+                        );
+                    }
                     let total_size = data_loading.total_size.load(Ordering::Relaxed);
                     if total_size > 0 {
-                        let progress = data_loading.read_pos.load(Ordering::Relaxed) as f32 / total_size as f32;
-                        let progress_bar = egui::ProgressBar::new(progress).desired_width(300.0).show_percentage();
-                        ui.add(progress_bar);
+                        let progress =
+                            (data_loading.read_pos.load(Ordering::Relaxed) as f32 / total_size as f32).clamp(0.0, 1.0);
+                        if total_files > 0 {
+                            ui.label("Current file progress");
+                        }
+                        ui.add(egui::ProgressBar::new(progress).desired_width(300.0).show_percentage());
+                    }
+                    if total_files > 0 {
+                        let current_file = data_loading.current_file.load(Ordering::Relaxed);
+                        if current_file == 0 {
+                            ui.label(format!("Preparing {} files...", total_files));
+                        } else {
+                            ui.label(format!("Reading file {} of {}", current_file, total_files));
+                        }
                     }
                     ui.label(format!(
                         "Read triples: {}",
@@ -764,6 +806,8 @@ impl eframe::App for RdfGlanceApp {
                     ));
                     if !data_loading.stop_loading.load(Ordering::Relaxed) && ui.button("Stop Loading").clicked() {
                         data_loading.stop_loading.store(true, Ordering::Relaxed);
+                    } else if data_loading.stop_loading.load(Ordering::Relaxed) {
+                        ui.label("Stopping loading...");
                     }
                     ui.ctx().request_repaint_after(Duration::from_millis(100));
                     return;
@@ -974,6 +1018,10 @@ impl eframe::App for RdfGlanceApp {
                     });
                 });
 
+            if self.data_loading.is_some() {
+                return;
+            }
+
             let mut action_from_queue = false;
             if matches!(&node_action, NodeAction::None) {
                 if let Some(queued_action) = self.queued_node_actions.pop_front() {
@@ -1088,7 +1136,7 @@ impl eframe::App for RdfGlanceApp {
                                 if let Some(file_path) = file_path {
                                     self.load_ttl(file_path, false);
                                 } else {
-                                    println!("File dropped path is not valid UTF-8: {:?}", path);
+                                    tracing::info!("File dropped path is not valid UTF-8: {:?}", path);
                                 }
                             }
                         }

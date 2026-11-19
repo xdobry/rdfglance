@@ -22,7 +22,7 @@ pub mod sizelayout;
 #[cfg(feature = "debug-orth")]
 #[macro_export]
 macro_rules! dbgorth {
-    ($($arg:tt)*) => { println!($($arg)*); }
+    ($($arg:tt)*) => { tracing::trace!($($arg)*); }
 }
 
 #[cfg(not(feature = "debug-orth"))]

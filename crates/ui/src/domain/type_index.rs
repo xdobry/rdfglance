@@ -762,8 +762,8 @@ impl TypeInstanceIndex {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let duration = start.elapsed();
-            println!("Time taken to index {} nodes: {:?}", node_len, duration);
-            println!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
+            tracing::info!("Time taken to index {} nodes: {:?}", node_len, duration);
+            tracing::info!("Nodes per second: {}", node_len as f64 / duration.as_secs_f64());
         }
     }
 

@@ -733,9 +733,9 @@ pub fn calculate_edge_routes(
     }
     #[cfg(feature = "debug-orth")]
     {
-        println!("Route order: {:?}", routes_ordered);
+        crate::dbgorth!("Route order: {:?}", routes_ordered);
         for (pos, r) in routes_ordered.iter().enumerate() {
-            println!("  route pos={} r={} {}-{}", pos, *r, edges[*r].from, edges[*r].to);
+            crate::dbgorth!("  route pos={} r={} {}-{}", pos, *r, edges[*r].from, edges[*r].to);
         }
     }
 
@@ -909,7 +909,7 @@ fn connector_port_position(connectors: &[ChannelConnector], node_id: usize) -> u
         None => {
             #[cfg(feature = "debug-orth")]
             for c in connectors.iter() {
-                println!("Connector: {:?}", c);
+                crate::dbgorth!("Connector: {:?}", c);
             }
             panic!("can not find port {}", node_id);
         }
@@ -927,7 +927,7 @@ fn connector_bend_position(connectors: &[ChannelConnector], crossing_channel_id:
         None => {
             #[cfg(feature = "debug-orth")]
             for c in connectors.iter() {
-                println!("Connector: {:?}", c);
+                crate::dbgorth!("Connector: {:?}", c);
             }
             panic!("can not find pos {}", crossing_channel_id);
         }
@@ -1192,7 +1192,7 @@ mod tests {
 
         let channel_idx = routing_graph.channel_idx(1, Orientation::Horizontal);
         for channel_connector in channel_connectors.connector_range(channel_idx).iter() {
-            println!("Channel Connector: {:?}", channel_connector);
+            crate::dbgorth!("Channel Connector: {:?}", channel_connector);
         }
         Ok(())
     }
@@ -1302,14 +1302,18 @@ mod tests {
 
         graph_edge_routes.edge_routes.iter().for_each(|er| {
             let abstract_route = &abstract_routes[er.abstract_route];
-            println!(
+            crate::dbgorth!(
                 "Edge Route: abstract_route {} {}-{}, port_slots {:?}, channel_slots {:?}",
-                er.abstract_route, abstract_route.from, abstract_route.to, er.port_slots, er.channel_slots
+                er.abstract_route,
+                abstract_route.from,
+                abstract_route.to,
+                er.port_slots,
+                er.channel_slots
             );
         });
 
-        println!("channel slots {:?}", graph_edge_routes.channel_slots);
-        println!("port slots {:?}", graph_edge_routes.port_slots);
+        crate::dbgorth!("channel slots {:?}", graph_edge_routes.channel_slots);
+        crate::dbgorth!("port slots {:?}", graph_edge_routes.port_slots);
 
         let route_segments = map_routes_to_segments(&routing_graph, &rects, &abstract_routes, &graph_edge_routes);
         assert_eq!(route_segments.len(), edges.len());
@@ -1484,29 +1488,36 @@ mod tests {
         }
 
         for abstract_route in abstract_routes.iter() {
-            println!(
+            crate::dbgorth!(
                 "Abstract Route: from {} to {} bends {:?}",
-                abstract_route.from, abstract_route.to, abstract_route.bend_directions
+                abstract_route.from,
+                abstract_route.to,
+                abstract_route.bend_directions
             );
             for node_idx in abstract_route.route.iter() {
-                println!(
+                crate::dbgorth!(
                     "  Node idx: {} type {:?}",
-                    node_idx, routing_graph.nodes[*node_idx].node_type
+                    node_idx,
+                    routing_graph.nodes[*node_idx].node_type
                 );
             }
         }
 
         for (channel_id, &slot) in graph_edge_routes.channel_slots.iter().enumerate() {
             if slot > 0 {
-                println!("Channel {} slots {}", channel_id, slot);
+                crate::dbgorth!("Channel {} slots {}", channel_id, slot);
             }
         }
 
         for g_route in graph_edge_routes.edge_routes.iter() {
             let aroute = &abstract_routes[g_route.abstract_route];
-            println!(
+            crate::dbgorth!(
                 "Edge Route: abstract_route {}:{}-{}, port_slots {:?}, channel_slots {:?}",
-                g_route.abstract_route, aroute.from, aroute.to, g_route.port_slots, g_route.channel_slots
+                g_route.abstract_route,
+                aroute.from,
+                aroute.to,
+                g_route.port_slots,
+                g_route.channel_slots
             );
         }
 
@@ -1617,7 +1628,7 @@ mod tests {
         let leg6 = test_leg(3, 2, 1, PortSides::ChangeUp);
         // leg5 is more left as leg6 because the connector orders 1<2
         assert!(leg5 < leg6);
-        println!("Leg5 vs Leg6: {:?}", leg5.leg_relative_order(&leg6));
+        crate::dbgorth!("Leg5 vs Leg6: {:?}", leg5.leg_relative_order(&leg6));
         assert_eq!(leg5.leg_relative_order(&leg6), std::cmp::Ordering::Less);
 
         let leg7 = test_leg(4, 2, 1, PortSides::ChangeUp);

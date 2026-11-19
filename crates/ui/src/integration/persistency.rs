@@ -152,16 +152,16 @@ impl RdfGlanceApp {
         let _version = reader.read_u16::<LittleEndian>()?;
         let _flags = reader.read_u16::<LittleEndian>()?;
         let header_length = reader.read_u16::<LittleEndian>()?;
-        println!("header lenght {}", header_length);
+        tracing::info!("header lenght {}", header_length);
         reader.seek(SeekFrom::Start(header_length as u64))?;
 
         loop {
             match reader.read_u8() {
                 Ok(header_type_u8) => {
-                    println!("reading header type {}", header_type_u8);
+                    tracing::info!("reading header type {}", header_type_u8);
                     let header_type = HeaderType::from_u8(header_type_u8);
                     let block_size = reader.read_u32::<LittleEndian>()?;
-                    println!("block size {}", block_size);
+                    tracing::info!("block size {}", block_size);
                     if let Some(header_type) = header_type {
                         match header_type {
                             HeaderType::DataTypes => {
@@ -241,12 +241,12 @@ impl RdfGlanceApp {
                             }
                         }
                     } else {
-                        println!("unknown header type {} ignoring block", header_type_u8);
+                        tracing::info!("unknown header type {} ignoring block", header_type_u8);
                         reader.seek(SeekFrom::Current((block_size - 5) as i64))?;
                     }
                 }
                 Err(_) => {
-                    println!("End of file");
+                    tracing::info!("End of file");
                     break;
                 }
             }
@@ -329,7 +329,7 @@ impl StringIndexerPersistence for StringIndexer {
                     0xC0..=0xDF => {
                         let read = decoder.read(&mut byte)?;
                         if read == 0 {
-                            println!("Expect 1 addtional byte for utf8");
+                            tracing::info!("Expect 1 addtional byte for utf8");
                             break;
                         }
                         buffer.push(byte[0]);
@@ -338,7 +338,7 @@ impl StringIndexerPersistence for StringIndexer {
                         let mut byte2 = [0u8; 2];
                         let read = decoder.read(&mut byte2)?;
                         if read != 2 {
-                            println!("Expect 2 addtional bytes for utf8");
+                            tracing::info!("Expect 2 addtional bytes for utf8");
                             break;
                         }
                         buffer.extend_from_slice(&byte2[0..2]);
@@ -347,13 +347,13 @@ impl StringIndexerPersistence for StringIndexer {
                         let mut byte3 = [0u8; 3];
                         let read = decoder.read(&mut byte3)?;
                         if read != 3 {
-                            println!("Expect 3 additional bytes for utf8");
+                            tracing::info!("Expect 3 additional bytes for utf8");
                             break;
                         }
                         buffer.extend_from_slice(&byte3[0..3]);
                     }
                     _ => {
-                        println!("Invalid UTF-8 byte detected: 0x{:X}", byte[0]);
+                        tracing::info!("Invalid UTF-8 byte detected: 0x{:X}", byte[0]);
                     }
                 };
             }

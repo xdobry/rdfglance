@@ -47,6 +47,7 @@ slug = "0.1.6"
 xxhash-rust = { version="0.8.15", features = ["xxh3"]}
 base62 = "2.2.4"
 json-event-parser = "0.2.3"
+tracing = "0.1"
 
 [dev-dependencies]
 peak_alloc = "0.3.0"

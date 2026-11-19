@@ -29,6 +29,7 @@ enum MenuAction {
 impl RdfGlanceApp {
     pub fn menu_bar(&mut self, ui: &mut egui::Ui) {
         let mut menu_action = MenuAction::None;
+        let mut loading_started = false;
         ui.input(|i| {
             if i.modifiers.ctrl && i.key_pressed(Key::O) {
                 menu_action = MenuAction::ImportRDF;
@@ -79,12 +80,14 @@ impl RdfGlanceApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Import all from dir").clicked() {
                     if let Some(path) = FileDialog::new().pick_folder() {
-                        let selected_dir = Some(path.display().to_string());
-                        if let Some(selected_dir) = &selected_dir {
-                            self.load_ttl_dir(selected_dir);
-                        }
+                        let selected_dir = path.display().to_string();
+                        self.load_ttl_dir(&selected_dir);
+                        loading_started = self.data_loading.is_some();
                     }
                     ui.close_kind(UiKind::Menu);
+                    if loading_started {
+                        return;
+                    }
                 }
                 if !self.is_empty() {
                     let has_visual_graph_nodes = !self.visible_nodes.nodes.read().unwrap().is_empty();
@@ -231,10 +234,14 @@ impl RdfGlanceApp {
                                 } else {
                                     self.load_ttl(&last_file_clicked, ui.visuals().dark_mode);
                                 }
+                                loading_started = self.data_loading.is_some();
                             }
                             ui.ctx().request_repaint();
                         }
                     });
+                }
+                if loading_started {
+                    return;
                 }
                 if !self.is_empty() {
                     ui.separator();
@@ -245,6 +252,9 @@ impl RdfGlanceApp {
                 }
                 consume_keys = true;
             });
+            if loading_started {
+                return;
+            }
             if matches!(self.display_type, crate::DisplayType::Graph) {
                 ui.menu_button("Selection", |ui| {
                     ui.add_enabled_ui(self.ui_state.selected_node.is_some(), |ui| {

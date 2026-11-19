@@ -49,7 +49,7 @@ fn collect_rdf_files(dir_name: &str, files: &mut Vec<String>) -> Result<()> {
     let entries = fs::read_dir(dir_name).with_context(|| format!("Failed to read directory {}", dir_name));
     match entries {
         Err(e) => {
-            eprintln!("Error reading dir {}: {}", dir_name, e)
+            tracing::error!("Error reading dir {}: {}", dir_name, e)
         }
         Ok(entries) => {
             for entry in entries {
@@ -83,24 +83,64 @@ impl RDFWrap {
         let mut total_triples = 0;
         let mut files = Vec::new();
         collect_rdf_files(dir_name, &mut files)?;
-        if let Some(data_loading) = data_loading {
-            let mut size_total = 0;
-            for file in &files {
-                let metadata =
-                    fs::metadata(file).with_context(|| format!("Failed to get metadata for file {}", file))?;
-                size_total += metadata.len() as usize;
-            }
+        let file_sizes = if let Some(data_loading) = data_loading {
             data_loading
-                .total_size
-                .store(size_total, std::sync::atomic::Ordering::Relaxed);
-        }
-        for file in &files {
-            match RDFWrap::load_file(file, rdf_data, language_filter, data_loading) {
+                .total_files
+                .store(files.len(), std::sync::atomic::Ordering::Relaxed);
+            data_loading
+                .completed_files
+                .store(0, std::sync::atomic::Ordering::Relaxed);
+            Some(
+                files
+                    .iter()
+                    .map(|file| {
+                        fs::metadata(file)
+                            .with_context(|| format!("Failed to get metadata for file {}", file))
+                            .map(|metadata| metadata.len() as usize)
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )
+        } else {
+            None
+        };
+        for (file_index, file) in files.iter().enumerate() {
+            let file_size = file_sizes.as_ref().and_then(|sizes| sizes.get(file_index)).copied();
+            if let Some(data_loading) = data_loading {
+                if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                let Some(file_size) = file_size else {
+                    return Err(anyhow::anyhow!("Missing file size for directory import progress"));
+                };
+                data_loading
+                    .current_file
+                    .store(file_index + 1, std::sync::atomic::Ordering::Relaxed);
+                data_loading.read_pos.store(0, std::sync::atomic::Ordering::Relaxed);
+                data_loading
+                    .total_size
+                    .store(file_size, std::sync::atomic::Ordering::Relaxed);
+            }
+            let file_result = RDFWrap::load_file(file, rdf_data, language_filter, data_loading);
+            if let (Some(data_loading), Some(file_size)) = (data_loading, file_size) {
+                if !data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                    data_loading
+                        .read_pos
+                        .store(file_size, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            match file_result {
                 Ok(triples) => {
                     total_triples += triples;
                 }
                 Err(e) => {
-                    eprintln!("Error processing file {}: {}", file, e);
+                    tracing::error!("Error processing file {}: {}", file, e);
+                }
+            }
+            if let Some(data_loading) = data_loading {
+                if !data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
+                    data_loading
+                        .completed_files
+                        .store(file_index + 1, std::sync::atomic::Ordering::Relaxed);
                 }
             }
         }
@@ -173,7 +213,7 @@ impl RDFWrap {
                         .total_size
                         .store(content_length as usize, std::sync::atomic::Ordering::Relaxed);
                 } else {
-                    println!("Content-Length header not found for URL {}", url);
+                    tracing::info!("Content-Length header not found for URL {}", url);
                 }
             }
         }
@@ -266,7 +306,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -305,7 +345,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -337,7 +377,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -376,7 +416,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -408,7 +448,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -440,7 +480,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -473,7 +513,7 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing triple: {}", e);
+                            tracing::error!("Error parsing triple: {}", e);
                         }
                     }
                 }
@@ -495,14 +535,14 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing json: {}", e);
+                            tracing::error!("Error parsing json: {}", e);
                         }
                     },
                     _ => {}
                 });
                 match res {
                     Err(e) => {
-                        eprintln!("Error parsing json: {}", e);
+                        tracing::error!("Error parsing json: {}", e);
                     }
                     Ok(_) => {}
                 }
@@ -525,14 +565,14 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing json: {}", e);
+                            tracing::error!("Error parsing json: {}", e);
                         }
                     },
                     _ => {}
                 });
                 match res {
                     Err(e) => {
-                        eprintln!("Error parsing xml: {}", e);
+                        tracing::error!("Error parsing xml: {}", e);
                     }
                     Ok(_) => {}
                 }
@@ -554,14 +594,14 @@ impl RDFWrap {
                             );
                         }
                         Err(e) => {
-                            eprintln!("Error parsing json: {}", e);
+                            tracing::error!("Error parsing json: {}", e);
                         }
                     },
                     _ => {}
                 });
                 match res {
                     Err(e) => {
-                        eprintln!("Error parsing ndjson: {}", e);
+                        tracing::error!("Error parsing ndjson: {}", e);
                     }
                     Ok(_) => {}
                 }
@@ -576,8 +616,8 @@ impl RDFWrap {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let duration = start.elapsed();
-            println!("Time taken to read the file {:?}", duration);
-            println!(
+            tracing::info!("Time taken to read the file {:?}", duration);
+            tracing::info!(
                 "Triples read per second: {}",
                 triples_count as f64 / duration.as_secs_f64()
             );
@@ -821,7 +861,7 @@ impl RDFWrap {
         });
 
         // let mut i  = 0;
-        for parse_item in rx {
+        for parse_item in rx.iter() {
             /*
             queue_size.fetch_sub(1, Ordering::Relaxed);
             if i%1000==0 {
@@ -831,7 +871,7 @@ impl RDFWrap {
              */
             if let Some(data_loading) = data_loading {
                 if data_loading.stop_loading.load(std::sync::atomic::Ordering::Relaxed) {
-                    println!("Stopping loading due to user request");
+                    tracing::info!("Stopping loading due to user request");
                     break;
                 }
                 data_loading
@@ -859,16 +899,17 @@ impl RDFWrap {
                         );
                     }
                     Err(e) => {
-                        eprintln!("Error parsing triple: {}", e);
+                        tracing::error!("Error parsing triple: {}", e);
                     }
                 },
             }
         }
+        drop(rx);
         let thread_res = handle.join();
         thread_res.unwrap()?;
         let duration = start.elapsed();
-        println!("Time taken to read the file {:?}", duration);
-        println!(
+        tracing::info!("Time taken to read the file {:?}", duration);
+        tracing::info!(
             "Triples read per second: {}",
             triples_count as f64 / duration.as_secs_f64()
         );
@@ -895,7 +936,7 @@ impl RDFWrap {
                         }
                         _ => {
                             // types.push(triple.object.to_string());
-                            println!("type is not named node {}", triple.object);
+                            tracing::info!("type is not named node {}", triple.object);
                         }
                     }
                 } else {
@@ -935,13 +976,13 @@ impl RDFWrap {
                     }
                     _ => {
                         // reverse_references.push((node_data.get_predicate_index(triple.predicate.as_str()), triple.subject.to_string()));
-                        println!("reverse reference is not named node {}", triple.subject);
+                        tracing::info!("reverse reference is not named node {}", triple.subject);
                     }
                 }
             }
         }
         if !found {
-            println!("Object not found: {}", iri);
+            tracing::info!("Object not found: {}", iri);
             return None;
         }
         Some(NObject {
@@ -984,6 +1025,84 @@ mod tests {
         assert!(load_result.is_ok());
         assert!(load_result.unwrap() > 0);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_from_dir_tracks_current_file_progress() -> anyhow::Result<()> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("rdf-glance-dir-import-{timestamp}"));
+        fs::create_dir(&dir)?;
+
+        let first = "<http://example.org/one> <http://example.org/value> \"one\" .\n";
+        let second = "<http://example.org/two> <http://example.org/value> \"two and more\" .\n";
+        fs::write(dir.join("one.ttl"), first)?;
+        fs::write(dir.join("two.ttl"), second)?;
+        let file_sizes = [first.len(), second.len()];
+
+        let mut rdf_data = RdfData {
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
+        };
+        let data_loading = DataLoading {
+            stop_loading: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            progress: Arc::new(AtomicUsize::new(0)),
+            total_triples: Arc::new(AtomicUsize::new(0)),
+            read_pos: Arc::new(AtomicUsize::new(0)),
+            total_size: Arc::new(AtomicUsize::new(0)),
+            current_file: Arc::new(AtomicUsize::new(0)),
+            total_files: Arc::new(AtomicUsize::new(0)),
+            completed_files: Arc::new(AtomicUsize::new(0)),
+            finished: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        let triples = RDFWrap::load_from_dir(dir.to_str().unwrap(), &mut rdf_data, &[], Some(&data_loading))?;
+
+        assert_eq!(2, triples);
+        assert_eq!(2, data_loading.current_file.load(Ordering::Relaxed));
+        assert_eq!(2, data_loading.total_files.load(Ordering::Relaxed));
+        assert_eq!(2, data_loading.completed_files.load(Ordering::Relaxed));
+        let current_file_size = data_loading.total_size.load(Ordering::Relaxed);
+        assert!(file_sizes.contains(&current_file_size));
+        assert_eq!(current_file_size, data_loading.read_pos.load(Ordering::Relaxed));
+
+        fs::remove_dir_all(dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_stop_loading_unblocks_rdf_parser() -> anyhow::Result<()> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos();
+        let file = std::env::temp_dir().join(format!("rdf-glance-stop-import-{timestamp}.ttl"));
+        let triples = (0..2_000)
+            .map(|index| format!("<http://example.org/{index}> <http://example.org/value> \"value\" .\n"))
+            .collect::<String>();
+        fs::write(&file, triples)?;
+
+        let mut rdf_data = RdfData {
+            node_data: NodeData::new(),
+            prefix_manager: PrefixManager::new(),
+        };
+        let data_loading = DataLoading {
+            stop_loading: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            progress: Arc::new(AtomicUsize::new(0)),
+            total_triples: Arc::new(AtomicUsize::new(0)),
+            read_pos: Arc::new(AtomicUsize::new(0)),
+            total_size: Arc::new(AtomicUsize::new(0)),
+            current_file: Arc::new(AtomicUsize::new(0)),
+            total_files: Arc::new(AtomicUsize::new(0)),
+            completed_files: Arc::new(AtomicUsize::new(0)),
+            finished: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        let loaded = RDFWrap::load_file(&file, &mut rdf_data, &[], Some(&data_loading))?;
+
+        assert_eq!(0, loaded);
+        fs::remove_file(file)?;
         Ok(())
     }
 

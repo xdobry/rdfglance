@@ -63,13 +63,13 @@ where {{
                 {
                     Ok(response) => response,
                     Err(e) => {
-                        eprintln!("Error SPARQL Call: {}", e);
+                        tracing::error!("Error SPARQL Call: {}", e);
                         return None;
                     }
                 }
             };
             if response.status() != 200 {
-                eprintln!("Error SPARQL call: {}", response.status());
+                tracing::error!("Error SPARQL call: {}", response.status());
                 return None;
             }
             let buf_reader = BufReader::new(response);
@@ -81,7 +81,7 @@ where {{
             match parser.collect::<Result<Vec<_>, _>>() {
                 Ok(triples) => triples,
                 Err(e) => {
-                    eprintln!("Error parsing Turtle: {}", e);
+                    tracing::error!("Error parsing Turtle: {}", e);
                     Vec::new()
                 }
             }

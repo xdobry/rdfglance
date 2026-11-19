@@ -82,7 +82,7 @@ fn add_predicate_object(
                 node.types.push(type_index);
             }
         } else {
-            println!("type is not named node {}", object);
+            tracing::info!("type is not named node {}", object);
         }
         return;
     }

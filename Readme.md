@@ -159,6 +159,10 @@ After compiling the application, you can run it using the following command:
 cargo run --package rdf-glance-desktop --release
 ```
 
+The desktop application emits `info` and higher-level tracing events to stderr by default. Set `RUST_LOG` to control verbosity, for example `RUST_LOG=warn` to suppress informational events or `RUST_LOG=trace` to include trace events. Orthogonal-routing diagnostics additionally require building with `--features rdf-glance/debug-orth`. The WASM application does not install a logging subscriber, so tracing output is suppressed in the browser by default.
+
+Use `$env:RUST_LOG = "off"` in powershell on windows to disable logging
+
 For more information on how to use **RDFGlance**, refer to the documentation provided in the [repository](documentation/manual.md).
 
 ## Wasm Web Application Build

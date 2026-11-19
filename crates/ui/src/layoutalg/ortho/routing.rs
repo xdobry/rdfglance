@@ -867,7 +867,7 @@ pub fn map_routes_to_segments(
                             vindex,
                             hindex,
                             channel_slot,
-                            last_channel_id,
+                            _last_channel_id,
                             vslot,
                             hslot
                         );
@@ -922,7 +922,7 @@ mod tests {
         assert!(!routing_graph.vchannels.is_empty());
         assert!(!routing_graph.hchannels.is_empty());
         for (node_idx, node) in routing_graph.nodes.iter().enumerate() {
-            println!("Node:{} - {:?}", node_idx, node);
+            crate::dbgorth!("Node:{} - {:?}", node_idx, node);
         }
     }
 
@@ -953,13 +953,13 @@ mod tests {
         assert!(!routing_graph.nodes.is_empty());
 
         for (idx, c) in routing_graph.vchannels.iter().enumerate() {
-            println!("V Channel: {} {:?}", idx, c);
+            crate::dbgorth!("V Channel: {} {:?}", idx, c);
         }
         for (idx, c) in routing_graph.hchannels.iter().enumerate() {
-            println!("H Channel: {} {:?}", idx, c);
+            crate::dbgorth!("H Channel: {} {:?}", idx, c);
         }
         for (node_idx, node) in routing_graph.nodes.iter().enumerate() {
-            println!(" idx: {} {:?}", node_idx, node);
+            crate::dbgorth!(" idx: {} {:?}", node_idx, node);
         }
 
         let edges = vec![(0, 1), (0, 3), (0, 4), (2, 3), (1, 4), (1, 3), (2, 4)]
@@ -974,12 +974,12 @@ mod tests {
 
         let routes = route_edges(&routing_graph, &edges, &boxes);
         for route in routes.iter() {
-            println!("route for edge {}->{}", route.from, route.to);
+            crate::dbgorth!("route for edge {}->{}", route.from, route.to);
             // We should have only easy routes with no bends in this test
             assert!(route.route.len() == 2);
             for node_idx in route.route.iter() {
                 let node = &routing_graph.nodes[*node_idx];
-                println!(" idx: {} {:?}", *node_idx, node);
+                crate::dbgorth!(" idx: {} {:?}", *node_idx, node);
             }
         }
         assert_eq!(routes.len(), edges.len());

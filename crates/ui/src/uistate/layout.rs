@@ -335,7 +335,7 @@ impl SortedNodeLayout {
             index_to_add.sort_unstable_by(|a, b| a.1.cmp(&b.1));
             index_to_add.dedup_by(|a, b| a.1 == b.1);
             if index_to_add.len() + nodes.len() > config.max_visible_nodes {
-                println!("Truncating nodes to add to visual graph for reaching the configured display limit");
+                tracing::info!("Truncating nodes to add to visual graph for reaching the configured display limit");
                 index_to_add.truncate(config.max_visible_nodes - nodes.len());
             }
             index_to_add.iter().for_each(inserted_callback);
@@ -1167,7 +1167,7 @@ impl SortedNodeLayout {
             self.orth_edges = None;
             command.undo(self, &hidden_predicates, config, true);
         } else {
-            println!("Nothing to undo");
+            tracing::info!("Nothing to undo");
         }
     }
 

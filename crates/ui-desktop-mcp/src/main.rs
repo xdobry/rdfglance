@@ -20,6 +20,20 @@ use crate::tool_api::DatasetProfile;
 fn main() -> Result<(), eframe::Error> {
     use eframe::egui::ViewportBuilder;
     use rdf_glance::support::uitools::load_icon;
+    use tracing_subscriber::EnvFilter;
+
+    let filter = match EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(error) if std::env::var_os("RUST_LOG").is_some() => {
+            eprintln!("Invalid RUST_LOG filter; using info: {error}");
+            EnvFilter::new("info")
+        }
+        Err(_) => EnvFilter::new("info"),
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
 
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default().with_icon(load_icon()),
@@ -46,7 +60,7 @@ fn start_mcp(ctx: egui::Context) -> (mpsc::Receiver<UiCommand>, Arc<RwLock<Datas
     let server_profile = Arc::clone(&dataset_profile);
 
     thread::spawn(move || {
-        eprintln!("starting mcp");
+        tracing::info!("starting mcp");
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()

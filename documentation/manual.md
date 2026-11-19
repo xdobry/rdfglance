@@ -11,6 +11,8 @@ You can load your **RDF** file by:
 - Dragging the file onto the application window
 - Providing the file location as an application start parameter. This works best if you associate the `.ttl` file extension with **RDFGlance**, so you can open a `.ttl` file from your file explorer with a double-click.
 
+On desktop, **File → Import all from dir** recursively imports supported RDF files from a directory. The loading view shows overall progress by completed files, separate byte progress for the current file, the file count, and a **Stop Loading** button. This option is not available in the browser version.
+
 After loading data, you can choose among the following tabs: **Tables**, **Visual Graph**, **Browse**, **Meta Graph** and **Statistics**
 A good place to start is the **Tables** tab.
 
