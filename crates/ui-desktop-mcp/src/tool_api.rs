@@ -215,6 +215,14 @@ pub struct NodeReferenceInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SearchNodeResult {
+    pub iri: String,
+    pub types: Vec<String>,
+    pub property: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Filter {
     #[serde(alias = "atrribute")]
     pub attribute: String,

@@ -10,26 +10,25 @@
 
 # tool: load_data
 
-state: open
+state: implemented
 
 pass as argument the file location.
 Load from file it might be all supported rdf files. Search in code for all supported formats
 
 # tool: reset_data
 
-state: open
+state: implemented
 
 call RdfGlanceApp.clean_data() 
 
 # tool: search 
 
-state: open, not implement yet
+state: implemented
 
 - open 
 - description: full text search for all literals.
 - paremters: 
   - search_text: string
-  - include iris: boolean
   - max_result: int
 
 It should return list of nodes
@@ -46,14 +45,14 @@ on it.
 
 ## tool: wg_add_nodes
 
-state: open
+state: implemented
 
 Add node to working graph bei iri (shorten iri) list
 There is NodeAction::AddNode, add new AddNodes so many iri-indexes can be handled
 
 ## tool: wg_expand
 
-state: open
+state: implemented
 
 expand nodes.
 parameter:
@@ -65,7 +64,7 @@ It correspond already to existing functionality in system
 
 ## tool: wg_info
 
-state: open
+state: implemented
 
 give info about existing nodes in visual graph
 result:
@@ -76,20 +75,20 @@ result:
 
 # tool: wg_clean
 
-state: open
+state: implemented
 
 remove all data from graph
 
 # tool: wg_run_algorith
 
-state: open
+state: implemented
 
 run algorithm on working graph - 
 
 
 # tool: wg_reset_statistics
 
-state: open
+state: implemented
 
 # RunQuery
 

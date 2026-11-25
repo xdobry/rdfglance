@@ -119,6 +119,14 @@ def test_data_tools(client, dataset):
 	check(profile["nodes"] == loaded["nodes"], "Loaded dataset profile does not match")
 
 
+def test_get_prefixes(client):
+	prefixes = client.call_tool("get_prefixes")
+	check(isinstance(prefixes, dict), "Expected get_prefixes to return a prefix map")
+	check(prefixes.get("dbr") == "http://dbpedia.org/resource/", "DBpedia resource prefix is missing")
+	check(prefixes.get("dbo") == "http://dbpedia.org/ontology/", "DBpedia ontology prefix is missing")
+	check(prefixes.get("rdfs") == "http://www.w3.org/2000/01/rdf-schema#", "RDF Schema prefix is missing")
+
+
 def test_working_graph_tools(client):
 	graph = client.call_tool("wg_clean")
 	check(graph["node_count"] == 0 and graph["edge_count"] == 0, "Working graph was not cleared")
@@ -156,6 +164,13 @@ def test_node_tools(client):
 	check(shown == PERSON_IRI, "Unexpected node from show_node")
 
 
+def test_search_tool(client):
+	results = client.call_tool("search", {"search_text": PERSON_LABEL, "max_result": 10})
+	check(isinstance(results, list) and len(results) == 1, "Expected exactly one search result")
+	check(results[0]["iri"] == PERSON_IRI, "Search did not return PERSON_IRI")
+	check(results[0]["value"] == PERSON_LABEL, "Search did not return the matching person label")
+
+
 def test_type_instances(client):
 	unfiltered = client.call_tool("show_type_instances", {"type_name": PERSON_TYPE, "filters": []})
 	check(unfiltered["count"] > 1, "Expected multiple unfiltered persons")
@@ -171,7 +186,9 @@ def test_type_instances(client):
 
 def run_tool_tests(client, dataset):
 	test_data_tools(client, dataset)
+	test_get_prefixes(client)
 	test_node_tools(client)
+	test_search_tool(client)
 	test_working_graph_tools(client)
 	test_type_instances(client)
 

@@ -25,6 +25,7 @@ CI runs the native build and full tests, then compiles the WASM target; see `.gi
 ## Repository-specific conventions
 
 - The graph is type-oriented: nodes and table/statistics views are organized around RDF types. Named graphs are ignored, as described in `Readme.md`.
+- RDF IRIs are stored with prefixes such as `dbr:`, `dbo:`, and `rdfs:`; preserve this form in data and MCP results rather than expanding IRIs.
 - Node, predicate, type, language, and short-literal IDs are numeric indexes into interners or the insertion-ordered node cache. Long literal values use spans into a shared string cache. Preserve these indexes when changing storage or iteration; removing/reordering cached nodes can invalidate references.
 - When changing `Literal` or another serialized model, update all consumers (parsing, labels/property selection, tables/queries/statistics) and the matching binary serialization/deserialization in `src/integration/persistency.rs`.
 - `TypeInstanceIndex` is derived from `NodeData`; after changing graph data, follow the existing index-refresh path rather than treating those statistics as live.

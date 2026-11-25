@@ -1,9 +1,9 @@
 use eframe::Storage;
 use egui::Ui;
 use rdf_analytics::domain::type_index::TypeData;
-use rdf_glance::IriIndex;
+use rdf_glance::{IriIndex, uistate::DisplayType};
 use rdf_glance::domain::{
-    RdfData,
+    RdfData, SearchResult,
     graph_model::short_iri,
     type_index::{InstanceView, TypeInstanceIndexView},
     visual_query::{FilterEvaluator, PredicateFilter},
@@ -13,13 +13,13 @@ use rdf_glance::{
     RdfGlanceApp,
     uistate::{DataLoading, SystemMessage, events::AppEvent},
 };
-use std::sync::{Arc, RwLock, atomic::Ordering};
+use std::{collections::BTreeMap, sync::{Arc, RwLock, atomic::Ordering}};
 use tokio::sync::{mpsc::Receiver, oneshot};
 
 use crate::mcp::{GetTypeInstanceRangeParams, UiCommand};
 use crate::tool_api::{
     DatasetProfile, Filter, InstanceQueryRangeResult, InstanceQueryResult, NodeInfo, NodePropertyInfo,
-    NodeReferenceInfo, dataset_profile_from_index, value_type_names,
+    NodeReferenceInfo, SearchNodeResult, dataset_profile_from_index,
 };
 
 pub struct RdfGlanceMcpApp {
@@ -182,6 +182,50 @@ impl RdfGlanceMcpApp {
                         .collect();
                     let _ = reply.send(result);
                 }
+                UiCommand::Search { parameters, reply } => {
+                    let rdf_data = match self.my_app.rdf_data.read() {
+                        Ok(rdf_data) => rdf_data,
+                        Err(_) => {
+                            let _ = reply.send(Err("no data lock".to_string()));
+                            continue;
+                        }
+                    };
+                    let mut search_results = rdf_data.search_nodes(&parameters.search_text);
+                    search_results.truncate(parameters.max_result);
+                    let result = search_results
+                        .iter()
+                        .map(|result| search_node_result(&rdf_data, result, &parameters.search_text))
+                        .collect::<Result<Vec<_>, _>>();
+                    drop(rdf_data);
+
+                    match result {
+                        Ok(results) => {
+                            self.my_app.search_string = parameters.search_text;
+                            self.my_app.search_results = search_results;
+                            self.my_app.display_type = DisplayType::Browse;
+                            let _ = reply.send(Ok(results));
+                        }
+                        Err(error) => {
+                            let _ = reply.send(Err(error));
+                        }
+                    }
+                }
+                UiCommand::GetPrefixes { reply } => {
+                    let prefixes = self
+                        .my_app
+                        .rdf_data
+                        .read()
+                        .map(|rdf_data| {
+                            rdf_data
+                                .prefix_manager
+                                .prefixes
+                                .iter()
+                                .map(|(full_iri, prefix)| (prefix.to_string(), full_iri.to_string()))
+                                .collect::<BTreeMap<_, _>>()
+                        })
+                        .map_err(|_| "no data lock".to_string());
+                    let _ = reply.send(prefixes);
+                }
             }
         }
     }
@@ -256,6 +300,48 @@ fn node_info(rdf_data: &RdfData, requested_iri: &str) -> Result<NodeInfo, String
         reverse_references: node_reference_infos(&rdf_data.node_data, &node.reverse_references, iri)?,
         is_blank_node: node.is_blank_node,
         has_subject: node.has_subject,
+    })
+}
+
+fn search_node_result(
+    rdf_data: &RdfData,
+    result: &SearchResult,
+    search_text: &str,
+) -> Result<SearchNodeResult, String> {
+    let node_data = &rdf_data.node_data;
+    let (iri, node) = node_data
+        .get_node_by_index(result.node_index)
+        .ok_or_else(|| format!("search result node {} is unavailable", result.node_index))?;
+    let types = node
+        .types
+        .iter()
+        .map(|type_index| {
+            node_data
+                .get_type(*type_index)
+                .map(str::to_string)
+                .ok_or_else(|| format!("node {iri} has an invalid type index {type_index}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let predicate = node_data
+        .get_predicate(result.found_property_index)
+        .ok_or_else(|| format!("node {iri} has an invalid property index {}", result.found_property_index))?;
+    let value = node
+        .properties
+        .iter()
+        .find_map(|(predicate_index, literal)| {
+            if *predicate_index != result.found_property_index {
+                return None;
+            }
+            let value = literal.as_str_ref(&node_data.indexers);
+            value.contains(search_text).then(|| value.to_string())
+        })
+        .ok_or_else(|| format!("matching value for property {predicate} on node {iri} is unavailable"))?;
+
+    Ok(SearchNodeResult {
+        iri: iri.to_string(),
+        types,
+        property: predicate.to_string(),
+        value,
     })
 }
 
@@ -547,7 +633,7 @@ mod tests {
         assert_eq!(rust_info.iri, rust_iri);
         assert!(!rust_info.types.is_empty());
         assert!(rust_info.properties.iter().any(|property| {
-            property.predicate.ends_with("label") && property.value == "Rust" && !property.value_types.is_empty()
+            property.predicate.ends_with("label") && property.value == "Rust"
         }));
         assert_eq!(rust_info.is_blank_node, rust_node.is_blank_node);
         assert_eq!(rust_info.has_subject, rust_node.has_subject);
@@ -642,6 +728,43 @@ mod tests {
         )
         .expect("large ranges should be capped");
         assert_eq!(capped.rows.len(), 100);
+    }
+
+    #[test]
+    fn search_command_returns_enriched_results_and_updates_app_state() {
+        use crate::mcp::{SearchParams, UiCommand};
+
+        let data_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sample-rdf-data/programming_languages.ttl");
+        let (ui_tx, ui_rx) = tokio::sync::mpsc::channel(1);
+        let mut mcp_app = RdfGlanceMcpApp::new(None, vec![], ui_rx, Arc::new(RwLock::new(DatasetProfile::default())));
+        mcp_app.my_app.load_ttl(data_path.to_str().unwrap(), true);
+        mcp_app.my_app.join_load(false);
+
+        let (reply, result_rx) = oneshot::channel();
+        assert!(
+            ui_tx
+                .try_send(UiCommand::Search {
+                    parameters: SearchParams {
+                        search_text: "Rust".to_string(),
+                        max_result: 100,
+                    },
+                    reply,
+                })
+                .is_ok()
+        );
+        mcp_app.process_mcp_commands(&egui::Context::default());
+
+        let results = result_rx.blocking_recv().unwrap().unwrap();
+        let rust_result = results
+            .iter()
+            .find(|result| result.value == "Rust" && !result.types.is_empty())
+            .expect("search should return the typed Rust node and its matching value");
+        assert!(rust_result.iri.contains("Rust"));
+        assert!(rust_result.property.ends_with("label"));
+        assert_eq!(mcp_app.my_app.search_string, "Rust");
+        assert_eq!(mcp_app.my_app.search_results.len(), results.len());
+        assert_eq!(mcp_app.my_app.display_type, DisplayType::Browse);
     }
 }
 

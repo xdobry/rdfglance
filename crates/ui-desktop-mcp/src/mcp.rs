@@ -16,11 +16,13 @@ use rmcp::model::{
 };
 use rmcp::service::RequestContext;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::tool_api::{
     DATASET_PROFILE_RESOURCE_URI, DatasetProfile, Filter, InstanceQueryRangeResult, InstanceQueryResult, NodeInfo,
+    SearchNodeResult,
 };
 use crate::working_graph::{AlgorithmParams, AlgorithmResult, ExpandParams, GraphInfo, NodeListParams};
 
@@ -52,6 +54,12 @@ pub struct ShowNodeParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetNodeInfoParams {
     pub node_iris: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SearchParams {
+    pub search_text: String,
+    pub max_result: usize,
 }
 
 #[cfg(test)]
@@ -103,6 +111,19 @@ mod tests {
 
         assert_eq!(parameters.node_iris.len(), 2);
     }
+
+    #[test]
+    fn search_requires_text_and_result_limit() {
+        let parameters: SearchParams = serde_json::from_value(serde_json::json!({
+            "search_text": "Rust",
+            "max_result": 25
+        }))
+        .expect("search parameters should deserialize");
+
+        assert_eq!(parameters.search_text, "Rust");
+        assert_eq!(parameters.max_result, 25);
+        assert!(serde_json::from_value::<SearchParams>(serde_json::json!({ "search_text": "Rust" })).is_err());
+    }
 }
 
 pub enum UiCommand {
@@ -149,6 +170,13 @@ pub enum UiCommand {
     GetNodeInfo {
         parameters: GetNodeInfoParams,
         reply: oneshot::Sender<Result<Vec<NodeInfo>, String>>,
+    },
+    Search {
+        parameters: SearchParams,
+        reply: oneshot::Sender<Result<Vec<SearchNodeResult>, String>>,
+    },
+    GetPrefixes {
+        reply: oneshot::Sender<Result<BTreeMap<String, String>, String>>,
     },
 }
 
@@ -324,6 +352,22 @@ impl MyMcpServer {
         Ok(Json(profile.clone()))
     }
 
+    #[tool(description = "Return a map of dataset prefixes to their full IRIs")]
+    async fn get_prefixes(&self) -> Result<Json<BTreeMap<String, String>>, McpError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.ui_tx
+            .send(UiCommand::GetPrefixes { reply: reply_tx })
+            .await
+            .map_err(|_| McpError::internal_error("egui application is no longer running", None))?;
+        self.egui_ctx.request_repaint();
+
+        let prefixes = reply_rx
+            .await
+            .map_err(|_| McpError::internal_error("egui did not respond", None))?
+            .map_err(|error| McpError::internal_error(error, None))?;
+        Ok(Json(prefixes))
+    }
+
     #[tool(description = "Show filtered instances of type in table. Only data properties filter are allowed")]
     async fn show_type_instances(
         &self,
@@ -400,6 +444,28 @@ impl MyMcpServer {
             .map_err(|error| McpError::internal_error(error, None))?;
 
         Ok(Json(iri))
+    }
+
+    #[tool(description = "Full-text search RDF literals and show up to max_result matches in the browse view")]
+    async fn search(&self, Parameters(args): Parameters<SearchParams>) -> Result<Json<Vec<SearchNodeResult>>, McpError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+
+        self.ui_tx
+            .send(UiCommand::Search {
+                parameters: args,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpError::internal_error("egui application is no longer running", None))?;
+
+        self.egui_ctx.request_repaint();
+
+        let results = reply_rx
+            .await
+            .map_err(|_| McpError::internal_error("egui did not respond", None))?
+            .map_err(|error| McpError::internal_error(error, None))?;
+
+        Ok(Json(results))
     }
 
     #[tool(

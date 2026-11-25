@@ -48,8 +48,59 @@ impl RdfGlanceApp {
                 tracing::info!("load object: {}", self.object_iri);
                 self.show_object();
             }
+            egui::TextEdit::singleline(&mut self.search_string)
+                .hint_text("Search")
+                .show(ui);
+            if ui.button("Search").clicked() {
+                self.search_nodes();
+            }
         });
         let mut node_to_click: ReferenceAction = ReferenceAction::None;
+        if !self.search_results.is_empty() {
+            ui.horizontal(|ui| {
+                ui.heading(format!("Search Results ({})", self.search_results.len()));
+                if ui.button("Reset Search").clicked() {
+                    self.search_results.clear();
+                }
+            });
+            if !self.search_results.is_empty() {
+                if let Ok(rdf_data) = self.rdf_data.read() {
+                    TableBuilder::new(ui)
+                        .striped(true)
+                        .column(Column::remainder())
+                        .column(Column::remainder())
+                        .header(20.0, |mut header| {
+                            header.col(|ui| {
+                                ui.strong("Node");
+                            });
+                            header.col(|ui| {
+                                ui.strong("Found property");
+                            });
+                        })
+                        .body(|body| {
+                            body.rows(20.0, self.search_results.len(), |mut row| {
+                                let result = self.search_results[row.index()];
+                                row.col(|ui| {
+                                    if let Some((iri, _)) = rdf_data.node_data.get_node_by_index(result.node_index) {
+                                        if ui.link(iri.as_ref()).clicked() {
+                                            action_type_index = NodeAction::BrowseNode(result.node_index);
+                                        }
+                                    } else {
+                                        ui.label("<unknown node>");
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let predicate = rdf_data
+                                        .node_data
+                                        .get_predicate(result.found_property_index)
+                                        .unwrap_or("<unknown property>");
+                                    ui.label(predicate);
+                                });
+                            });
+                        });
+                }
+            }
+        }
         if let Some(current_iri_index) = self.current_iri {
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let current_node = rdf_data.node_data.get_node_by_index(current_iri_index);

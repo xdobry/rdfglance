@@ -32,7 +32,7 @@ use crate::ui::sparql_dialog::SparqlDialog;
 use crate::{
     DisplayType, IriIndex, SystemMessage,
     domain::{
-        LangIndex, NodeChangeContext, NodeData, RdfData,
+        LangIndex, NodeChangeContext, NodeData, RdfData, SearchResult,
         app_persistence::AppPersistentData,
         config::Config,
         graph_styles::{GVisualizationStyle, NodeStyle},
@@ -53,6 +53,8 @@ use crate::{
 
 pub struct RdfGlanceApp {
     pub object_iri: String,
+    pub search_string: String,
+    pub search_results: Vec<SearchResult>,
     pub current_iri: Option<IriIndex>,
     pub ref_selection: RefSelection,
     pub rdfwrap: Box<dyn RDFAdapter>,
@@ -87,6 +89,15 @@ pub struct RdfGlanceApp {
 
 // Implement default values for MyApp
 impl RdfGlanceApp {
+    pub fn search_nodes(&mut self) {
+        if self.search_string.len()>0 {
+            if let Ok(rdf_data) = self.rdf_data.read() {
+                self.search_results = rdf_data.search_nodes(&self.search_string);
+            }
+            self.set_status_message(&format!("Found {} nodes", self.search_results.len()));
+        }
+    }
+
     pub fn new(storage: Option<&dyn Storage>, args: Vec<String>) -> Self {
         let persistent_data: Option<AppPersistentData> = match storage {
             Some(storage) => {
@@ -104,6 +115,8 @@ impl RdfGlanceApp {
         };
         let mut app = Self {
             object_iri: String::new(),
+            search_string: String::new(),
+            search_results: Vec::new(),
             current_iri: None,
             ref_selection: RefSelection::None,
             rdfwrap: Box::new(RDFWrap::empty()),

@@ -279,6 +279,7 @@ fn desktop_stdio_load_reset_and_working_graph_tools() {
     for name in [
         "load_data",
         "reset_data",
+        "search",
         "wg_add_nodes",
         "wg_expand",
         "wg_info",
