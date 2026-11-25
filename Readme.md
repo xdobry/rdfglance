@@ -11,6 +11,7 @@
 - No tracking, No account needed, real open source
 - Engineered for real users by a real programmer, written in Rust for direct, uncompromised performance on the metal.
 - Multithread Processing to use 100% of your CPU power
+- AI Ready with MCP Protcol (Use rdfglance from AI Chat)
 
 Try [Rdfglance WASM version](https://xdobry.github.io/rdfglance/) directly in your browser.
 You can browse your RDF Data online.
@@ -48,6 +49,15 @@ Visual Query Builder
 
 [Manual](documentation/manual.md)
 
+## AI-assisted exploration with MCP
+
+RDFGlance is AI-ready: through the Model Context Protocol (MCP), compatible AI
+assistants can inspect the dataset open in the desktop app, explore typed
+instances, and look up nodes from natural-language requests. RDFGlance provides
+the data and visual views; the assistant helps you navigate them.
+
+See the [MCP guide](documentation/mcp.md) for setup instructions, supported
+tools, and an example conversation.
 
 ## Features
 
@@ -136,19 +146,32 @@ Follow these steps to compile the application:
 
 2. Build the application using Cargo:
   ```sh
-  cargo build --release
+  cargo build --workspace --release
   ```
 
 3. The compiled binary will be located in the `target/release` directory.
 
 You may also pick the precompiled executable for windows from [github releases](https://github.com/xdobry/rdfglance/releases).
 
+The Rust code is organized as a Cargo workspace:
+
+- `crates/rdf-core` contains the RDF model and shared indexing primitives.
+- `crates/rdf-analytics` contains graph statistics and clustering algorithms.
+- `crates/ui` contains the application and its graph visualization/layout.
+- `crates/ui-desktop` and `crates/ui-wasm` provide the desktop and browser entry points.
+
+To check or test the workspace, run `cargo check --workspace` or `cargo test --workspace` from the repository root.
+
 ## Usage
 
 After compiling the application, you can run it using the following command:
 ```sh
-./target/release/rdf-glance
+cargo run --package rdf-glance-desktop --release
 ```
+
+The desktop application emits `info` and higher-level tracing events to stderr by default. Set `RUST_LOG` to control verbosity, for example `RUST_LOG=warn` to suppress informational events or `RUST_LOG=trace` to include trace events. Orthogonal-routing diagnostics additionally require building with `--features rdf-glance/debug-orth`. The WASM application does not install a logging subscriber, so tracing output is suppressed in the browser by default.
+
+Use `$env:RUST_LOG = "off"` in powershell on windows to disable logging
 
 For more information on how to use **RDFGlance**, refer to the documentation provided in the [repository](documentation/manual.md).
 
@@ -166,12 +189,13 @@ Prepare wasm compilation
   ```
 
   ```sh
-  cargo build --target wasm32-unknown-unknown
+  cargo build --workspace --target wasm32-unknown-unknown
   ```
 
-Run server in dev mode
+Run the browser client from its crate directory:
 
   ```sh
+  cd crates/ui-wasm
   trunk serve
   ```
 

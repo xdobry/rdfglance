@@ -1,0 +1,1648 @@
+use std::cmp::min;
+use std::io;
+
+use const_format::concatcp;
+use egui::{Align, Align2, Color32, CursorIcon, Key, Layout, Popup, Pos2, Rect, Sense, Slider, Stroke, Vec2};
+use egui_extras::{Column, StripBuilder, TableBuilder};
+use rayon::prelude::*;
+
+const IMMADIATE_FILTER_COUNT: usize = 20000;
+
+use super::style::ICON_EXPORT;
+use crate::domain::type_index::{
+    ColumnDesc, InstanceColumnResize, InstanceView, TableContextMenu, TypeCellAction, TypeInstanceIndexView,
+};
+use crate::ui::statistics::show_value_statistics;
+use crate::{
+    IriIndex,
+    domain::RdfData,
+    domain::config::IriDisplay,
+    domain::graph_styles::GVisualizationStyle,
+    domain::prefix_manager::PrefixManager,
+    domain::{LabelContext, LangIndex, NodeData},
+    support::uitools::{ScrollBar, popup_at, primary_color, strong_unselectable},
+    ui::browse_view::show_references,
+    ui::style::{ICON_CLOSE, ICON_FILTER, ICON_GRAPH},
+    uistate::UIState,
+    uistate::actions::NodeAction,
+    uistate::actions::ReferenceAction,
+    uistate::ref_selection::RefSelection,
+};
+use rdf_analytics::domain::type_index::TypeData;
+
+impl TableContextMenu {
+    pub fn pos(&self) -> Pos2 {
+        match self {
+            TableContextMenu::ColumnMenu(pos, _) => *pos,
+            TableContextMenu::CellMenu(pos, _, _) => *pos,
+            TableContextMenu::RefMenu(pos, _) => *pos,
+            TableContextMenu::RefColumnMenu(pos) => *pos,
+            TableContextMenu::IriColumnMenu(pos) => *pos,
+            TableContextMenu::None => Pos2::new(0.0, 0.0),
+            TableContextMenu::QueryColumnMenu(pos, _, _) => *pos,
+            TableContextMenu::AggregationColumnMenu(pos, _) => *pos,
+        }
+    }
+}
+
+pub const ROW_HIGHT: f32 = 17.0;
+pub const CHAR_WIDTH: f32 = 8.0;
+pub const COLUMN_GAP: f32 = 2.0;
+
+struct TypeDataView<'a> {
+    type_data: &'a mut TypeData,
+    instance_view: &'a mut InstanceView,
+}
+
+impl<'a> TypeDataView<'a> {
+    pub fn instance_table(
+        &mut self,
+        ui: &mut egui::Ui,
+        table_action: &mut TableAction,
+        instance_action: &mut NodeAction,
+        node_data: &mut NodeData,
+        color_cache: &GVisualizationStyle,
+        prefix_manager: &PrefixManager,
+        layout_data: &UIState,
+        iri_display: IriDisplay,
+        text_has_focus: bool,
+    ) {
+        let a_height = ui.available_height();
+
+        let mut instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+        let capacity = ((a_height / ROW_HIGHT) as usize).max(2) - 1;
+
+        let any_popup = Popup::is_any_open(ui.ctx());
+        if !any_popup && !text_has_focus {
+            if let Some((_node_iri, idx)) = self.instance_view.selected_idx {
+                ui.input(|i| {
+                    let mut filter_idx: Option<usize> = None;
+                    if idx > 0 && i.modifiers.is_none() && i.key_pressed(Key::ArrowUp) {
+                        let new_idx = idx - 1;
+                        self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        if new_idx < instance_index {
+                            instance_index = new_idx;
+                            self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                        }
+                    } else if idx < self.type_data.filtered_instances.len() - 1
+                        && i.modifiers.is_none()
+                        && i.key_pressed(Key::ArrowDown)
+                    {
+                        let new_idx = idx + 1;
+                        self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        if new_idx >= instance_index + capacity - 1 {
+                            instance_index = new_idx + 1 - capacity;
+                            self.instance_view.pos = (instance_index as f32) * ROW_HIGHT;
+                        }
+                    } else if i.key_pressed(Key::Home) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        self.instance_view.pos = 0.0;
+                        instance_index = 0;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::End) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        let needed_len = (self.type_data.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                        self.instance_view.pos = needed_len - a_height;
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::PageUp) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        self.instance_view.pos -= a_height - ROW_HIGHT;
+                        if self.instance_view.pos < 0.0 {
+                            self.instance_view.pos = 0.0;
+                        }
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::PageDown) {
+                        let selected_view_index: i64 = idx as i64 - instance_index as i64;
+                        let needed_len = (self.type_data.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                        self.instance_view.pos += a_height - ROW_HIGHT;
+                        if self.instance_view.pos > needed_len - a_height {
+                            self.instance_view.pos = needed_len - a_height;
+                        }
+                        instance_index = (self.instance_view.pos / ROW_HIGHT) as usize;
+                        if selected_view_index >= 0 && selected_view_index < capacity as i64 {
+                            let new_idx = selected_view_index as usize + instance_index;
+                            self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                        }
+                    } else if i.key_pressed(Key::ArrowLeft) {
+                        if self.instance_view.column_pos > 0 {
+                            self.instance_view.column_pos -= 1;
+                        }
+                    } else if i.key_pressed(Key::ArrowRight) {
+                        let visible_len = self
+                            .instance_view
+                            .display_properties
+                            .iter()
+                            .filter(|p| p.visible)
+                            .count();
+                        if (self.instance_view.column_pos as usize) < visible_len {
+                            self.instance_view.column_pos += 1;
+                        }
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num1) {
+                        *table_action = TableAction::SortIriAsc();
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num2) {
+                        *table_action = TableAction::SortRefAsc()
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num3) {
+                        filter_idx = Some(0);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num4) {
+                        filter_idx = Some(1);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num5) {
+                        filter_idx = Some(2);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num6) {
+                        filter_idx = Some(3);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num7) {
+                        filter_idx = Some(4);
+                    } else if i.modifiers.is_none() && i.key_pressed(Key::Num8) {
+                        filter_idx = Some(5);
+                    }
+                    if let Some(filter_idx) = filter_idx {
+                        let column_desc = self
+                            .instance_view
+                            .display_properties
+                            .iter()
+                            .filter(|p| p.visible)
+                            .nth(self.instance_view.column_pos as usize + filter_idx);
+                        if let Some(column_desc) = column_desc {
+                            *table_action = TableAction::SortColumnAsc(column_desc.predicate_index);
+                        }
+                    }
+                });
+            }
+        }
+
+        let available_rect = ui.max_rect(); // Get the full available area
+
+        let available_width = ui.available_width();
+        let available_height = ui.available_height();
+        let size = Vec2::new(available_width, available_height);
+        let (rect, response) = ui.allocate_at_least(size, Sense::click_and_drag());
+        let painter = ui.painter();
+        let mouse_pos = response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+        let secondary_clicked = response.secondary_clicked();
+        let primary_clicked = response.clicked();
+
+        let mut xpos = 0.0;
+
+        let font_id = egui::FontId::default();
+        let popup_id = ui.make_persistent_id("column_context_menu");
+
+        painter.rect_filled(
+            Rect::from_min_size(available_rect.left_top(), Vec2::new(available_width, ROW_HIGHT)),
+            0.0,
+            ui.visuals().code_bg_color,
+        );
+
+        if response.drag_stopped() {
+            self.instance_view.column_resize = InstanceColumnResize::None;
+        }
+        if response.dragged() {
+            match self.instance_view.column_resize {
+                InstanceColumnResize::None => {}
+                InstanceColumnResize::Predicate(start_pos, predicate_index) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    for column_desc in self.instance_view.display_properties.iter_mut() {
+                        if column_desc.predicate_index == predicate_index {
+                            let width = mouse_pos.x - start_pos.x;
+                            if width > CHAR_WIDTH * 2.0 {
+                                column_desc.width = width;
+                            }
+                        }
+                    }
+                }
+                InstanceColumnResize::Iri(start_pos) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    let width = mouse_pos.x - start_pos.x;
+                    if width > CHAR_WIDTH * 3.0 {
+                        self.instance_view.iri_width = width;
+                    }
+                }
+                InstanceColumnResize::Refs(start_pos) => {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                    let width = mouse_pos.x - start_pos.x;
+                    if width > CHAR_WIDTH * 5.0 {
+                        self.instance_view.ref_count_width = width;
+                    }
+                }
+                InstanceColumnResize::QueryPredicate(_, _, _) | InstanceColumnResize::QueryAggregation(_, _) => {}
+            }
+        }
+
+        painter.text(
+            available_rect.left_top(),
+            egui::Align2::LEFT_TOP,
+            "iri",
+            font_id.clone(),
+            ui.visuals().strong_text_color(),
+        );
+
+        let iri_columns_drag_size_rect = egui::Rect::from_min_size(
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width - 3.0, 0.0),
+            Vec2::new(6.0, ROW_HIGHT),
+        );
+
+        let mut primary_down = false;
+        ui.ctx().input(|input| {
+            if input.pointer.button_pressed(egui::PointerButton::Primary) {
+                primary_down = true;
+            }
+        });
+
+        let mut was_context_click = false;
+
+        if iri_columns_drag_size_rect.contains(mouse_pos) {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+            if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
+                self.instance_view.column_resize =
+                    InstanceColumnResize::Iri(mouse_pos - Vec2::new(self.instance_view.iri_width, 0.0));
+            }
+        }
+
+        let iri_column_rec = egui::Rect::from_min_size(
+            available_rect.left_top(),
+            Vec2::new(self.instance_view.iri_width, ROW_HIGHT),
+        );
+        if secondary_clicked && iri_column_rec.contains(mouse_pos) {
+            was_context_click = true;
+            Popup::open_id(ui.ctx(), popup_id);
+            self.instance_view.context_menu = TableContextMenu::IriColumnMenu(mouse_pos);
+        }
+        painter.text(
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
+            egui::Align2::LEFT_TOP,
+            "out/in",
+            font_id.clone(),
+            ui.visuals().strong_text_color(),
+        );
+        let ref_column_rec = egui::Rect::from_min_size(
+            available_rect.left_top() + Vec2::new(self.instance_view.iri_width, 0.0),
+            Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
+        );
+        let refs_columns_drag_size_rect = egui::Rect::from_min_size(
+            available_rect.left_top()
+                + Vec2::new(
+                    self.instance_view.iri_width + self.instance_view.ref_count_width - 3.0,
+                    0.0,
+                ),
+            Vec2::new(6.0, ROW_HIGHT),
+        );
+        if refs_columns_drag_size_rect.contains(mouse_pos) {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+            if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
+                self.instance_view.column_resize =
+                    InstanceColumnResize::Refs(mouse_pos - Vec2::new(self.instance_view.ref_count_width, 0.0));
+            }
+        }
+        if ref_column_rec.contains(mouse_pos) && secondary_clicked {
+            was_context_click = true;
+            Popup::open_id(ui.ctx(), popup_id);
+            self.instance_view.context_menu = TableContextMenu::RefColumnMenu(mouse_pos);
+        }
+        xpos += self.instance_view.iri_width + self.instance_view.ref_count_width;
+
+        let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+        for column_desc in self
+            .instance_view
+            .display_properties
+            .iter()
+            .filter(|p| p.visible)
+            .skip(self.instance_view.column_pos as usize)
+        {
+            let top_left = available_rect.left_top() + Vec2::new(xpos, 0.0);
+            let predicate_label =
+                node_data.predicate_display(column_desc.predicate_index, &label_context, &node_data.indexers);
+            text_wrapped(
+                predicate_label.as_str(),
+                column_desc.width,
+                painter,
+                top_left,
+                false,
+                true,
+                ui.visuals(),
+            );
+            xpos += column_desc.width + COLUMN_GAP;
+            let column_rect = egui::Rect::from_min_size(top_left, Vec2::new(column_desc.width, ROW_HIGHT));
+            if column_rect.contains(mouse_pos) {
+                if secondary_clicked {
+                    was_context_click = true;
+                    Popup::open_id(ui.ctx(), popup_id);
+                    self.instance_view.context_menu =
+                        TableContextMenu::ColumnMenu(mouse_pos, column_desc.predicate_index);
+                } else {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::ContextMenu);
+                }
+            }
+            let columns_drag_size_rect = egui::Rect::from_min_size(
+                top_left + Vec2::new(column_desc.width - 3.0, 0.0),
+                Vec2::new(6.0, ROW_HIGHT),
+            );
+            if columns_drag_size_rect.contains(mouse_pos) {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::ResizeHorizontal);
+                if primary_down && matches!(self.instance_view.column_resize, InstanceColumnResize::None) {
+                    self.instance_view.column_resize = InstanceColumnResize::Predicate(
+                        mouse_pos - Vec2::new(column_desc.width, 0.0),
+                        column_desc.predicate_index,
+                    );
+                }
+            }
+        }
+
+        let mut ypos = ROW_HIGHT;
+        let mut start_pos = instance_index;
+
+        for instance_index in
+            &self.type_data.filtered_instances[instance_index..min(instance_index + capacity, self.type_data.filtered_instances.len())]
+        {
+            let node = node_data.get_node_by_index(*instance_index);
+            if let Some((node_iri, node)) = node {
+                if matches!(self.instance_view.selected_idx, Some((a, _)) if a == *instance_index) {
+                    painter.rect_filled(
+                        Rect::from_min_size(
+                            available_rect.left_top() + Vec2::new(0.0, ypos),
+                            Vec2::new(available_width, ROW_HIGHT),
+                        ),
+                        0.0,
+                        ui.visuals().selection.bg_fill,
+                    );
+                } else {
+                    if start_pos % 2 == 0 {
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                available_rect.left_top() + Vec2::new(0.0, ypos),
+                                Vec2::new(available_width, ROW_HIGHT),
+                            ),
+                            0.0,
+                            ui.visuals().faint_bg_color,
+                        );
+                    }
+                }
+                start_pos += 1;
+                let mut xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
+
+                let graph_button_width = 20.0;
+                let graph_pos = available_rect.left_top() + Vec2::new(0.0, ypos + 1.0);
+                let button_rect = Rect::from_min_size(graph_pos, Vec2::new(graph_button_width, ROW_HIGHT - 2.0));
+                let button_background = if button_rect.contains(mouse_pos) {
+                    if primary_clicked {
+                        *instance_action = NodeAction::ShowVisual(*instance_index);
+                    }
+                    Color32::YELLOW
+                } else {
+                    Color32::LIGHT_YELLOW
+                };
+
+                painter.rect_filled(button_rect, 3.0, button_background);
+                painter.text(
+                    graph_pos + Vec2::new(graph_button_width / 2.0, (ROW_HIGHT - 2.0) / 2.0),
+                    Align2::CENTER_CENTER,
+                    ICON_GRAPH,
+                    egui::FontId::default(),
+                    ui.visuals().text_color(),
+                );
+
+                let iri_top_left = available_rect.left_top() + Vec2::new(graph_button_width, ypos);
+
+                let cell_rect = egui::Rect::from_min_size(
+                    iri_top_left,
+                    Vec2::new(self.instance_view.iri_width - graph_button_width, ROW_HIGHT),
+                );
+
+                let mut cell_hovered = false;
+                if cell_rect.contains(mouse_pos) {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    cell_hovered = true;
+                }
+
+                text_wrapped_link(
+                    &prefix_manager.get_prefixed(node_iri),
+                    self.instance_view.iri_width - graph_button_width,
+                    painter,
+                    iri_top_left,
+                    cell_hovered,
+                    ui.visuals(),
+                );
+
+                if primary_clicked && cell_rect.contains(mouse_pos) {
+                    *instance_action = NodeAction::BrowseNode(*instance_index);
+                } else if secondary_clicked && cell_rect.contains(mouse_pos) {
+                    *instance_action = NodeAction::AddVisual(*instance_index);
+                }
+                let s = format!("{}/{}", node.references.len(), node.reverse_references.len());
+                let ref_rect = egui::Rect::from_min_size(
+                    available_rect.left_top() + Vec2::new(self.instance_view.iri_width, ypos),
+                    Vec2::new(self.instance_view.ref_count_width, ROW_HIGHT),
+                );
+                painter.text(
+                    ref_rect.left_top(),
+                    egui::Align2::LEFT_TOP,
+                    s,
+                    font_id.clone(),
+                    if ref_rect.contains(mouse_pos) {
+                        ui.visuals().selection.stroke.color
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                );
+                if primary_clicked && ref_rect.contains(mouse_pos) {
+                    was_context_click = true;
+                    Popup::open_id(ui.ctx(), popup_id);
+                    self.instance_view.context_menu = TableContextMenu::RefMenu(mouse_pos, *instance_index);
+                }
+
+                for column_desc in self
+                    .instance_view
+                    .display_properties
+                    .iter()
+                    .filter(|p| p.visible)
+                    .skip(self.instance_view.column_pos as usize)
+                {
+                    let property = node.get_property_count(column_desc.predicate_index, layout_data.display_language);
+                    if let Some((property, count)) = property {
+                        let value = property.as_str_ref(&node_data.indexers);
+                        let cell_rect = egui::Rect::from_min_size(
+                            available_rect.left_top() + Vec2::new(xpos, ypos),
+                            Vec2::new(column_desc.width, ROW_HIGHT),
+                        );
+                        let mut cell_hovered = false;
+                        if cell_rect.contains(mouse_pos) {
+                            cell_hovered = true;
+                        }
+                        if count > 1 {
+                            painter.rect_filled(cell_rect, 0.0, ui.visuals().code_bg_color);
+                        }
+                        text_wrapped(
+                            value,
+                            column_desc.width,
+                            painter,
+                            cell_rect.left_top(),
+                            cell_hovered,
+                            false,
+                            ui.visuals(),
+                        );
+                        if primary_clicked && cell_rect.contains(mouse_pos) {
+                            was_context_click = true;
+                            Popup::open_id(ui.ctx(), popup_id);
+                            self.instance_view.ref_selection = RefSelection::None;
+                            self.instance_view.context_menu =
+                                TableContextMenu::CellMenu(mouse_pos, *instance_index, column_desc.predicate_index);
+                        }
+                    }
+                    xpos += column_desc.width + COLUMN_GAP;
+                    if xpos > available_rect.width() {
+                        break;
+                    }
+                }
+                ypos += ROW_HIGHT;
+            }
+        }
+        if !text_has_focus && matches!(instance_action, NodeAction::None) {
+            let mut show_refs = false;
+            if let Some((selected_id, _idx)) = self.instance_view.selected_idx {
+                ui.input(|i| {
+                    if i.key_pressed(Key::Enter) {
+                        *instance_action = NodeAction::BrowseNode(selected_id);
+                    } else if i.key_pressed(Key::G) {
+                        *instance_action = NodeAction::ShowVisual(selected_id);
+                    } else if i.key_pressed(Key::R) {
+                        show_refs = true;
+                        self.instance_view.context_menu = TableContextMenu::RefMenu(
+                            (rect.center() - Pos2::new(500.0, 300.0))
+                                .clamp(Vec2::new(0.0, 0.0), Vec2::new(available_width, available_height))
+                                .to_pos2(),
+                            selected_id,
+                        );
+                    }
+                });
+            }
+            if show_refs {
+                was_context_click = true;
+                self.instance_view.ref_selection = RefSelection::None;
+                Popup::open_id(ui.ctx(), popup_id);
+            }
+        }
+        // Draw vertical lines
+        painter.line(
+            [
+                Pos2::new(
+                    available_rect.left() + self.instance_view.iri_width - COLUMN_GAP,
+                    available_rect.top(),
+                ),
+                Pos2::new(
+                    available_rect.left() + self.instance_view.iri_width - COLUMN_GAP,
+                    available_rect.top() + ypos,
+                ),
+            ]
+            .to_vec(),
+            Stroke::new(1.0, Color32::DARK_GRAY),
+        );
+        painter.line(
+            [
+                Pos2::new(
+                    available_rect.left()
+                        + self.instance_view.iri_width
+                        + self.instance_view.ref_count_width
+                        + -COLUMN_GAP,
+                    available_rect.top(),
+                ),
+                Pos2::new(
+                    available_rect.left() + self.instance_view.ref_count_width + self.instance_view.iri_width
+                        - COLUMN_GAP,
+                    available_rect.top() + ypos,
+                ),
+            ]
+            .to_vec(),
+            Stroke::new(1.0, Color32::DARK_GRAY),
+        );
+        xpos = self.instance_view.iri_width + self.instance_view.ref_count_width;
+        for column_desc in self
+            .instance_view
+            .display_properties
+            .iter()
+            .filter(|p| p.visible)
+            .skip(self.instance_view.column_pos as usize)
+        {
+            xpos += column_desc.width;
+            painter.line(
+                [
+                    Pos2::new(available_rect.left() + xpos, available_rect.top()),
+                    Pos2::new(available_rect.left() + xpos, available_rect.top() + ypos),
+                ]
+                .to_vec(),
+                Stroke::new(1.0, Color32::DARK_GRAY),
+            );
+            xpos += COLUMN_GAP;
+        }
+
+        //if !was_context_click && (secondary_clicked || primary_clicked) {
+        if !was_context_click && primary_clicked {
+            self.instance_view.context_menu = TableContextMenu::None;
+            Popup::close_id(ui.ctx(), popup_id);
+        }
+        let width = match self.instance_view.context_menu {
+            TableContextMenu::CellMenu(_, _, _) => 500.0,
+            _ => 200.0,
+        };
+        popup_at(
+            ui,
+            popup_id,
+            self.instance_view.context_menu.pos(),
+            width,
+            |ui| match self.instance_view.context_menu {
+                TableContextMenu::IriColumnMenu(_pos) => {
+                    let mut close_menu: bool = false;
+                    if ui.button("Sort Asc").clicked() {
+                        *table_action = TableAction::SortIriAsc();
+                        close_menu = true;
+                    }
+                    if ui.button("Sort Desc").clicked() {
+                        *table_action = TableAction::SortIriDesc();
+                        close_menu = true;
+                    }
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        Popup::close_id(ui.ctx(), popup_id);
+                    }
+                }
+                TableContextMenu::RefColumnMenu(_pos) => {
+                    let mut close_menu: bool = false;
+                    if ui.button("Sort Asc").clicked() {
+                        *table_action = TableAction::SortRefAsc();
+                        close_menu = true;
+                    }
+                    if ui.button("Sort Desc").clicked() {
+                        *table_action = TableAction::SortRefDesc();
+                        close_menu = true;
+                    }
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        Popup::close_id(ui.ctx(), popup_id);
+                    }
+                }
+                TableContextMenu::ColumnMenu(_pos, column_predicate) => {
+                    let mut close_menu = false;
+                    if self.instance_view.visible_columns() > 0 && ui.button("Hide column").clicked() {
+                        *table_action = TableAction::HideColumn(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Sort Asc").clicked() {
+                        *table_action = TableAction::SortColumnAsc(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Sort Desc").clicked() {
+                        *table_action = TableAction::SortColumnDesc(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Value Exists").clicked() {
+                        *table_action = TableAction::HidePropExists(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Value Not Exists").clicked() {
+                        *table_action = TableAction::HidePropNotExists(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Only Multivalue").clicked() {
+                        *table_action = TableAction::HidePropNonMulti(column_predicate);
+                        close_menu = true;
+                    }
+                    if ui.button("Show Value Statistics").clicked() {
+                        *table_action =
+                            TableAction::ValueStatistics(column_predicate, self.instance_view.context_menu.pos());
+                        close_menu = true;
+                    }
+                    let hidden_columns: Vec<&ColumnDesc> = self
+                        .instance_view
+                        .display_properties
+                        .iter()
+                        .filter(|p| !p.visible)
+                        .collect();
+                    if !hidden_columns.is_empty() {
+                        ui.separator();
+                        for column_desc in hidden_columns {
+                            let predicate_label = node_data.predicate_display(
+                                column_desc.predicate_index,
+                                &label_context,
+                                &node_data.indexers,
+                            );
+                            let menu_txt = format!("Unhide: {}", predicate_label.as_str());
+                            if ui.button(menu_txt).clicked() {
+                                *table_action = TableAction::UnhideColumn(column_desc.predicate_index);
+                                close_menu = true;
+                            }
+                        }
+                    }
+
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        Popup::close_id(ui.ctx(), popup_id);
+                    }
+                }
+                TableContextMenu::CellMenu(_pos, instance_index, predicate) => {
+                    let mut close_menu = false;
+                    let node = node_data.get_node_by_index(instance_index);
+                    if let Some((_node_iri, node)) = node {
+                        for (predicate_index, value) in &node.properties {
+                            if predicate == *predicate_index {
+                                ui.label(value.as_str_ref(&node_data.indexers));
+                            }
+                        }
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
+                        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
+                        let b_resp = ui.add(nav_but);
+                        if b_resp.clicked() {
+                            close_menu = true;
+                        }
+                    } else {
+                        close_menu = true;
+                    }
+
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        Popup::close_id(ui.ctx(), popup_id);
+                    }
+                }
+                TableContextMenu::RefMenu(_pos, instance_index) => {
+                    let mut close_menu = false;
+                    let node = node_data.get_node_by_index(instance_index);
+                    if let Some((_node_iri, node)) = node {
+                        let mut node_to_click: ReferenceAction = ReferenceAction::None;
+                        if matches!(self.instance_view.ref_selection, RefSelection::None) {
+                            self.instance_view.ref_selection.init_from_node(node);
+                        } else {
+                            ui.input(|i| {
+                                if i.key_pressed(Key::ArrowDown) {
+                                    self.instance_view.ref_selection.move_down(node);
+                                } else if i.key_pressed(Key::ArrowUp) {
+                                    self.instance_view.ref_selection.move_up();
+                                } else if i.key_pressed(Key::ArrowRight) {
+                                    self.instance_view.ref_selection.move_right(node);
+                                } else if i.key_pressed(Key::ArrowLeft) {
+                                    self.instance_view.ref_selection.move_left(node);
+                                }
+                            });
+                        }
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                        let ref_result = show_references(
+                            node_data,
+                            color_cache,
+                            ui,
+                            "References",
+                            &node.references,
+                            layout_data,
+                            300.0,
+                            "ref",
+                            &label_context,
+                            self.instance_view.ref_selection.ref_index(false),
+                        );
+                        if ref_result != ReferenceAction::None {
+                            node_to_click = ref_result;
+                            close_menu = true;
+                        }
+                        ui.push_id("refby", |ui| {
+                            let ref_result = show_references(
+                                node_data,
+                                color_cache,
+                                ui,
+                                "Referenced by",
+                                &node.reverse_references,
+                                layout_data,
+                                300.0,
+                                "ref_by",
+                                &label_context,
+                                self.instance_view.ref_selection.ref_index(true),
+                            );
+                            if ref_result != ReferenceAction::None {
+                                node_to_click = ref_result;
+                                close_menu = true;
+                            }
+                        });
+                        match node_to_click {
+                            ReferenceAction::None => {}
+                            ReferenceAction::ShowNode(node_index) => {
+                                *instance_action = NodeAction::BrowseNode(node_index);
+                            }
+                            ReferenceAction::Filter(type_index, instances) => {
+                                *instance_action = NodeAction::ShowTypeInstances(type_index, instances)
+                            }
+                        }
+                        let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
+                        let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
+                        let b_resp = ui.add(nav_but);
+                        if b_resp.clicked() {
+                            close_menu = true;
+                        }
+                    } else {
+                        close_menu = true;
+                    }
+                    if close_menu {
+                        self.instance_view.context_menu = TableContextMenu::None;
+                        Popup::close_id(ui.ctx(), popup_id);
+                    }
+                }
+                _ => {}
+            },
+        );
+    }
+
+    pub fn update_selected_index(&mut self) {
+        if let Some((iri, idx)) = self.instance_view.selected_idx {
+            if idx == 0 {
+                if !self.type_data.filtered_instances.is_empty() {
+                    self.instance_view.selected_idx = Some((self.type_data.filtered_instances[idx], idx));
+                } else {
+                    self.instance_view.selected_idx = None;
+                }
+            } else {
+                if let Some(new_idx) = self.type_data.filtered_instances.iter().position(|e| *e == iri) {
+                    self.instance_view.selected_idx = Some((self.type_data.filtered_instances[new_idx], new_idx));
+                } else {
+                    if !self.type_data.filtered_instances.is_empty() {
+                        self.instance_view.selected_idx = Some((self.type_data.filtered_instances[0], 0));
+                    } else {
+                        self.instance_view.selected_idx = None;
+                    }
+                }
+            }
+        } else {
+            if !self.type_data.filtered_instances.is_empty() {
+                self.instance_view.selected_idx = Some((self.type_data.filtered_instances[0], 0));
+            }
+        }
+    }
+
+    fn export_csv_writer<W: io::Write>(
+        &self,
+        rdf_data: &RdfData,
+        wtr: &mut csv::Writer<W>,
+        iri_display: IriDisplay,
+        lang_index: LangIndex,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        wtr.write_field("iri")?;
+        let label_context = LabelContext::new(lang_index, iri_display, &rdf_data.prefix_manager);
+        for column_desc in self.instance_view.display_properties.iter() {
+            if column_desc.visible {
+                let predicate = rdf_data.node_data.predicate_display(
+                    column_desc.predicate_index,
+                    &label_context,
+                    &rdf_data.node_data.indexers,
+                );
+                wtr.write_field(predicate.as_str())?;
+            }
+        }
+        wtr.write_record(None::<&[u8]>)?;
+
+        for instance_index in &self.type_data.filtered_instances {
+            let node = rdf_data.node_data.get_node_by_index(*instance_index);
+            if let Some((node_iri, node)) = node {
+                let iri_ref: &str = &node_iri;
+                wtr.write_field(iri_ref)?;
+                for column_desc in self.instance_view.display_properties.iter() {
+                    if column_desc.visible {
+                        let property = node.get_property_count(column_desc.predicate_index, lang_index);
+                        if let Some((property, _count)) = property {
+                            let value = property.as_str_ref(&rdf_data.node_data.indexers);
+                            wtr.write_field(value)?;
+                        } else {
+                            wtr.write_field("")?;
+                        }
+                    }
+                }
+                wtr.write_record(None::<&[u8]>)?;
+            }
+        }
+        wtr.flush()?;
+        Ok(())
+    }
+}
+
+pub fn display_data_props(type_data: &TypeData, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+    egui::Grid::new("fields").show(ui, |ui| {
+        ui.strong("Data Property");
+        ui.strong("Count");
+        ui.strong("Max Len");
+        ui.strong("Min Card.");
+        ui.strong("Max Card.");
+        ui.end_row();
+        for (predicate_index, p_characteristics) in &type_data.properties {
+            let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
+            ui.label(predicate_label.as_str());
+            ui.label(p_characteristics.count.to_string());
+            ui.label(p_characteristics.max_len.to_string());
+            ui.label(p_characteristics.min_cardinality.to_string());
+            ui.label(p_characteristics.max_cardinality.to_string());
+            ui.end_row();
+        }
+    });
+}
+
+pub fn display_references(
+    type_data: &TypeData,
+    ui: &mut egui::Ui,
+    label_context: &LabelContext,
+    node_data: &NodeData,
+) -> TypeCellAction {
+    let mut type_cell_action: TypeCellAction = TypeCellAction::None;
+    egui::Grid::new("referenced").show(ui, |ui| {
+        ui.strong("Out Ref");
+        ui.strong("Count");
+        ui.strong("Type");
+        ui.strong("Min Card.");
+        ui.strong("Max Card.");
+        ui.end_row();
+        for (predicate_index, reference_characteristics) in &type_data.references {
+            let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
+            ui.label(predicate_label.as_str());
+            ui.label(reference_characteristics.count.to_string());
+            if reference_characteristics.types.is_empty() {
+                ui.label("<None>");
+            } else {
+                let first_type = reference_characteristics.types[0];
+                let type_label = node_data.type_display(first_type, label_context, &node_data.indexers);
+                let type_response = if reference_characteristics.types.len() == 1 {
+                    ui.label(type_label.as_str())
+                } else {
+                    ui.label(
+                        format!("{} +{}", type_label.as_str(), reference_characteristics.types.len() - 1).as_str(),
+                    )
+                };
+                if type_response.clicked() {
+                    let mouse_pos = type_response.hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                    type_cell_action = TypeCellAction::ShowRefTypes(mouse_pos, *predicate_index);
+                }
+            }
+            ui.label(reference_characteristics.min_cardinality.to_string());
+            ui.label(reference_characteristics.max_cardinality.to_string());
+            ui.end_row();
+        }
+    });
+    type_cell_action
+}
+
+pub fn display_reverse_references(type_data: &TypeData, ui: &mut egui::Ui, label_context: &LabelContext, node_data: &NodeData) {
+    egui::Grid::new("referenced by").show(ui, |ui| {
+        ui.strong("In Ref");
+        ui.strong("Count");
+        ui.end_row();
+        for (predicate_index, reference_characteristics) in &type_data.rev_references {
+            let predicate_label = node_data.predicate_display(*predicate_index, label_context, &node_data.indexers);
+            ui.label(predicate_label.as_str());
+            ui.label(reference_characteristics.count.to_string());
+            ui.end_row();
+        }
+    });
+}
+
+
+pub fn text_wrapped(
+    text: &str,
+    width: f32,
+    painter: &egui::Painter,
+    top_left: Pos2,
+    cell_hovered: bool,
+    strong: bool,
+    visuals: &egui::Visuals,
+) {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        text,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::default(),
+            color: if cell_hovered {
+                visuals.selection.stroke.color
+            } else if strong {
+                visuals.strong_text_color()
+            } else {
+                visuals.text_color()
+            },
+            ..Default::default()
+        },
+    );
+
+    job.wrap = egui::text::TextWrapping {
+        max_width: width,
+        max_rows: 1,
+        // overflow_character: Some('…'),
+        ..Default::default()
+    };
+    let galley = painter.layout_job(job);
+    painter.galley(top_left, galley, visuals.text_color());
+}
+
+pub fn text_wrapped_link(
+    text: &str,
+    width: f32,
+    painter: &egui::Painter,
+    top_left: Pos2,
+    hovered: bool,
+    visuals: &egui::Visuals,
+) {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        text,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::default(),
+            color: visuals.hyperlink_color,
+            underline: if hovered {
+                Stroke::new(1.0, visuals.hyperlink_color)
+            } else {
+                Stroke::NONE
+            },
+            ..Default::default()
+        },
+    );
+
+    job.wrap = egui::text::TextWrapping {
+        max_width: width,
+        max_rows: 1,
+        // overflow_character: Some('…'),
+        ..Default::default()
+    };
+    let galley = painter.layout_job(job);
+    painter.galley(top_left, galley, visuals.text_color());
+}
+
+impl TypeInstanceIndexView {
+    pub fn display(
+        &mut self,
+        ui: &mut egui::Ui,
+        rdf_data: &mut RdfData,
+        layout_data: &mut UIState,
+        color_cache: &GVisualizationStyle,
+        iri_display: IriDisplay,
+    ) -> NodeAction {
+        let mut instance_action = NodeAction::None;
+        let mut text_has_focus = false;
+        let popup_id = ui.make_persistent_id("column_type_popup");
+        egui::ScrollArea::horizontal().id_salt("h").show(ui, |ui| {
+            ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
+                ui.vertical(|ui| {
+                    ui.heading("Statistics:");
+                    ui.label(format!("Nodes: {}", self.type_instance_index.nodes));
+                    ui.label(format!("Unresolved References: {}", self.type_instance_index.unresolved_references));
+                    ui.label(format!("Blank Nodes: {}", self.type_instance_index.blank_nodes));
+                    ui.label(format!("Properties: {}", self.type_instance_index.properties));
+                    ui.label(format!("References: {}", self.type_instance_index.references));
+                    ui.label(format!("Unique Predicates: {}", self.type_instance_index.unique_predicates));
+                    ui.label(format!("Unique Types: {}", self.type_instance_index.unique_types));
+                    ui.label(format!("Unique Languages: {}", rdf_data.node_data.unique_languages()));
+                    ui.label(format!("Unique Data Types: {}", rdf_data.node_data.unique_data_types()));
+                    /*
+                    ui.horizontal(|ui| {
+                        if ui.button("Update").clicked() {
+                            self.update(node_data);
+                        }
+                        if ui.button("Clean").clicked() {
+                            node_data.clean();
+                            layout_data.visible_nodes.data.clear();
+                        }
+                    });
+                    */
+                });
+                ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                    ui.push_id("types", |ui| {
+                        let type_filter_response = ui.text_edit_singleline(&mut self.type_instance_index.types_filter);
+                        text_has_focus = type_filter_response.has_focus();
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
+                        if type_filter_response.changed() {
+                            self.type_instance_index.apply_filter(&mut rdf_data.node_data, &label_context);
+                        }
+                        let (selected_type, type_table_action) = self.show_types(
+                            ui,
+                            &mut rdf_data.node_data,
+                            &rdf_data.prefix_manager,
+                            layout_data,
+                            iri_display,
+                            200.0,
+                        );
+                        if selected_type.is_some() {
+                            self.selected_type = selected_type;
+                        }
+                        match type_table_action {
+                            TypeTableAction::SortByLabel => {
+                                self.type_instance_index.types_filtered.par_sort_by(|a, b| {
+                                    let label_a = rdf_data.node_data.type_display(
+                                        *a,
+                                        &label_context,
+                                        &rdf_data.node_data.indexers,
+                                    );
+                                    let label_b = rdf_data.node_data.type_display(
+                                        *b,
+                                        &label_context,
+                                        &rdf_data.node_data.indexers,
+                                    );
+                                    label_a.as_str().cmp(label_b.as_str())
+                                });
+                            }
+                            TypeTableAction::SortByInstances => {
+                                self.type_instance_index.types_filtered.par_sort_by(|a, b| {
+                                    let a_data = self.type_instance_index.types.get(a).unwrap();
+                                    let b_data = self.type_instance_index.types.get(b).unwrap();
+                                    b_data.instances.len().cmp(&a_data.instances.len())
+                                });
+                            }
+                            TypeTableAction::SortByDataProps => {
+                                self.type_instance_index.types_filtered.par_sort_by(|a, b| {
+                                    let a_data = self.type_instance_index.types.get(a).unwrap();
+                                    let b_data = self.type_instance_index.types.get(b).unwrap();
+                                    b_data.properties.len().cmp(&a_data.properties.len())
+                                });
+                            }
+                            TypeTableAction::SortByOutRef => {
+                                self.type_instance_index.types_filtered.par_sort_by(|a, b| {
+                                    let a_data = self.type_instance_index.types.get(a).unwrap();
+                                    let b_data = self.type_instance_index.types.get(b).unwrap();
+                                    b_data.references.len().cmp(&a_data.references.len())
+                                });
+                            }
+                            TypeTableAction::SortByInRef => {
+                                self.type_instance_index.types_filtered.par_sort_by(|a, b| {
+                                    let a_data = self.type_instance_index.types.get(a).unwrap();
+                                    let b_data = self.type_instance_index.types.get(b).unwrap();
+                                    b_data.rev_references.len().cmp(&a_data.rev_references.len())
+                                });
+                            }
+                            TypeTableAction::None => {}
+                        }
+                    });
+                });
+                if let Some(selected_type) = self.selected_type {
+                    if let Some(type_data) = self.type_instance_index.types.get_mut(&selected_type) {
+                        let label_context =
+                            LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical().id_salt("data").show(ui, |ui| {
+                                display_data_props(&type_data, ui, &label_context, &rdf_data.node_data);
+                            });
+                        });
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical().id_salt("ref").show(ui, |ui| {
+                                let type_cell_action =
+                                    display_references(&type_data, ui, &label_context, &rdf_data.node_data);
+                                if let TypeCellAction::ShowRefTypes(pos, predicate_index) = type_cell_action {
+                                    Popup::open_id(ui.ctx(), popup_id);
+                                    self.type_cell_action = TypeCellAction::ShowRefTypes(pos, predicate_index);
+                                }
+                            });
+                        });
+                        ui.allocate_ui(Vec2::new(ui.available_width(), 200.0), |ui| {
+                            ui.separator();
+                            egui::ScrollArea::vertical().id_salt("refby").show(ui, |ui| {
+                                display_reverse_references(&type_data, ui, &label_context, &rdf_data.node_data);
+                            });
+                        });
+                        popup_at(ui, popup_id, self.type_cell_action.pos(), 500.0, |ui| {
+                            match self.type_cell_action {
+                                TypeCellAction::ShowRefTypes(_pos, predicate_index) => {
+                                    let mut close_menu = false;
+                                    let characteristics = type_data.references.get(&predicate_index);
+                                    if let Some(characteristics) = characteristics {
+                                        for type_index in &characteristics.types {
+                                            ui.label(
+                                                rdf_data
+                                                    .node_data
+                                                    .type_display(
+                                                        *type_index,
+                                                        &label_context,
+                                                        &rdf_data.node_data.indexers,
+                                                    )
+                                                    .as_str(),
+                                            );
+                                        }
+                                    } else {
+                                        close_menu = true;
+                                    }
+                                    let button_text = egui::RichText::new(concatcp!(ICON_CLOSE, " Close")).size(16.0);
+                                    let nav_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
+                                    let b_resp = ui.add(nav_but);
+                                    if b_resp.clicked() {
+                                        close_menu = true;
+                                    }
+                                    if close_menu {
+                                        self.type_cell_action = TypeCellAction::None;
+                                        Popup::close_id(ui.ctx(), popup_id);
+                                    }
+                                }
+                                TypeCellAction::ShowValueStatistics(_pos) => {
+                                    if let Some(value_statistics) = &self.type_instance_index.value_statistics {
+                                        if show_value_statistics(value_statistics, ui, &rdf_data) {
+                                            self.type_instance_index.value_statistics = None;
+                                            Popup::close_id(ui.ctx(), popup_id);
+                                        }
+                                    }
+                                }
+                                TypeCellAction::None => {}
+                            }
+                        });
+                    }
+                }
+            });
+        });
+        ui.separator();
+        if let Some(selected_type) = self.selected_type {
+            if let Some(type_data_t) = self.type_instance_index.types.get_mut(&selected_type) {
+                if let Some(instance_view_t) = self.instance_views.get_mut(&selected_type) {
+                    let mut type_data_view = TypeDataView {
+                        type_data: type_data_t,
+                        instance_view: instance_view_t,
+                    };
+                    let mut table_action: TableAction = TableAction::None;
+                    ui.horizontal(|ui| {
+                        let filter_immediately = type_data_view.type_data.instances.len() < IMMADIATE_FILTER_COUNT;
+                        let text_edit = egui::TextEdit::singleline(&mut type_data_view.instance_view.instance_filter);
+                        let text_edit_response = ui.add(text_edit);
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if ui.ctx().input(|i| i.modifiers.command && i.key_pressed(egui::Key::F)) {
+                            text_edit_response.request_focus();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        if ui
+                            .ctx()
+                            .input(|i| i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::F))
+                        {
+                            text_edit_response.request_focus();
+                        }
+                        text_has_focus = text_has_focus || text_edit_response.has_focus();
+                        if filter_immediately {
+                            if text_edit_response.changed() {
+                                table_action = TableAction::Filter;
+                            }
+                        } else {
+                            if text_edit_response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                                table_action = TableAction::Filter;
+                            }
+                            if ui.button(ICON_FILTER).clicked() {
+                                table_action = TableAction::Filter;
+                            }
+                        }
+                        if ui.button(ICON_CLOSE).clicked() {
+                            type_data_view.instance_view.instance_filter.clear();
+                            type_data_view.type_data.filtered_instances = type_data_view.type_data.instances.clone();
+                            type_data_view.update_selected_index();
+                            type_data_view.instance_view.instance_filter.clear();
+                        }
+                        ui.label(format!(
+                            "{}/{}",
+                            type_data_view.type_data.filtered_instances.len(),
+                            type_data_view.type_data.instances.len()
+                        ));
+                        let visible_columns = type_data_view.instance_view.visible_columns();
+                        if visible_columns > 1 {
+                            if type_data_view.instance_view.column_pos > visible_columns - 1 {
+                                type_data_view.instance_view.column_pos = visible_columns - 1;
+                            }
+                            ui.add(Slider::new(
+                                &mut type_data_view.instance_view.column_pos,
+                                0..=visible_columns - 1,
+                            ));
+                        }
+                        if ui
+                            .button(concatcp!(ICON_EXPORT, " Export CSV"))
+                            .on_hover_text("Export as CSV file")
+                            .clicked()
+                        {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("CSV File", &["csv"])
+                                .set_file_name("table.csv")
+                                .save_file()
+                            {
+                                let mut wtr = csv::Writer::from_path(path).unwrap();
+                                let _ = type_data_view.export_csv_writer(
+                                    &rdf_data,
+                                    &mut wtr,
+                                    iri_display,
+                                    layout_data.display_language,
+                                );
+                            }
+                            #[cfg(target_arch = "wasm32")]
+                            {
+                                use crate::support::uitools::web_download;
+
+                                let buf = Vec::new();
+                                let mut wtr = csv::Writer::from_writer(buf);
+                                let _ = type_data.export_csv_writer(
+                                    &rdf_data,
+                                    &mut wtr,
+                                    iri_display,
+                                    layout_data.display_language,
+                                );
+                                let buf = wtr.into_inner().unwrap();
+                                let _ = web_download("table.csv", &buf);
+                            }
+                        }
+                    });
+                    let needed_len = (type_data_view.type_data.filtered_instances.len() + 2) as f32 * ROW_HIGHT;
+                    let a_height = ui.available_height();
+                    StripBuilder::new(ui)
+                        .size(egui_extras::Size::remainder())
+                        .size(egui_extras::Size::exact(20.0)) // Two resizable panels with equal initial width
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {
+                                type_data_view.instance_table(
+                                    ui,
+                                    &mut table_action,
+                                    &mut instance_action,
+                                    &mut rdf_data.node_data,
+                                    color_cache,
+                                    &rdf_data.prefix_manager,
+                                    layout_data,
+                                    iri_display,
+                                    text_has_focus,
+                                );
+                            });
+                            strip.cell(|ui| {
+                                ui.add(ScrollBar::new(
+                                    &mut type_data_view.instance_view.pos,
+                                    &mut type_data_view.instance_view.drag_pos,
+                                    needed_len,
+                                    a_height,
+                                ));
+                            });
+                        });
+                    match table_action {
+                        TableAction::HideColumn(predicate_to_hide) => {
+                            for column_desc in type_data_view.instance_view.display_properties.iter_mut() {
+                                if column_desc.predicate_index == predicate_to_hide {
+                                    column_desc.visible = false;
+                                    break;
+                                }
+                            }
+                        }
+                        TableAction::UnhideColumn(predicate_to_unhide) => {
+                            for column_desc in type_data_view.instance_view.display_properties.iter_mut() {
+                                if column_desc.predicate_index == predicate_to_unhide {
+                                    column_desc.visible = true;
+                                    break;
+                                }
+                            }
+                        }
+                        TableAction::SortColumnAsc(predicate_to_sort) => {
+                            type_data_view.type_data.sort_instances(predicate_to_sort, true, &rdf_data.node_data, layout_data.display_language);
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::SortColumnDesc(predicate_to_sort) => {
+                            type_data_view.type_data.sort_instances(predicate_to_sort, false, &rdf_data.node_data, layout_data.display_language);
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::SortRefAsc() => {
+                            type_data_view.type_data.filtered_instances.par_sort_by(|a, b| {
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
+                                        let a_value = node_a.references.len() + node_a.reverse_references.len();
+                                        let b_value = node_b.references.len() + node_b.reverse_references.len();
+                                        b_value.cmp(&a_value)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::SortRefDesc() => {
+                            type_data_view.type_data.filtered_instances.par_sort_by(|a, b| {
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
+                                if let Some((_, node_a)) = node_a {
+                                    if let Some((_, node_b)) = node_b {
+                                        let a_value = node_a.references.len() + node_a.reverse_references.len();
+                                        let b_value = node_b.references.len() + node_b.reverse_references.len();
+                                        a_value.cmp(&b_value)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::SortIriAsc() => {
+                            type_data_view.type_data.filtered_instances.sort_by(|a, b| {
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
+                                if let Some((iri_a, _)) = node_a {
+                                    if let Some((iri_b, _)) = node_b {
+                                        iri_a.cmp(iri_b)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::SortIriDesc() => {
+                            type_data_view.type_data.filtered_instances.sort_by(|a, b| {
+                                let node_a = rdf_data.node_data.get_node_by_index(*a);
+                                let node_b = rdf_data.node_data.get_node_by_index(*b);
+                                if let Some((iri_a, _)) = node_a {
+                                    if let Some((iri_b, _)) = node_b {
+                                        iri_b.cmp(iri_a)
+                                    } else {
+                                        std::cmp::Ordering::Greater
+                                    }
+                                } else {
+                                    std::cmp::Ordering::Less
+                                }
+                            });
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::Filter => {
+                            type_data_view.type_data.filtered_instances = type_data_view.type_data
+                                .instances
+                                .iter()
+                                .cloned()
+                                .filter(|&instance_index| {
+                                    let node = rdf_data.node_data.get_node_by_index(instance_index);
+                                    if let Some((node_iri, node)) = node {
+                                        if node.apply_filter(
+                                            &type_data_view.instance_view.instance_filter,
+                                            node_iri,
+                                            &rdf_data.node_data.indexers,
+                                        ) {
+                                            return true;
+                                        }
+                                    }
+                                    false
+                                })
+                                .collect();
+                            if (type_data_view.instance_view.pos / ROW_HIGHT) as usize >= type_data_view.type_data.filtered_instances.len() {
+                                type_data_view.instance_view.pos = 0.0;
+                            }
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::HidePropExists(predicate_to_hide) => {
+                            type_data_view.type_data.filtered_instances.retain(|&instance_index| {
+                                let node = rdf_data.node_data.get_node_by_index(instance_index);
+                                if let Some((_, node)) = node {
+                                    return node.has_property(predicate_to_hide);
+                                }
+                                false
+                            });
+                            if (type_data_view.instance_view.pos / ROW_HIGHT) as usize >= type_data_view.type_data.filtered_instances.len() {
+                                type_data_view.instance_view.pos = 0.0;
+                            }
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::HidePropNonMulti(predicate_to_hide) => {
+                            type_data_view.type_data.filtered_instances.retain(|&instance_index| {
+                                let node = rdf_data.node_data.get_node_by_index(instance_index);
+                                if let Some((_, node)) = node {
+                                    let mut found = false;
+                                    for (predicate, _literal) in node.properties.iter() {
+                                        if *predicate == predicate_to_hide {
+                                            if found {
+                                                return true;
+                                            }
+                                            found = true;
+                                        }
+                                    }
+                                }
+                                false
+                            });
+                            if (type_data_view.instance_view.pos / ROW_HIGHT) as usize >= type_data_view.type_data.filtered_instances.len() {
+                                type_data_view.instance_view.pos = 0.0;
+                            }
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::HidePropNotExists(predicate_to_hide) => {
+                            type_data_view.type_data.filtered_instances.retain(|&instance_index| {
+                                let node = rdf_data.node_data.get_node_by_index(instance_index);
+                                if let Some((_, node)) = node {
+                                    return !node.has_property(predicate_to_hide);
+                                }
+                                false
+                            });
+                            if (type_data_view.instance_view.pos / ROW_HIGHT) as usize >= type_data_view.type_data.filtered_instances.len() {
+                                type_data_view.instance_view.pos = 0.0;
+                            }
+                            type_data_view.update_selected_index();
+                        }
+                        TableAction::ValueStatistics(predicate, mouse_pos) => {
+                            self.type_instance_index.value_statistics =
+                                Some(type_data_view.type_data.calculate_value_statistics(predicate, &rdf_data.node_data));
+                            self.type_cell_action = TypeCellAction::ShowValueStatistics(mouse_pos);
+                            Popup::open_id(ui.ctx(), popup_id);
+                        }
+                        TableAction::None => {}
+                    }
+                }
+            }
+        } else {
+            ui.label("Select a type to display its instances");
+        }
+        instance_action
+    }
+
+    fn show_types(
+        &mut self,
+        ui: &mut egui::Ui,
+        node_data: &mut NodeData,
+        prefix_manager: &PrefixManager,
+        layout_data: &UIState,
+        iri_display: IriDisplay,
+        height: f32,
+    ) -> (Option<IriIndex>, TypeTableAction) {
+        let mut selected_type: Option<IriIndex> = None;
+        let mut type_table_action: TypeTableAction = TypeTableAction::None;
+        let text_height = egui::TextStyle::Body
+            .resolve(ui.style())
+            .size
+            .max(ui.spacing().interact_size.y);
+
+        let table: TableBuilder<'_> = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::exact(200.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .column(Column::exact(50.0).at_least(30.0).at_most(300.0))
+            .min_scrolled_height(height)
+            .max_scroll_height(height)
+            .sense(Sense::click());
+
+        let mut selected_type_index = 0;
+
+        table
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    strong_unselectable(ui, "Type");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByLabel;
+                    }
+                });
+                header.col(|ui| {
+                    strong_unselectable(ui, "Inst#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByInstances;
+                    }
+                });
+                header.col(|ui| {
+                    strong_unselectable(ui, "Data#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByDataProps;
+                    }
+                });
+                header.col(|ui| {
+                    strong_unselectable(ui, "Out Ref#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByOutRef;
+                    }
+                });
+                header.col(|ui| {
+                    strong_unselectable(ui, "In Ref#");
+                    if ui.response().hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if ui.response().clicked() {
+                        type_table_action = TypeTableAction::SortByInRef;
+                    }
+                });
+            })
+            .body(|body| {
+                let label_context = LabelContext::new(layout_data.display_language, iri_display, prefix_manager);
+                body.rows(text_height, self.type_instance_index.types_filtered.len(), |mut row| {
+                    let type_index = self.type_instance_index.types_filtered.get(row.index()).unwrap();
+                    let is_selected = self.selected_type == Some(*type_index);
+                    row.set_selected(is_selected);
+                    if is_selected {
+                        selected_type_index = row.index();
+                    }
+                    let type_data = self.type_instance_index.types.get(type_index).unwrap();
+                    let type_label = node_data.type_display(*type_index, &label_context, &node_data.indexers);
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(type_label.as_str()).selectable(false));
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.instances.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.properties.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.references.len().to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(type_data.rev_references.len().to_string());
+                    });
+                    if row.response().clicked() {
+                        selected_type = Some(*type_index);
+                    }
+                });
+            });
+        ui.input(|i| {
+            if i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowDown) {
+                let new_selected_type = self.type_instance_index.types_filtered.get(selected_type_index + 1);
+                if let Some(new_selected_type) = new_selected_type {
+                    selected_type = Some(*new_selected_type);
+                }
+            }
+            if selected_type_index > 0 && i.modifiers.ctrl && i.key_pressed(egui::Key::ArrowUp) {
+                let new_selected_type = self.type_instance_index.types_filtered.get(selected_type_index - 1);
+                if let Some(new_selected_type) = new_selected_type {
+                    selected_type = Some(*new_selected_type);
+                }
+            }
+        });
+        (selected_type, type_table_action)
+    }
+}
+
+pub enum TableAction {
+    None,
+    HideColumn(IriIndex),
+    UnhideColumn(IriIndex),
+    SortColumnAsc(IriIndex),
+    SortColumnDesc(IriIndex),
+    SortRefAsc(),
+    SortRefDesc(),
+    SortIriAsc(),
+    SortIriDesc(),
+    HidePropNotExists(IriIndex),
+    HidePropExists(IriIndex),
+    HidePropNonMulti(IriIndex),
+    ValueStatistics(IriIndex, Pos2),
+    Filter,
+}
+
+enum TypeTableAction {
+    None,
+    SortByLabel,
+    SortByInstances,
+    SortByDataProps,
+    SortByOutRef,
+    SortByInRef,
+}

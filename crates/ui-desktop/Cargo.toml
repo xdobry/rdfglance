@@ -1,0 +1,13 @@
+[package]
+name = "rdf-glance-desktop"
+version = "0.2.0"
+edition = "2024"
+
+[[bin]]
+name = "rdf-glance"
+path = "src/main.rs"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = { version = "0.34.3", features = ["persistence"] }
+rdf-glance = { path = "../ui" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

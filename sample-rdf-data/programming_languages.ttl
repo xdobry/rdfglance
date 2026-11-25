@@ -1677,7 +1677,8 @@ dbr:Jaql a dbo:ProgrammingLanguage ;
     dbo:latestReleaseDate "2010-07-12"^^xsd:date ;
     dbp:paradigm dbr:Functional_programming .
 
-dbr:JavaFX_Script dbo:latestReleaseDate "2009-06-02"^^xsd:date .
+dbr:JavaFX_Script a dbo:ProgrammingLanguage ;
+ dbo:latestReleaseDate "2009-06-02"^^xsd:date .
 
 dbr:Joe-E a dbo:ProgrammingLanguage ;
     rdfs:label "Joe-E"@en ;
@@ -3087,7 +3088,8 @@ dbr:Sinclair_BASIC a dbo:ProgrammingLanguage ;
     dbo:designer dbr:Steve_Vickers_\(computer_scientist\) ;
     dbp:paradigm dbr:Imperative_programming .
 
-dbr:SmallBASIC dbo:latestReleaseDate "2021-08-31"^^xsd:date .
+dbr:SmallBASIC a dbo:ProgrammingLanguage ;
+    dbo:latestReleaseDate "2021-08-31"^^xsd:date .
 
 dbr:Solidity a dbo:ProgrammingLanguage ;
     rdfs:label "Solidity"@en ;
@@ -3307,7 +3309,8 @@ dbr:ThinBasic a dbo:ProgrammingLanguage ;
     dbo:influencedBy dbr:Powerbasic ;
     dbo:latestReleaseDate "2019-05-26"^^xsd:date .
 
-dbr:TinyScheme dbo:latestReleaseDate "2020-05-30"^^xsd:date .
+dbr:TinyScheme a dbo:ProgrammingLanguage ;
+    dbo:latestReleaseDate "2020-05-30"^^xsd:date .
 
 dbr:ToonTalk a dbo:ProgrammingLanguage ;
     rdfs:label "ToonTalk"@en ;
@@ -3797,8 +3800,8 @@ dbr:Alfred_Aho a dbo:Person ;
     dbp:nationality "American"@en,
         "Canadian"@en .
 
-dbr:Algebraic_types a <yago:Paradigm113804375> .
-    rdfs:label "Algebraic types"@en ;
+dbr:Algebraic_types a <yago:Paradigm113804375> ;
+    rdfs:label "Algebraic types"@en .
 
 dbr:Alice_\(programming_language\) a dbo:ProgrammingLanguage ;
     rdfs:label "Alice"@en ;
