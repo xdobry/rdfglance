@@ -255,9 +255,7 @@ fn display_icon_style(ui: &mut egui::Ui, icon_style: &mut Option<IconStyle>, ico
 
 fn available_characters(ui: &egui::Ui, family: &egui::FontFamily) -> Vec<(char, String)> {
     ui.fonts_mut(|f| {
-        f.fonts
-            .font(family) // size is arbitrary for getting the characters
-            .characters()
+        f.characters(family)
             .iter()
             .filter(|(chr, _fonts)| !chr.is_whitespace() && !chr.is_ascii_control())
             .map(|(chr, _fonts)| (*chr, char_name(*chr)))

@@ -1274,7 +1274,7 @@ impl TypeInstanceIndexView {
 
                                 let buf = Vec::new();
                                 let mut wtr = csv::Writer::from_writer(buf);
-                                let _ = type_data.export_csv_writer(
+                                let _ = type_data_view.export_csv_writer(
                                     &rdf_data,
                                     &mut wtr,
                                     iri_display,

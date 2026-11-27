@@ -3,7 +3,7 @@ use std::path::Path;
 #[cfg(target_arch = "wasm32")]
 use crate::uistate::File;
 use const_format::concatcp;
-use egui::{Align, Key, Layout, MenuBar, Modifiers, UiKind, global_theme_preference_switch};
+use egui::{Align, Key, Layout, MenuBar, Modifiers, UiKind, global_theme_preference_buttons};
 #[cfg(target_arch = "wasm32")]
 use rfd::AsyncFileDialog;
 #[cfg(not(target_arch = "wasm32"))]
@@ -401,7 +401,7 @@ impl RdfGlanceApp {
                 ui.hyperlink_to("Report Issue / Feedback", "https://github.com/xdobry/rdfglance/issues");
                 consume_keys = true;
             });
-            global_theme_preference_switch(ui);
+            global_theme_preference_buttons(ui);
             if let Ok(rdf_data) = self.rdf_data.read() {
                 let selected_language = rdf_data.node_data.get_language(self.ui_state.display_language);
                 if let Some(selected_language) = selected_language {

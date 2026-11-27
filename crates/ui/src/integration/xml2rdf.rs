@@ -75,7 +75,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                                             }
                                             self.obj_path.push(obj_iri_c);
                                         }
-                                        let tag_name = slugify(String::from_utf8_lossy(s.local_name().as_ref()));
+                                        let tag_name = slugify(s.local_name().as_ref());
                                         let type_iri = NamedNode::new_unchecked(format!(
                                             "urn:xml:{}#{}",
                                             self.file_hash, tag_name
@@ -109,8 +109,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                                         if let Ok(value) = value {
                                             let pred = NamedNode::new_unchecked(format!(
                                                 "urn:xml:attr:{}#{}",
-                                                self.file_hash,
-                                                String::from_utf8_lossy(key)
+                                                self.file_hash, key
                                             ));
                                             f(ParseItem::Triple(Ok(Triple::new(
                                                 obj_iri.clone(),
@@ -150,7 +149,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                                     }
                                     self.obj_path.push(obj_iri_c);
                                 }
-                                self.pending_tag = Some(slugify(String::from_utf8_lossy(s.local_name().as_ref())));
+                                self.pending_tag = Some(slugify(s.local_name().as_ref()));
                                 self.was_pred_tag = false;
                             }
                         }
@@ -224,7 +223,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                                             }
                                             self.obj_path.push(obj_iri_c);
                                         }
-                                        let tag_name = slugify(String::from_utf8_lossy(s.local_name().as_ref()));
+                                        let tag_name = slugify(s.local_name().as_ref());
                                         let type_iri = NamedNode::new_unchecked(format!(
                                             "urn:xml:{}#{}",
                                             self.file_hash, tag_name
@@ -258,8 +257,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                                         if let Ok(value) = value {
                                             let pred = NamedNode::new_unchecked(format!(
                                                 "urn:xml:attr:{}#{}",
-                                                self.file_hash,
-                                                String::from_utf8_lossy(key)
+                                                self.file_hash, key
                                             ));
                                             f(ParseItem::Triple(Ok(Triple::new(
                                                 obj_iri.clone(),
@@ -273,10 +271,7 @@ impl<R: BufRead> XmlRdfParser<R> {
                         }
                         Event::Text(mut s) => {
                             if !s.inplace_trim_start() {
-                                let d = s.decode();
-                                if let Ok(content) = d {
-                                    self.text.push_str(&content);
-                                }
+                                self.text.push_str(&s.xml_content(XmlVersion::Implicit1_0));
                             }
                         }
                         Event::Eof => {
@@ -289,11 +284,10 @@ impl<R: BufRead> XmlRdfParser<R> {
                                     self.text.push(c);
                                 }
                             } else {
-                                if let Ok(content) = s.decode() {
-                                    let r = resolve_xml_entity(&content);
-                                    if let Some(c) = r {
-                                        self.text.push_str(c);
-                                    }
+                                let content = s.xml_content(XmlVersion::Implicit1_0);
+                                let r = resolve_xml_entity(&content);
+                                if let Some(c) = r {
+                                    self.text.push_str(c);
                                 }
                             }
                         }

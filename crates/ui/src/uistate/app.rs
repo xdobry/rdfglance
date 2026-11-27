@@ -779,7 +779,7 @@ impl eframe::App for RdfGlanceApp {
             self.ui_state.cpu_usage = self.ui_state.cpu_usage * 0.95 + cpu_usage * 0.05;
         }
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             if let Some(data_loading) = &self.data_loading {
                 if !data_loading.finished.load(Ordering::Relaxed) {
                     ui.label("RDF data is currently being loaded. Please wait...");
@@ -1136,23 +1136,16 @@ impl eframe::App for RdfGlanceApp {
         });
 
         ui.ctx().input(|i| {
+            #[cfg(not(target_arch = "wasm32"))]
             for file in &i.raw.dropped_files {
-                if let Some(file_path) = &file.path {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let path = Path::new(file_path);
-                        if path.exists() {
-                            if path.is_dir() {
-                                self.load_ttl_dir(file_path.to_str().unwrap());
-                            } else {
-                                let file_path = path.to_str();
-                                if let Some(file_path) = file_path {
-                                    self.load_ttl(file_path, false);
-                                } else {
-                                    tracing::info!("File dropped path is not valid UTF-8: {:?}", path);
-                                }
-                            }
-                        }
+                let path = file.path();
+                if path.exists() {
+                    if path.is_dir() {
+                        self.load_ttl_dir(path.to_str().unwrap());
+                    } else if let Some(file_path) = path.to_str() {
+                        self.load_ttl(file_path, false);
+                    } else {
+                        tracing::info!("File dropped path is not valid UTF-8: {:?}", path);
                     }
                 }
             }

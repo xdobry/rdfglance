@@ -3,3 +3,4 @@ target/
 /crates/ui-wasm/dist
 /python/__pycache__
 *.sqlite
+__pycache__/

@@ -131,7 +131,7 @@ impl RdfGlanceApp {
                     );
                     egui::Panel::right("details_panel")
                         .exact_size(500.0)
-                        .show_inside(ui, |ui| {
+                        .show(ui, |ui| {
                             egui::ScrollArea::both().show(ui, |ui| {
                                 if let Some(table_query) = self.visual_query.root_table.as_mut() {
                                     show_query_table_details(
@@ -146,7 +146,7 @@ impl RdfGlanceApp {
                                 }
                             });
                         });
-                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
                         if let Some(mut table_query) = self.visual_query.root_table.as_mut() {
                             let mut selected_table = self.visual_query.selected_table;
                             let offset = ui.next_widget_position();

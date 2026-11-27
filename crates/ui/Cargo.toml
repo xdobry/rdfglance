@@ -9,9 +9,9 @@ rdf-core = { workspace = true }
 rdf-analytics = { workspace = true }
 eframe = { workspace = true, features = ["persistence"] }
 egui = { workspace = true, features = ["serde"] }
-egui_extras = "0.34.3"
+egui_extras = "0.37.0"
 oxrdf = { workspace = true }
-oxttl = "0.2.1"
+oxttl = "0.2.5"
 rand = { workspace = true }
 reqwest = {version="0.13.4", features = ["blocking"]}
 rfd = "0.17.2"
@@ -20,7 +20,7 @@ serde = { workspace = true, features = ["derive"] }
 schemars = { workspace = true }
 indexmap = { workspace = true, features = ["rayon"] }
 anyhow = "1.0.95"
-oxrdfxml = "0.2.1"
+oxrdfxml = "0.2.5"
 bimap = { workspace = true }
 const_format = "0.2.34"
 byteorder = "1.5.0"
@@ -39,10 +39,10 @@ rust-sugiyama = "0.4.0"
 nalgebra = { workspace = true }
 lanczos = "0.2.0"
 delaunator = "1.0.2"
-quick-xml = "0.40.1"
+quick-xml = "0.42.0"
 bitflags = { workspace = true }
 ordered-float = { workspace = true }
-oxjsonld = "0.2.5"
+oxjsonld = "0.2.7"
 percent-encoding = { workspace = true }
 slug = { workspace = true }
 xxhash-rust = { workspace = true, features = ["xxh3"] }

@@ -107,6 +107,24 @@ impl NodeContextAction {
 }
 
 impl RdfGlanceApp {
+    pub fn set_hidden_predicates(&mut self, predicate_indices: &[IriIndex]) -> Result<(), &'static str> {
+        let mut hidden_predicates = SortedVec::new();
+        for predicate in predicate_indices {
+            hidden_predicates.add(*predicate);
+        }
+        let mut edges = self
+            .visible_nodes
+            .edges
+            .write()
+            .map_err(|_| "graph edges lock is poisoned")?;
+        self.ui_state.hidden_predicates = hidden_predicates;
+        update_edges_groups(&mut edges, &self.ui_state.hidden_predicates);
+        drop(edges);
+        self.visible_nodes
+            .start_layout(&self.persistent_data.config_data, &self.ui_state.hidden_predicates);
+        Ok(())
+    }
+
     pub fn show_graph(&mut self, ui: &mut egui::Ui) -> NodeAction {
         let mut node_to_click: NodeAction = NodeAction::None;
         if self.visible_nodes.nodes.read().unwrap().is_empty() {
@@ -325,12 +343,12 @@ Expand Relations - double click on node",
                 if self.ui_state.show_properties {
                     egui::Panel::right("right_panel")
                         .exact_size(500.0)
-                        .show_inside(ui, |ui| {
+                        .show(ui, |ui| {
                             egui::ScrollArea::both().show(ui, |ui| {
                                 node_to_click = self.display_node_details(ui);
                             });
                         });
-                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
                         self.display_graph(ui, &mut node_to_click);
                     });
                 } else {

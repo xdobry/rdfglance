@@ -30,6 +30,7 @@ tokio = { workspace = true, features = [
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+image = "0.25.10"
 egui = { workspace = true, features = ["serde"] }
 schemars = { workspace = true }
 tracing = { workspace = true }

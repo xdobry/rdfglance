@@ -8,10 +8,14 @@ use std::{
 
 use egui::Context;
 use rdf_glance::RdfGlanceApp;
+use rdf_glance::domain::visual_query::FilterType;
 use rdf_glance_desktop_mcp::{
     mcp::{MyMcpServer, UiCommand},
-    tool_api::dataset_profile_from_index,
-    working_graph::{self, Algorithm, AlgorithmParams, DirectedPredicate, Direction, ExpandParams, NodeListParams},
+    tool_api::{Filter, dataset_profile_from_index},
+    working_graph::{
+        self, AddTypeInstancesParams, AlgorithmParams, DirectedPredicate, Direction, ExpandParams,
+        GetStatisticsDataParams, NodeListParams, SetHiddenPredicatesParams, StatisticKind, StatisticsOrder,
+    },
 };
 use rmcp::{
     ClientHandler, ServiceExt,
@@ -125,21 +129,67 @@ fn working_graph_adds_expands_runs_statistics_and_cleans() {
             .any(|entry| entry.iri == "dbo:designer" && entry.count == 7)
     );
 
-    let result = working_graph::run_algorithm(
+    let hidden = working_graph::set_hidden_predicates(
         &mut app,
-        AlgorithmParams {
-            algorithm: Algorithm::DegreeCentrality,
+        SetHiddenPredicatesParams {
+            hidden_predicates: vec!["dbo:designer".into()],
         },
     )
     .unwrap();
-    assert_eq!(result.statistics.len(), 1);
-    assert_eq!(result.statistics[0].values.len(), 8);
-    assert!(
-        result.statistics[0]
-            .values
-            .iter()
-            .any(|entry| entry.iri == "dbr:Niklaus_Wirth")
-    );
+    assert_eq!(hidden.hidden_edge_count, 7);
+    assert_eq!(hidden.visible_edge_count + hidden.hidden_edge_count, hidden.edge_count);
+    assert_eq!(hidden.hidden_predicates, vec!["dbo:designer"]);
+    assert!(hidden.predicates.iter().any(|predicate| {
+        predicate.iri == "dbo:designer"
+            && predicate.count == 7
+            && predicate.visible_count == 0
+            && predicate.hidden_count == 7
+            && predicate.hidden
+    }));
+    let shown = working_graph::set_hidden_predicates(
+        &mut app,
+        SetHiddenPredicatesParams {
+            hidden_predicates: Vec::new(),
+        },
+    )
+    .unwrap();
+    assert_eq!(shown.hidden_edge_count, 0);
+    assert_eq!(shown.visible_edge_count, shown.edge_count);
+    assert!(shown.hidden_predicates.is_empty());
+
+    let result = working_graph::run_algorithm(
+        &mut app,
+        AlgorithmParams {
+            algorithm: StatisticKind::DegreeCentrality,
+        },
+    )
+    .unwrap();
+    assert_eq!(result.row_count, 8);
+    assert_eq!(result.statistics, vec![StatisticKind::DegreeCentrality]);
+    let highest = working_graph::get_statistics_data(
+        &app,
+        GetStatisticsDataParams {
+            statistic: StatisticKind::DegreeCentrality,
+            order: StatisticsOrder::Highest,
+            limit: 3,
+        },
+    )
+    .unwrap();
+    assert_eq!(highest.total_rows, 8);
+    assert_eq!(highest.returned_rows, 3);
+    assert!(highest.values.iter().any(|entry| entry.iri == "dbr:Niklaus_Wirth"));
+    assert!(highest.values.windows(2).all(|pair| pair[0].value >= pair[1].value));
+    let lowest = working_graph::get_statistics_data(
+        &app,
+        GetStatisticsDataParams {
+            statistic: StatisticKind::DegreeCentrality,
+            order: StatisticsOrder::Lowest,
+            limit: 8,
+        },
+    )
+    .unwrap();
+    assert!(lowest.values.windows(2).all(|pair| pair[0].value <= pair[1].value));
+    assert_eq!(working_graph::statistics_info(&app).unwrap().row_count, 8);
     working_graph::reset_statistics(&mut app).unwrap();
     assert!(app.statistics_data.as_ref().unwrap().results.is_empty());
     assert!(!app.visualization_style.use_size_overwrite);
@@ -184,6 +234,32 @@ fn working_graph_multi_add_and_expand_validate_inputs() {
     )
     .unwrap();
     assert_eq!(unchanged.node_count, 2);
+}
+
+#[test]
+fn working_graph_adds_filtered_type_instances() {
+    let mut app = loaded_app();
+    let graph = working_graph::add_type_instances(
+        &mut app,
+        AddTypeInstancesParams {
+            type_name: "dbo:ProgrammingLanguage".into(),
+            filters: vec![Filter {
+                attribute: "rdfs:label".into(),
+                value: "Rust".into(),
+                operator: FilterType::Equals,
+            }],
+        },
+    )
+    .unwrap();
+    assert!(graph.node_count > 0);
+    assert!(graph.types.iter().any(|entry| entry.iri == "dbo:ProgrammingLanguage"));
+    let data = app.rdf_data.read().unwrap();
+    let includes_rust = app.visible_nodes.nodes.read().unwrap().iter().any(|node| {
+        data.node_data
+            .get_node_by_index(node.node_index)
+            .is_some_and(|(iri, _)| iri.contains("Rust"))
+    });
+    assert!(includes_rust, "Filtered type addition should include Rust");
 }
 
 struct DesktopClient {
@@ -281,11 +357,16 @@ fn desktop_stdio_load_reset_and_working_graph_tools() {
         "reset_data",
         "search",
         "wg_add_nodes",
+        "wg_add_type_instances",
+        "wg_set_hidden_predicates",
         "wg_expand",
         "wg_info",
         "wg_clean",
         "wg_run_algorithm",
         "wg_reset_statistics",
+        "statistics_info",
+        "get_statistics_data",
+        "switch_display",
     ] {
         assert!(
             tools["tools"]
@@ -298,6 +379,10 @@ fn desktop_stdio_load_reset_and_working_graph_tools() {
     }
     let empty = client.call("reset_data", serde_json::json!({}));
     assert_eq!(empty["nodes"], 0);
+    assert_eq!(
+        client.call("switch_display", serde_json::json!({"display_type": "statistics"})),
+        "statistics"
+    );
     let missing = client.raw_request(
         "tools/call",
         serde_json::json!({
@@ -347,13 +432,47 @@ fn desktop_stdio_load_reset_and_working_graph_tools() {
         }),
     );
     assert_eq!(graph["node_count"], 8);
+    let hidden = client.call(
+        "wg_set_hidden_predicates",
+        serde_json::json!({"hidden_predicates": ["dbo:designer"]}),
+    );
+    assert_eq!(hidden["hidden_edge_count"], 7);
+    assert_eq!(hidden["visible_edge_count"].as_u64().unwrap() + 7, hidden["edge_count"]);
+    assert_eq!(hidden["hidden_predicates"][0], "dbo:designer");
+    let shown = client.call("wg_set_hidden_predicates", serde_json::json!({"hidden_predicates": []}));
+    assert_eq!(shown["hidden_edge_count"], 0);
+    assert_eq!(shown["visible_edge_count"], shown["edge_count"]);
     let result = client.call(
         "wg_run_algorithm",
         serde_json::json!({"algorithm": "degree_centrality"}),
     );
-    assert_eq!(result["statistics"][0]["values"].as_array().unwrap().len(), 8);
+    assert_eq!(result["row_count"], 8);
+    assert_eq!(result["statistics"][0], "degree_centrality");
+    assert_eq!(client.call("statistics_info", serde_json::json!({})), result);
+    let data = client.call(
+        "get_statistics_data",
+        serde_json::json!({"statistic": "degree_centrality", "order": "highest", "limit": 8}),
+    );
+    assert_eq!(data["total_rows"], 8);
+    assert_eq!(data["values"].as_array().unwrap().len(), 8);
     client.call("wg_reset_statistics", serde_json::json!({}));
     assert_eq!(client.call("wg_info", serde_json::json!({}))["node_count"], 8);
+    assert_eq!(client.call("wg_clean", serde_json::json!({}))["node_count"], 0);
+    let typed = client.call(
+        "wg_add_type_instances",
+        serde_json::json!({
+            "type_name": "dbo:ProgrammingLanguage",
+            "filters": [{"attribute": "rdfs:label", "operator": "Equals", "value": "Rust"}]
+        }),
+    );
+    assert!(typed["node_count"].as_u64().unwrap() > 0);
+    assert!(
+        typed["types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["iri"] == "dbo:ProgrammingLanguage")
+    );
     assert_eq!(client.call("wg_clean", serde_json::json!({}))["node_count"], 0);
     assert_eq!(client.call("reset_data", serde_json::json!({}))["nodes"], 0);
     assert_eq!(client.call("get_dataset_profile", serde_json::json!({}))["nodes"], 0);

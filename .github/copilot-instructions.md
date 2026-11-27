@@ -8,6 +8,9 @@
 - Full test suite: `cargo test`
 - Run one unit test by name: `cargo test --lib <test_name>`
 - Run the memory usage integration test: `cargo test --test memory_usage -- --nocapture`
+- Build the desktop MCP server: `cargo build --package rdf-glance-desktop-mcp`
+- Run the Python MCP stdio integration test (after building the server): `python tests/mcp-test.py`
+- Override the MCP test executable or dataset with `--executable <path>` or `--dataset <path>`; adjust its wait limit with `--timeout <seconds>`.
 - Formatting check (uses `rustfmt.toml`): `cargo fmt --check`
 - Optional Clippy lint: `cargo clippy --all-targets` (not currently part of CI)
 - WASM compile: `rustup target add wasm32-unknown-unknown`, then `cargo build --target wasm32-unknown-unknown`
@@ -21,6 +24,7 @@ CI runs the native build and full tests, then compiles the WASM target; see `.gi
 - Import adapters in `src/integration/` parse RDF and convert CSV, JSON, or XML into the shared domain graph. `RdfData` holds that graph and its prefixes; `NodeData` stores typed nodes, properties, and resolved forward/reverse references.
 - `src/domain/` owns the RDF model, indexing, statistics, graph styles, persistence data, and visual-query logic. `TypeInstanceIndex` and other derived views are built from `NodeData`. Graph algorithms and layout algorithms operate on this model; `src/ui/` renders it with egui, while `src/uistate/` holds interaction and layout state.
 - `src/integration/persistency.rs` reads and writes the application's versioned binary project format. `src/domain/app_persistence.rs` handles persisted application preferences.
+- `crates/ui-desktop-mcp/` provides the `rdf-glance-mcp` desktop server over stdio and Streamable HTTP. `tests/mcp-test.py` launches the stdio server as a subprocess, loads the programming-languages sample dataset, and checks dataset, node, search, type-instance, and working-graph tools; it uses only the Python standard library.
 
 ## Repository-specific conventions
 

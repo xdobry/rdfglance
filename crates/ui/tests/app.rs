@@ -8,9 +8,10 @@ fn test_egui_base() {
 
     let ctx = egui::Context::default();
     let mut frame = eframe::Frame::_new_kittest();
-    let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
         eframe::App::ui(&mut app, ui, &mut frame);
     });
 
     assert!(!output.shapes.is_empty(), "the app should paint egui shapes");
+    output.textures_delta.clear();
 }

@@ -52,12 +52,21 @@ impl RdfGlanceMcpApp {
         }
     }
 
-    fn process_mcp_commands(&mut self, _ctx: &egui::Context) {
+    fn process_mcp_commands(&mut self, ctx: &egui::Context) {
         while self.my_app.load_handle.is_none() && self.my_app.data_loading.is_none() {
             let Ok(command) = self.ui_rx.try_recv() else { break };
             match command {
                 UiCommand::WgAddNodes { parameters, reply } => {
                     let _ = reply.send(crate::working_graph::add_nodes(&mut self.my_app, parameters));
+                }
+                UiCommand::WgAddTypeInstances { parameters, reply } => {
+                    let _ = reply.send(crate::working_graph::add_type_instances(&mut self.my_app, parameters));
+                }
+                UiCommand::WgSetHiddenPredicates { parameters, reply } => {
+                    let _ = reply.send(crate::working_graph::set_hidden_predicates(
+                        &mut self.my_app,
+                        parameters,
+                    ));
                 }
                 UiCommand::WgExpand { parameters, reply } => {
                     let _ = reply.send(crate::working_graph::expand(&mut self.my_app, parameters));
@@ -71,8 +80,28 @@ impl RdfGlanceMcpApp {
                 UiCommand::WgRunAlgorithm { parameters, reply } => {
                     let _ = reply.send(crate::working_graph::run_algorithm(&mut self.my_app, parameters));
                 }
+                UiCommand::StatisticsInfo { reply } => {
+                    let _ = reply.send(crate::working_graph::statistics_info(&self.my_app));
+                }
+                UiCommand::GetStatisticsData { parameters, reply } => {
+                    let _ = reply.send(crate::working_graph::get_statistics_data(&self.my_app, parameters));
+                }
                 UiCommand::WgResetStatistics { reply } => {
                     let _ = reply.send(crate::working_graph::reset_statistics(&mut self.my_app));
+                }
+                UiCommand::SwitchDisplay { display_type, reply } => {
+                    self.my_app.display_type = match display_type {
+                        crate::mcp::DisplayTypeName::Browse => DisplayType::Browse,
+                        crate::mcp::DisplayTypeName::Graph => DisplayType::Graph,
+                        crate::mcp::DisplayTypeName::Table => DisplayType::Table,
+                        crate::mcp::DisplayTypeName::Prefixes => DisplayType::Prefixes,
+                        crate::mcp::DisplayTypeName::Configuration => DisplayType::Configuration,
+                        crate::mcp::DisplayTypeName::MetaGraph => DisplayType::MetaGraph,
+                        crate::mcp::DisplayTypeName::Statistics => DisplayType::Statistics,
+                        crate::mcp::DisplayTypeName::VisualQuery => DisplayType::VisualQuery,
+                        crate::mcp::DisplayTypeName::ReferenceResolver => DisplayType::ReferenceResolver,
+                    };
+                    let _ = reply.send(Ok(display_type));
                 }
                 UiCommand::LoadData { parameters, reply } => {
                     if self.my_app.load_handle.is_some() || self.my_app.data_loading.is_some() {
@@ -225,6 +254,25 @@ impl RdfGlanceMcpApp {
                         })
                         .map_err(|_| "no data lock".to_string());
                     let _ = reply.send(prefixes);
+                }
+                UiCommand::TakeScreenShot { parameters, reply } => {
+                    ctx.request_screenshot(move |screenshot| {
+                        let rgba: Vec<u8> = screenshot
+                            .pixels
+                            .iter()
+                            .flat_map(|pixel| pixel.to_srgba_unmultiplied())
+                            .collect();
+                        let result = image::save_buffer(
+                            &parameters.target_file_location,
+                            &rgba,
+                            screenshot.size[0] as u32,
+                            screenshot.size[1] as u32,
+                            image::ColorType::Rgba8,
+                        )
+                        .map(|()| parameters.target_file_location)
+                        .map_err(|error| format!("failed to save screenshot: {error}"));
+                        let _ = reply.send(result);
+                    });
                 }
             }
         }
@@ -486,7 +534,7 @@ fn instance_query_range(
     Ok(InstanceQueryRangeResult { columns, rows })
 }
 
-fn filter_type_instances(
+pub(crate) fn filter_type_instances(
     type_data: &TypeData,
     rdf_data: &RdfData,
     filters: &[Filter],
@@ -765,6 +813,31 @@ mod tests {
         assert_eq!(mcp_app.my_app.search_string, "Rust");
         assert_eq!(mcp_app.my_app.search_results.len(), results.len());
         assert_eq!(mcp_app.my_app.display_type, DisplayType::Browse);
+    }
+
+    #[test]
+    fn switch_display_command_updates_app_state_and_confirms_selection() {
+        use crate::mcp::{DisplayTypeName, UiCommand};
+
+        let (ui_tx, ui_rx) = tokio::sync::mpsc::channel(1);
+        let mut mcp_app = RdfGlanceMcpApp::new(None, vec![], ui_rx, Arc::new(RwLock::new(DatasetProfile::default())));
+        let (reply, result_rx) = oneshot::channel();
+        assert!(
+            ui_tx
+                .try_send(UiCommand::SwitchDisplay {
+                    display_type: DisplayTypeName::VisualQuery,
+                    reply,
+                })
+                .is_ok()
+        );
+
+        mcp_app.process_mcp_commands(&egui::Context::default());
+
+        assert_eq!(mcp_app.my_app.display_type, DisplayType::VisualQuery);
+        assert_eq!(
+            result_rx.blocking_recv().unwrap().unwrap(),
+            DisplayTypeName::VisualQuery
+        );
     }
 }
 

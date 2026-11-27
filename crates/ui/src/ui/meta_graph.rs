@@ -87,7 +87,7 @@ impl RdfGlanceApp {
 
         egui::Panel::right("right_panel")
             .exact_size(500.0)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
                     let detail_node_action = self.display_type_node_details(ui);
                     if matches!(node_action, NodeAction::None) {
@@ -95,7 +95,7 @@ impl RdfGlanceApp {
                     }
                 });
             });
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut node_count = 0;
             let mut edge_count = 0;
             let mut was_context_click = false;
