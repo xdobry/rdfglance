@@ -35,3 +35,17 @@ CI runs the native build and full tests, then compiles the WASM target; see `.gi
 - `TypeInstanceIndex` is derived from `NodeData`; after changing graph data, follow the existing index-refresh path rather than treating those statistics as live.
 - Native and browser paths share most code but use `#[cfg(target_arch = "wasm32")]` for platform-specific loading and UI. Keep both target builds in mind; native parallel processing does not provide multithreading in WASM.
 - Most Rust tests are colocated with the implementation in `#[cfg(test)]` modules. `tests/memory_usage.rs` is a separate integration test and reads the checked-in sample RDF data.
+
+### Prefer concrete types and enum-based polymorphism
+
+- Prefer concrete types over abstract interfaces.
+- Prefer enum-based polymorphism and exhaustive pattern matching when the set of variants is known at compile time.
+- Prefer static dispatch over dynamic dispatch.
+- Avoid `dyn Trait`, trait objects, and unnecessary heap allocations.
+- Do not introduce custom traits merely to abstract over a small number of known implementations.
+- Introduce generics and traits only when they provide a concrete benefit, such as code reuse, interoperability, or genuine extensibility.
+- Do not introduce abstraction layers in anticipation of hypothetical future requirements.
+- Prefer inherent implementations (`impl Type`) over custom trait implementations when possible.
+- Use standard library and external library traits where appropriate.
+- Favor explicit, compiler-verifiable control flow over extensible object-oriented architectures.
+- The app is not intended as reusable crate

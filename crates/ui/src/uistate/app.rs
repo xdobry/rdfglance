@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    domain::{type_index::TypeInstanceIndexView, visual_query::VisualQuery}, ui::{reference_resolver::ReferenceResolver, style::*}, uistate::events::AppEvent,
+    domain::{type_index::TypeInstanceIndexView, visual_query::VisualQueryView}, ui::{reference_resolver::ReferenceResolver, style::*}, uistate::events::AppEvent,
 };
 use anyhow::Error;
 use eframe::{Frame, Storage};
@@ -68,7 +68,7 @@ pub struct RdfGlanceApp {
     pub meta_graph_state: GraphState,
     pub visualization_style: GVisualizationStyle,
     pub statistics_data: Option<StatisticsData>,
-    pub visual_query: VisualQuery,
+    pub visual_query: VisualQueryView,
     pub reference_resolver: ReferenceResolver,
     #[cfg(not(target_arch = "wasm32"))]
     pub sparql_dialog: Option<SparqlDialog>,
@@ -153,7 +153,7 @@ impl RdfGlanceApp {
             graph_state: GraphState { scene_rect: Rect::ZERO },
             meta_graph_state: GraphState { scene_rect: Rect::ZERO },
             statistics_data: None,
-            visual_query: VisualQuery::default(),
+            visual_query: VisualQueryView::default(),
             ui_state: UIState::default(),
             help_open: false,
             load_handle: None,

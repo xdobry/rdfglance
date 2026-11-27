@@ -23,3 +23,12 @@ The HTML report highlights uncovered code; the function coverage summaries help 
 ```powershell
 cargo llvm-cov --workspace --all-targets
 ```
+
+# Visual Queries
+
+Query definitions, filtering, execution, sorting, and aggregation live in
+`rdf-analytics::domain::visual_query` and operate on `rdf_core::NodeData`.
+Call `refresh_table_data` after changing the query tree before executing it.
+The UI's `VisualQueryView` owns presentation state keyed by stable `TableQueryId`;
+allocate a new ID and view for each table created by the UI and synchronize the
+view map after removing tables. CSV export uses the UI's visible columns.

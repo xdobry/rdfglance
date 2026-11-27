@@ -557,7 +557,6 @@ pub(crate) fn filter_type_instances(
                 predicate_iri,
                 filter_type: filter.operator,
                 filter_value: filter.value.clone(),
-                to_remove: false,
             })
         })
         .collect();
@@ -568,7 +567,7 @@ pub(crate) fn filter_type_instances(
         .instances
         .iter()
         .copied()
-        .filter(|instance| evaluator.match_object(*instance, rdf_data))
+        .filter(|instance| evaluator.match_object(*instance, &rdf_data.node_data))
         .collect())
 }
 
