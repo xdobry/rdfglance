@@ -135,7 +135,7 @@ impl RdfGlanceApp {
             let button_text = egui::RichText::new(concatcp!(ICON_ROCKET, "Start visual graph from analyze")).size(16.0);
             let s_but = egui::Button::new(button_text).fill(primary_color(ui.visuals()));
             if ui.add(s_but).clicked() {
-                if let Ok(mut rdf_data) = self.rdf_data.write() {
+                if let Ok(rdf_data) = self.rdf_data.read() {
                     let mut node_change_context = NodeChangeContext {
                         rdfwrap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
@@ -185,7 +185,7 @@ impl RdfGlanceApp {
             if ui.button(ICON_EXPAND).on_hover_text("Expand Nodes (+)").clicked()
                 || ui.input(|i| i.key_pressed(Key::Plus))
             {
-                if let Ok(mut rdf_data) = self.rdf_data.write() {
+                if let Ok(rdf_data) = self.rdf_data.read() {
                     let mut node_change_context = NodeChangeContext {
                         rdfwrap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
@@ -203,7 +203,7 @@ impl RdfGlanceApp {
                 .clicked()
                 || ui.input(|i| i.key_pressed(Key::Minus))
             {
-                if let Ok(mut rdf_data) = self.rdf_data.write() {
+                if let Ok(rdf_data) = self.rdf_data.read() {
                     let mut node_change_context = NodeChangeContext {
                         rdfwrap: &mut self.rdfwrap,
                         visible_nodes: &mut self.visible_nodes,
@@ -1398,8 +1398,8 @@ Expand Relations - double click on node",
         }
         if let Some(current_index) = self.ui_state.context_menu_node {
             if !matches!(node_action, NodeContextAction::None) {
-                if let Ok(mut rdf_data) = self.rdf_data.write() {
-                    let current_node = rdf_data.node_data.get_node_by_index_mut(current_index);
+                if let Ok(rdf_data) = self.rdf_data.read() {
+                    let current_node = rdf_data.node_data.get_node_by_index(current_index);
                     let mut check_selection = false;
                     if !self.ui_state.selected_nodes.contains(&current_index) {
                         self.ui_state.selected_nodes.insert(current_index);
@@ -1659,7 +1659,7 @@ Expand Relations - double click on node",
         }
 
         if let Some(node_to_click) = node_to_click {
-            if let Ok(mut rdf_data) = self.rdf_data.write() {
+            if let Ok(rdf_data) = self.rdf_data.read() {
                 let mut node_change_context = NodeChangeContext {
                     rdfwrap: &mut self.rdfwrap,
                     visible_nodes: &mut self.visible_nodes,

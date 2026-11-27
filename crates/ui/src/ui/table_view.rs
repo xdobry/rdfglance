@@ -60,7 +60,7 @@ impl<'a> TypeDataView<'a> {
         ui: &mut egui::Ui,
         table_action: &mut TableAction,
         instance_action: &mut NodeAction,
-        node_data: &mut NodeData,
+        node_data: &NodeData,
         color_cache: &GVisualizationStyle,
         prefix_manager: &PrefixManager,
         layout_data: &UIState,
@@ -1016,7 +1016,7 @@ impl TypeInstanceIndexView {
     pub fn display(
         &mut self,
         ui: &mut egui::Ui,
-        rdf_data: &mut RdfData,
+        rdf_data: &RdfData,
         layout_data: &mut UIState,
         color_cache: &GVisualizationStyle,
         iri_display: IriDisplay,
@@ -1056,11 +1056,11 @@ impl TypeInstanceIndexView {
                         let label_context =
                             LabelContext::new(layout_data.display_language, iri_display, &rdf_data.prefix_manager);
                         if type_filter_response.changed() {
-                            self.type_instance_index.apply_filter(&mut rdf_data.node_data, &label_context);
+                            self.type_instance_index.apply_filter(&rdf_data.node_data, &label_context);
                         }
                         let (selected_type, type_table_action) = self.show_types(
                             ui,
-                            &mut rdf_data.node_data,
+                            &rdf_data.node_data,
                             &rdf_data.prefix_manager,
                             layout_data,
                             iri_display,
@@ -1296,7 +1296,7 @@ impl TypeInstanceIndexView {
                                     ui,
                                     &mut table_action,
                                     &mut instance_action,
-                                    &mut rdf_data.node_data,
+                                    &rdf_data.node_data,
                                     color_cache,
                                     &rdf_data.prefix_manager,
                                     layout_data,
@@ -1496,7 +1496,7 @@ impl TypeInstanceIndexView {
     fn show_types(
         &mut self,
         ui: &mut egui::Ui,
-        node_data: &mut NodeData,
+        node_data: &NodeData,
         prefix_manager: &PrefixManager,
         layout_data: &UIState,
         iri_display: IriDisplay,

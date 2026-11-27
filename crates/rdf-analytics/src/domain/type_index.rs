@@ -649,7 +649,7 @@ impl TypeInstanceIndex {
         }
     }
 
-    pub fn apply_filter(&mut self, node_data: &mut NodeData, label_context: &LabelContext) {
+    pub fn apply_filter(&mut self, node_data: &NodeData, label_context: &LabelContext) {
         if self.types_filter.is_empty() {
             self.types_filtered = self.types_order.clone();
         } else {

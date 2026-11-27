@@ -101,10 +101,10 @@ impl RdfGlanceApp {
                 .size(egui_extras::Size::exact(20.0)) // Two resizable panels with equal initial width
                 .horizontal(|mut strip| {
                     strip.cell(|ui| {
-                        if let Ok(mut rdf_data) = self.rdf_data.write() {
+                        if let Ok(rdf_data) = self.rdf_data.read() {
                             statistics_data.instance_table(
                                 ui,
-                                &mut rdf_data,
+                                &rdf_data,
                                 &mut instance_action,
                                 &self.ui_state,
                                 self.persistent_data.config_data.iri_display,
@@ -131,7 +131,7 @@ impl StatisticsData {
     pub fn instance_table(
         &mut self,
         ui: &mut egui::Ui,
-        rfd_data: &mut RdfData,
+        rfd_data: &RdfData,
         instance_action: &mut NodeAction,
         layout_data: &UIState,
         iri_display: IriDisplay,

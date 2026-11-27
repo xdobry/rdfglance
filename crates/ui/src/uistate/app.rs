@@ -998,10 +998,10 @@ impl eframe::App for RdfGlanceApp {
                                 if self.is_empty() {
                                     self.empty_data_ui(ui);
                                     NodeAction::None
-                                } else if let Ok(mut rdf_data) = self.rdf_data.write() {
+                                } else if let Ok(rdf_data) = self.rdf_data.read() {
                                     self.type_index.display(
                                         ui,
-                                        &mut rdf_data,
+                                        &rdf_data,
                                         &mut self.ui_state,
                                         &self.visualization_style,
                                         self.persistent_data.config_data.iri_display,

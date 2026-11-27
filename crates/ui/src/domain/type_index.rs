@@ -8,7 +8,6 @@ use crate::{
 pub const IRI_WIDTH: f32 = 300.0;
 pub const REF_COUNT_WIDTH: f32 = 80.0;
 const DEFAULT_COLUMN_WIDTH: f32 = 220.0;
-const UNTYPED_TYPE_INDEX: IriIndex = 0;
 
 pub struct TypeInstanceIndexView {
     pub type_instance_index: rdf_analytics::domain::type_index::TypeInstanceIndex,

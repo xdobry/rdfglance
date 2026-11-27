@@ -1,4 +1,4 @@
-use rdf_glance::RdfGlanceApp;
+use rdf_glance::{RdfGlanceApp, uistate::DisplayType};
 
 #[test]
 fn test_egui_base() {
@@ -8,10 +8,27 @@ fn test_egui_base() {
 
     let ctx = egui::Context::default();
     let mut frame = eframe::Frame::_new_kittest();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-        eframe::App::ui(&mut app, ui, &mut frame);
-    });
+    for display_type in [
+        DisplayType::Table,
+        DisplayType::Graph,
+        DisplayType::Browse,
+        DisplayType::MetaGraph,
+        DisplayType::VisualQuery,
+        DisplayType::Statistics,
+        DisplayType::Prefixes,
+        DisplayType::Configuration,
+        DisplayType::ReferenceResolver,
+    ] {
+        app.display_type = display_type;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            eframe::App::ui(&mut app, ui, &mut frame);
+        });
 
-    assert!(!output.shapes.is_empty(), "the app should paint egui shapes");
-    output.textures_delta.clear();
+        assert!(
+            !output.shapes.is_empty(),
+            "{:?} should paint egui shapes",
+            app.display_type
+        );
+        output.textures_delta.clear();
+    }
 }

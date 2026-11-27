@@ -90,7 +90,7 @@ impl RdfData {
     }
 
     pub fn expand_node(
-        &mut self,
+        &self,
         iri_indexes: &BTreeSet<IriIndex>,
         expand_type: ExpandType,
         node_change_context: &mut NodeChangeContext,
@@ -146,7 +146,7 @@ impl RdfData {
     }
 
     pub fn expand_all_by_types(
-        &mut self,
+        &self,
         types: &[IriIndex],
         node_change_context: &mut NodeChangeContext,
         hidden_predicates: &SortedVec,
@@ -199,7 +199,7 @@ impl RdfData {
     }
 
     pub fn init_visual_graph(
-        &mut self,
+        &self,
         node_change_context: &mut NodeChangeContext,
         hidden_predicates: &SortedVec,
     ) -> bool {
@@ -292,7 +292,7 @@ impl RdfData {
         false
     }
 
-    pub fn expand_all(&mut self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
+    pub fn expand_all(&self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
         let mut refs_to_expand: HashSet<IriIndex> = HashSet::new();
         let mut parent_ref: Vec<(IriIndex, IriIndex)> = Vec::new();
         for visible_index in node_change_context.visible_nodes.nodes.read().unwrap().iter() {
@@ -333,7 +333,7 @@ impl RdfData {
         }
     }
 
-    pub fn unexpand_all(&mut self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
+    pub fn unexpand_all(&self, node_change_context: &mut NodeChangeContext, hidden_predicates: &SortedVec) -> bool {
         let node_len = node_change_context.visible_nodes.nodes.read().unwrap().len();
         if node_len == 0 {
             return false;
